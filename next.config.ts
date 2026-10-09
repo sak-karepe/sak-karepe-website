@@ -7,8 +7,6 @@ const nextConfig: NextConfig = {
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || "",
   trailingSlash: githubPages,
   images: { unoptimized: githubPages },
-  cacheComponents: !githubPages,
-  partialPrefetching: !githubPages,
   turbopack: {
     rules: {
       "*.css": {
