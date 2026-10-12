@@ -1,5 +1,5 @@
 "use client";
-import { LinkIcon, CloseIcon } from "@/components/icons";
+import { LinkIcon, CloseIcon, GoogleMark } from "@/components/icons";
 import Image from "@/components/site-image";
 import Link from "next/link";
 import { basePath } from "@/lib/assets";
@@ -13,7 +13,7 @@ import {
   useCallback,
 } from "react";
 import { navigation, runwayPhotos, type Product } from "@/lib/content";
-import { GoogleLogo, WhatsappLogo } from "@phosphor-icons/react";
+import { WhatsappLogo } from "@phosphor-icons/react";
 import { signInWithGoogle } from "@/lib/auth-actions";
 import { whatsappUrl } from "@/lib/contact";
 import { GalleryLightbox } from "./gallery-lightbox";
@@ -269,7 +269,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             ? "gallery-lightbox"
             : modal?.kind === "product"
               ? "product-preview"
-              : ""
+              : modal?.kind === "login"
+                ? "login-dialog"
+                : ""
         }
         ref={dialog}
         aria-labelledby="modal-title"
@@ -306,22 +308,41 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
               ? "lightbox-header"
               : modal?.kind === "product"
                 ? "product-preview-header"
-                : "flex items-center justify-between gap-4 border-b border-line p-5 md:px-7"
+                : modal?.kind === "login"
+                  ? "flex flex-col items-center px-8 pt-11 text-center"
+                  : "flex items-center justify-between gap-4 border-b border-line p-5 md:px-7"
           }
         >
+          {modal?.kind === "login" && (
+            <Image
+              className="brand-logo h-12 w-auto"
+              src="/brand/logo.svg"
+              width={100}
+              height={48}
+              alt=""
+            />
+          )}
           <h2
             id="modal-title"
             className={
               modal?.kind === "gallery"
                 ? "text-base tracking-normal"
-                : modal?.kind === "product" ? "sr-only" : "text-[25px] tracking-[-.035em]"
+                : modal?.kind === "product"
+                  ? "sr-only"
+                  : modal?.kind === "login"
+                    ? "mt-6 text-[28px] tracking-[-.04em]"
+                    : "text-[25px] tracking-[-.035em]"
             }
           >
             {title}
           </h2>
           <button
             className={
-              modal?.kind === "gallery" || modal?.kind === "product" ? "lightbox-close" : "square size-11"
+              modal?.kind === "gallery" || modal?.kind === "product"
+                ? "lightbox-close"
+                : modal?.kind === "login"
+                  ? "square absolute top-3 right-3 size-10 text-muted"
+                  : "square size-11"
             }
             aria-label="Tutup dialog"
             onClick={close}
@@ -335,7 +356,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
               ? "lightbox-content"
               : modal?.kind === "product"
                 ? "product-preview-stage"
-                : "p-5 md:p-7"
+                : modal?.kind === "login"
+                  ? "px-8 pt-2 pb-9 text-center"
+                  : "p-5 md:p-7"
           }
         >
           {modal?.kind === "product" && (
@@ -389,21 +412,20 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           )}
           {modal?.kind === "login" && (
             <>
-              <p className="mb-5 text-muted">
-                Khusus pengelola Sak Karepe. Gunakan akun Google yang sudah
-                terdaftar sebagai admin.
+              <p className="text-[15px] text-muted">
+                Khusus pengelola Sak Karepe.
               </p>
-              {modal.notice && (
-                <p role="alert" className="mb-5 rounded-md border border-line p-3 text-sm">
-                  {modal.notice}
-                </p>
-              )}
-              <form action={signInWithGoogle}>
-                <button className="btn w-full">
-                  <GoogleLogo size={20} weight="bold" aria-hidden="true" />
+              <form action={signInWithGoogle} className="mt-8">
+                <button className="login-google">
+                  <GoogleMark />
                   Masuk dengan Google
                 </button>
               </form>
+              {modal.notice && (
+                <p role="alert" className="mt-4 text-sm text-ink">
+                  {modal.notice}
+                </p>
+              )}
             </>
           )}
           {modal?.kind === "gallery" && (
