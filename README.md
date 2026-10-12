@@ -43,7 +43,9 @@ GITHUB_PAGES=true NEXT_PUBLIC_BASE_PATH=/sak-karepe-website npm run build
 - `/cerita`: perjalanan berdasarkan katalog Sak Karepe 2026.
 - `/fashion-show`: slider dan arsip 12 foto panggung.
 - `/kontak`: WhatsApp, alamat, dan peta.
-- `/admin`: dashboard admin, hanya untuk email di `ADMIN_EMAILS`.
+- `/admin`: panel admin dengan layout sendiri (`src/app/admin/layout.tsx`), terpisah dari navbar dan footer website. Hanya untuk email di `ADMIN_EMAILS`.
+
+Halaman publik berada di route group `src/app/(site)/` yang memakai `SiteShell`; URL-nya tidak berubah.
 
 `src/lib/content.ts` menentukan foto featured di etalase. `src/lib/collection-details.ts` menyimpan foto pendukung detail. Foto berbeda dapat memperlihatkan karya berbeda dalam satu koleksi, bukan selalu sudut lain dari produk yang sama. Harga, ukuran, bahan, dan ketersediaan belum dianggap terkonfirmasi.
 
