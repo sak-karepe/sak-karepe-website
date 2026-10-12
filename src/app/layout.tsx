@@ -2,7 +2,6 @@ import { assetPath } from "@/lib/assets";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import { SiteShell } from "@/components/site-shell";
 const display = localFont({
   src: "./fonts/space-grotesk-bold.ttf",
   variable: "--font-display",
@@ -31,9 +30,7 @@ export default function RootLayout({
       lang="id"
       className={`${display.variable} ${body.variable} antialiased`}
     >
-      <body>
-        <SiteShell>{children}</SiteShell>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
