@@ -12,13 +12,13 @@ import {
   useState,
   useCallback,
 } from "react";
-import { navigation, runwayPhotos, type Product } from "@/lib/content";
+import { navigation, runwayPhotos } from "@/lib/content";
 import { WhatsappLogo } from "@phosphor-icons/react";
 import { signInWithGoogle } from "@/lib/auth-actions";
 import { whatsappUrl } from "@/lib/contact";
 import { GalleryLightbox } from "./gallery-lightbox";
 type Modal =
-  | { kind: "product"; product: Product }
+  | { kind: "product"; product: { title: string; src: string; description: string } }
   | { kind: "consult"; message: string }
   | { kind: "gallery"; index: number }
   | { kind: "login"; notice?: string };

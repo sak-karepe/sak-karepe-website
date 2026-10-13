@@ -3,16 +3,15 @@ import type { Metadata } from "next";
 import Image from "@/components/site-image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { products } from "@/lib/content";
-import { collectionDetails } from "@/lib/collection-details";
+import { getCatalog, getCategory } from "@/lib/catalog";
 import { ProductPhotos } from "@/components/product-photos";
 import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
 import { whatsappUrl } from "@/lib/contact";
 export const dynamicParams = false;
 
-export function generateStaticParams() {
-  return products.map((product) => ({ slug: product.category }));
+export async function generateStaticParams() {
+  return (await getCatalog()).map((category) => ({ slug: category.slug }));
 }
 export async function generateMetadata({
   params,
@@ -20,12 +19,12 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const product = products.find((p) => p.category === slug);
+  const category = await getCategory(slug);
   return {
-    title: product
-      ? `${product.title} ecoprint · Sak Karepe`
+    title: category
+      ? `${category.title} ecoprint · Sak Karepe`
       : "Koleksi · Sak Karepe",
-    description: product?.description,
+    description: category?.description,
   };
 }
 export default async function ProductPage({
@@ -34,9 +33,13 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = products.find((p) => p.category === slug);
+  const catalog = await getCatalog();
+  const product = catalog.find((category) => category.slug === slug);
   if (!product) notFound();
-  const detail = collectionDetails[slug];
+  // Koleksi tanpa produk yang ditampilkan tetap memakai foto utamanya.
+  const photos = product.photos.length
+    ? product.photos
+    : [{ src: product.coverImage, alt: product.description }];
   return (
     <main id="utama" className="wrap pt-8 md:pt-10">
       <Breadcrumb
@@ -50,9 +53,10 @@ export default async function ProductPage({
         aria-labelledby="product-title"
       >
         <ProductPhotos
-          key={product.category}
-          product={product}
-          photos={detail.photos}
+          key={product.slug}
+          title={product.title}
+          featuredSrc={product.coverImage}
+          photos={photos}
         />
         <div className="min-w-0 md:sticky md:top-28 md:pt-9">
           <p className="text-sm text-accent">Koleksi ecoprint</p>
@@ -60,8 +64,8 @@ export default async function ProductPage({
             {product.title}
             <span className="block text-accent">Sak Karepe.</span>
           </h1>
-          <p className="mt-6 text-xl">{detail.intro}</p>
-          <p className="mt-5 text-muted">{detail.character}</p>
+          <p className="mt-6 text-xl">{product.intro}</p>
+          <p className="mt-5 text-muted">{product.character}</p>
           <div className="mt-8 border-t border-line pt-6">
             <p className="text-sm text-muted">
               Harga, ukuran, pilihan material, serta ketersediaan dibicarakan
@@ -93,7 +97,7 @@ export default async function ProductPage({
               dapat berbeda, sehingga motif pada foto tidak selalu dapat diulang
               persis sama.
             </p>
-            {detail.photos.length > 1 && (
+            {photos.length > 1 && (
               <p className="mt-4 text-sm">
                 Foto menampilkan beberapa karya dalam koleksi{" "}
                 {product.title.toLowerCase()}, masing-masing dengan motif dan
@@ -107,18 +111,18 @@ export default async function ProductPage({
         <section className="mt-6 md:mt-12">
           <h2 className="mb-8">Pilihan lainnya.</h2>
           <div className="grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-5 xl:gap-6">
-            {products
-              .filter((p) => p.category !== slug)
+            {catalog
+              .filter((p) => p.slug !== slug)
               .slice(0, 4)
               .map((p) => (
                 <Link
-                  key={p.category}
-                  href={`/koleksi/${p.category}`}
+                  key={p.slug}
+                  href={`/koleksi/${p.slug}`}
                   className="group block min-w-0"
                 >
                   <div className="photo aspect-[4/5]">
                     <Image
-                      src={p.src}
+                      src={p.coverImage}
                       alt={p.description}
                       fill
                       sizes="(max-width: 768px) 45vw, 25vw"

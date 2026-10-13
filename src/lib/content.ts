@@ -48,54 +48,6 @@ export const runwayPhotos = [
     alt: "Atasan bermotif daun dan celana berwarna terang.",
   },
 ];
-export type Product = {
-  category: string;
-  title: string;
-  subtitle: string;
-  /** Foto utama untuk kartu etalase. Foto pendukung ada di collectionDetails.photos. */
-  src: string;
-  description: string;
-};
-export const products: Product[] = [
-  {
-    category: "busana",
-    title: "Busana",
-    subtitle: "Ecoprint bertemu batik",
-    src: "/images/runway/a9d6a262-62d5-4a55-bf3d-49cf616cf917.jpeg",
-    description:
-      "Koleksi busana Sak Karepe mempertemukan ecoprint dengan batik. Foto ini menampilkan salah satu busana di panggung fashion.",
-  },
-  {
-    category: "tas",
-    title: "Tas",
-    subtitle: "Jejak daun untuk keseharian",
-    src: "/images/products/4568830f-1ef5-4a13-818b-333ebe618d49.jpeg",
-    description:
-      "Tote bag dengan motif jejak daun hijau dan kuning pada kain berwarna terang.",
-  },
-  {
-    category: "sepatu",
-    title: "Sepatu",
-    subtitle: "Motif dalam setiap langkah",
-    src: "/images/products/4a8c0d65-a166-4e34-9844-3b682a3f7878.jpeg",
-    description: "Sepatu slip-on dengan motif urat daun hitam dan putih.",
-  },
-  {
-    category: "kain",
-    title: "Kain",
-    subtitle: "Warna dan bentuk dari alam",
-    src: "/images/products/8804e501-4559-4aa9-9848-df5476f1c64d.jpeg",
-    description:
-      "Kain bermotif daun hijau dan ungu dengan tepi lurik bergaris.",
-  },
-  {
-    category: "rumah",
-    title: "Rumah",
-    subtitle: "Daun dalam keseharian",
-    src: "/images/products/c262c573-badf-4f69-a5ba-68ec232fdfbb.jpeg",
-    description: "Ragam cangkir dengan motif daun bernuansa cokelat.",
-  },
-];
 export const navigation = [
   { href: "/koleksi", label: "Koleksi" },
   { href: "/fashion-show", label: "Fashion show" },

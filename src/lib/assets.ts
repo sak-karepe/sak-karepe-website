@@ -5,3 +5,5 @@ export function assetPath(path: string) {
   if (!basePath || !path.startsWith("/") || path.startsWith("//") || path.startsWith(`${basePath}/`)) return path;
   return `${basePath}${path}`;
 }
+
+export const productImage = (name: string) => `/images/products/${name}.jpeg`;

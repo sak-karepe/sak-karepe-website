@@ -1,4 +1,4 @@
-import { assetPath } from "@/lib/assets";
+import { assetPath, productImage } from "@/lib/assets";
 import { LinkIcon } from "@/components/icons";
 import Image from "@/components/site-image";
 import Link from "next/link";
@@ -7,7 +7,6 @@ import { Collection } from "@/components/collection";
 import { RunwayGallery } from "@/components/runway-gallery";
 import { Reveal } from "@/components/reveal";
 import { contact, whatsappUrl } from "@/lib/contact";
-const productImage = (name: string) => `/images/products/${name}.jpeg`;
 const catalog = assetPath("/documents/katalog-2026.pdf");
 export default function Home() {
   return (
