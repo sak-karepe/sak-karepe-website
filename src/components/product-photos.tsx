@@ -2,15 +2,16 @@
 import { ExpandIcon } from "@/components/icons";
 import Image from "@/components/site-image";
 import { useState, useSyncExternalStore } from "react";
-import type { Product } from "@/lib/content";
-import type { CollectionDetail } from "@/lib/collection-details";
+import type { Photo } from "@/lib/catalog";
 import { useSite } from "./site-shell";
 export function ProductPhotos({
-  product,
+  title,
+  featuredSrc,
   photos,
 }: {
-  product: Product;
-  photos: CollectionDetail["photos"];
+  title: string;
+  featuredSrc: string;
+  photos: Photo[];
 }) {
   const hash = useSyncExternalStore(
     (notify) => {
@@ -22,7 +23,7 @@ export function ProductPhotos({
   );
   const [chosen, setSelected] = useState<number | null>(null);
   const requested = Number(hash.replace("#foto-", "")) - 1;
-  const featured = Math.max(0, photos.findIndex((photo) => photo.src === product.src));
+  const featured = Math.max(0, photos.findIndex((photo) => photo.src === featuredSrc));
   const selected = chosen ?? (requested >= 0 && requested < photos.length ? requested : featured);
   const { open } = useSite();
   const image = photos[selected];
@@ -30,11 +31,11 @@ export function ProductPhotos({
     <div className="min-w-0 w-full max-w-full">
       <button
         className="group photo relative block h-[450px] w-full md:h-[620px]"
-        aria-label={`Perbesar foto ${product.title.toLowerCase()}`}
+        aria-label={`Perbesar foto ${title.toLowerCase()}`}
         onClick={() =>
           open({
             kind: "product",
-            product: { ...product, src: image.src, description: image.alt },
+            product: { title, src: image.src, description: image.alt },
           })
         }
       >

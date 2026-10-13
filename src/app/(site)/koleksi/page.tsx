@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Collection } from "@/components/collection";
 import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
-import { productImage } from "@/lib/collection-details";
+import { productImage } from "@/lib/assets";
 export const metadata: Metadata = {
   title: "Koleksi · Sak Karepe",
   description:

@@ -5,7 +5,7 @@ import Image from "@/components/site-image";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
-import { productImage } from "@/lib/collection-details";
+import { productImage } from "@/lib/assets";
 export const metadata: Metadata = {
   title: "Cerita kami · Sak Karepe",
   description:
