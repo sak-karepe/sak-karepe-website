@@ -65,15 +65,17 @@ export function AccountMenu({ onLogin }: { onLogin: () => void }) {
             <p className="truncate text-[15px] font-medium">{user.name ?? user.email}</p>
             {user.name && <p className="truncate text-[13px] text-muted">{user.email}</p>}
           </div>
-          <Link
-            href="/admin"
-            className="mt-1 flex items-center gap-3 rounded-md px-3 py-2.5 text-[15px] hover:bg-surface"
-            onClick={() => setOpen(false)}
-          >
-            <SquaresFourIcon size={18} aria-hidden="true" /> Dashboard admin
-          </Link>
+          {user.isAdmin && (
+            <Link
+              href="/admin"
+              className="mt-1 flex items-center gap-3 rounded-md px-3 py-2.5 text-[15px] hover:bg-surface"
+              onClick={() => setOpen(false)}
+            >
+              <SquaresFourIcon size={18} aria-hidden="true" /> Dashboard admin
+            </Link>
+          )}
           <button
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-muted hover:bg-surface hover:text-ink"
+            className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-muted hover:bg-surface hover:text-ink"
             onClick={() => signOut({ redirectTo: "/" })}
           >
             <SignOutIcon size={18} aria-hidden="true" /> Keluar

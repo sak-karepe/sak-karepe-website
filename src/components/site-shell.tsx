@@ -19,14 +19,17 @@ import { signInWithGoogle } from "@/lib/auth-actions";
 import { AccountMenu } from "./account-menu";
 import { whatsappUrl } from "@/lib/contact";
 import { GalleryLightbox } from "./gallery-lightbox";
+import { Checkout, type CheckoutProduct } from "./checkout";
 type Modal =
   | { kind: "product"; product: { title: string; src: string; description: string } }
   | { kind: "consult"; message: string }
   | { kind: "gallery"; index: number }
-  | { kind: "login"; notice?: string };
+  /** `redirectTo`: tujuan setelah login, mis. kembali ke produk untuk melanjutkan pembelian. */
+  | { kind: "login"; notice?: string; redirectTo?: string }
+  | { kind: "checkout"; product: CheckoutProduct };
 const loginNotices: Record<string, string> = {
-  AccessDenied: "Akun Google ini belum terdaftar sebagai admin.",
-  SessionRequired: "Silakan masuk untuk membuka dashboard admin.",
+  AccessDenied: "Login ditolak. Pastikan email akun Google sudah terverifikasi.",
+  SessionRequired: "Masuk dengan akun admin untuk membuka dashboard.",
 };
 const SiteContext = createContext<{ open: (modal: Modal) => void } | null>(
   null,
@@ -159,8 +162,10 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       : modal?.kind === "consult"
         ? "Ceritakan kebutuhanmu."
         : modal?.kind === "login"
-          ? "Masuk admin"
-          : "Fashion show Sak Karepe";
+          ? "Masuk"
+          : modal?.kind === "checkout"
+            ? "Lengkapi pesanan."
+            : "Fashion show Sak Karepe";
   return (
     <SessionProvider basePath={`${basePath}/api/auth`}>
     <SiteContext.Provider value={{ open }}>
@@ -411,9 +416,14 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           {modal?.kind === "login" && (
             <>
               <p className="text-[15px] text-muted">
-                Khusus pengelola Sak Karepe.
+                Masuk dengan akun Google untuk memesan produk Sak Karepe.
               </p>
               <form action={signInWithGoogle} className="mt-8">
+                <input
+                  type="hidden"
+                  name="redirectTo"
+                  value={modal.redirectTo ?? pathname}
+                />
                 <button className="login-google">
                   <GoogleMark />
                   Masuk dengan Google
@@ -426,6 +436,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
               )}
             </>
           )}
+          {modal?.kind === "checkout" && <Checkout product={modal.product} />}
           {modal?.kind === "gallery" && (
             <GalleryLightbox
               index={modal.index}

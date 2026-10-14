@@ -9,6 +9,7 @@ import { ProductCard } from "@/components/product-card";
 import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
 import { whatsappUrl } from "@/lib/contact";
+import { BuyButton } from "@/components/buy-button";
 
 export async function generateStaticParams() {
   return (await getProducts()).map((product) => ({ slug: product.slug }));
@@ -79,16 +80,28 @@ export default async function ProductPage({
               Ukuran, pilihan material, dan ketersediaan dibicarakan bersama sebelum memesan. Motif ecoprint
               dapat sedikit berbeda di setiap karya.
             </p>
-            <a
-              href={whatsappUrl(
-                `Halo Sak Karepe, saya tertarik dengan produk "${product.name}". Boleh saya tahu ukuran, motif, dan harga yang tersedia?`,
-              )}
-              className="btn mt-6"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Tanyakan produk ini <LinkIcon />
-            </a>
+            <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-4">
+              <BuyButton
+                slug={product.slug}
+                product={{
+                  id: product.id,
+                  name: product.name,
+                  price: product.price,
+                  stock: product.stock,
+                  image: product.images[0],
+                }}
+              />
+              <a
+                href={whatsappUrl(
+                  `Halo Sak Karepe, saya tertarik dengan produk "${product.name}". Boleh saya tahu ukuran, motif, dan harga yang tersedia?`,
+                )}
+                className={product.stock === 0 ? "btn" : "text-link"}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Tanyakan produk ini <LinkIcon />
+              </a>
+            </div>
           </div>
         </div>
       </section>
