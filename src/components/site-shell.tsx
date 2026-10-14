@@ -13,8 +13,10 @@ import {
   useCallback,
 } from "react";
 import { navigation, runwayPhotos } from "@/lib/content";
-import { WhatsappLogo } from "@phosphor-icons/react";
+import { WhatsappLogoIcon } from "@phosphor-icons/react";
+import { SessionProvider } from "next-auth/react";
 import { signInWithGoogle } from "@/lib/auth-actions";
+import { AccountMenu } from "./account-menu";
 import { whatsappUrl } from "@/lib/contact";
 import { GalleryLightbox } from "./gallery-lightbox";
 type Modal =
@@ -160,6 +162,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           ? "Masuk admin"
           : "Fashion show Sak Karepe";
   return (
+    <SessionProvider basePath={`${basePath}/api/auth`}>
     <SiteContext.Provider value={{ open }}>
       <a
         href="#utama"
@@ -204,12 +207,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <button
-              className="whitespace-nowrap text-[13px] md:text-[15px]"
-              onClick={() => open({ kind: "login" })}
-            >
-              Masuk
-            </button>
+            <AccountMenu onLogin={() => open({ kind: "login" })} />
             <button
               className="rounded-md border border-line px-3 py-2 text-sm lg:hidden"
               aria-expanded={menu}
@@ -260,7 +258,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         aria-label="Hubungi Sak Karepe lewat WhatsApp"
         className="whatsapp-float group"
       >
-        <WhatsappLogo size={27} weight="light" aria-hidden="true" />
+        <WhatsappLogoIcon size={27} weight="light" aria-hidden="true" />
         <span className="whatsapp-tooltip">Chat dengan Sak Karepe</span>
       </a>
       <dialog
@@ -437,5 +435,6 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         </div>
       </dialog>
     </SiteContext.Provider>
+    </SessionProvider>
   );
 }
