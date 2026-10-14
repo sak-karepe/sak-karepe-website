@@ -39,7 +39,7 @@ export default function CollectionPage() {
           </div>
         </section>
         <div id="ragam-koleksi" className="scroll-mt-24">
-          <Collection showAllCategories />
+          <Collection />
         </div>
       </div>
       <Reveal className="wrap mt-16 md:mt-24">

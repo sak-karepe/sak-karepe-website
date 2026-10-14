@@ -5,6 +5,7 @@
  */
 import { runwayPhotos } from "../lib/content";
 import { productImage } from "../lib/assets";
+import { slugify } from "../lib/slug";
 import { db } from "./index";
 import { categories, productImages, products } from "./schema";
 
@@ -98,7 +99,7 @@ async function seed() {
       for (const [index, photo] of photos.entries()) {
         const [product] = await tx
           .insert(products)
-          .values({ categorySlug: category.slug, name: photo.alt, sortOrder: index })
+          .values({ categorySlug: category.slug, name: photo.alt, slug: slugify(photo.alt), sortOrder: index })
           .returning({ id: products.id });
         await tx.insert(productImages).values({ productId: product.id, src: photo.src, alt: photo.alt });
       }

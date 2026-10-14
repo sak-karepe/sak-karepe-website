@@ -1,29 +1,54 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { categories, productImages, products, type Category } from "@/db/schema";
+import { categories, products } from "@/db/schema";
 
 export type Photo = { src: string; alt: string };
-export type CatalogCategory = Category & { photos: Photo[] };
+export type CatalogProduct = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  price: number | null;
+  stock: number | null;
+  categorySlug: string;
+  categoryTitle: string;
+  images: Photo[];
+};
 
-/** Kategori beserta galeri foto dari semua produk yang ditampilkan, sesuai urutan produk. */
-export async function getCatalog(): Promise<CatalogCategory[]> {
-  const [rows, photos] = await Promise.all([
-    db.select().from(categories).orderBy(asc(categories.sortOrder)),
-    db
-      .select({ categorySlug: products.categorySlug, src: productImages.src, alt: productImages.alt })
-      .from(productImages)
-      .innerJoin(products, eq(productImages.productId, products.id))
-      .where(eq(products.published, true))
-      .orderBy(asc(products.sortOrder), asc(products.id), asc(productImages.sortOrder), asc(productImages.id)),
-  ]);
-  return rows.map((category) => ({
-    ...category,
-    photos: photos
-      .filter((photo) => photo.categorySlug === category.slug)
-      .map(({ src, alt }) => ({ src, alt })),
-  }));
+export function getCategories() {
+  return db.select().from(categories).orderBy(asc(categories.sortOrder));
 }
 
 export async function getCategory(slug: string) {
-  return (await getCatalog()).find((category) => category.slug === slug);
+  return db.query.categories.findFirst({ where: eq(categories.slug, slug) });
+}
+
+/** Produk yang ditampilkan dan punya foto, urut sesuai koleksi lalu urutan produk. */
+export async function getProducts(categorySlug?: string): Promise<CatalogProduct[]> {
+  const rows = await db.query.products.findMany({
+    where: and(eq(products.published, true), categorySlug ? eq(products.categorySlug, categorySlug) : undefined),
+    orderBy: [asc(products.sortOrder), asc(products.id)],
+    with: {
+      category: { columns: { title: true, sortOrder: true } },
+      images: { columns: { src: true, alt: true }, orderBy: (image, { asc }) => [asc(image.sortOrder), asc(image.id)] },
+    },
+  });
+  return rows
+    .filter((row) => row.images.length > 0)
+    .sort((a, b) => a.category.sortOrder - b.category.sortOrder)
+    .map(({ category, ...row }) => ({
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      description: row.description,
+      price: row.price,
+      stock: row.stock,
+      categorySlug: row.categorySlug,
+      categoryTitle: category.title,
+      images: row.images,
+    }));
+}
+
+export async function getProduct(slug: string) {
+  return (await getProducts()).find((product) => product.slug === slug);
 }

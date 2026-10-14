@@ -1,14 +1,10 @@
-import { getCatalog } from "@/lib/catalog";
+import { getCategories, getProducts } from "@/lib/catalog";
 import { CollectionFilter } from "./collection-filter";
-export async function Collection({ showAllCategories = false }: { showAllCategories?: boolean }) {
-  const catalog = await getCatalog();
-  const choices = (showAllCategories ? catalog : catalog.slice(0, 4)).map((category) => ({
-    category: category.slug,
-    title: category.title,
-    subtitle: category.subtitle,
-    src: category.coverImage,
-    description: category.description,
-    photoIndex: Math.max(0, category.photos.findIndex((photo) => photo.src === category.coverImage)),
-  }));
-  return <CollectionFilter choices={choices} />;
+/** Grid produk dengan filter koleksi. `limit` membatasi jumlah kartu, mis. di beranda. */
+export async function Collection({ limit }: { limit?: number }) {
+  const [products, categories] = await Promise.all([getProducts(), getCategories()]);
+  const used = categories
+    .filter((category) => products.some((product) => product.categorySlug === category.slug))
+    .map(({ slug, title }) => ({ slug, title }));
+  return <CollectionFilter products={products} categories={used} limit={limit} />;
 }
