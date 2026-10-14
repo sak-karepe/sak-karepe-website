@@ -9,7 +9,6 @@ import { ProductForm } from "@/components/product-form";
 import { deleteProduct, updateProduct } from "@/lib/product-actions";
 import { AdminBack } from "@/components/admin-back";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/dist/ssr";
-import { getCategory } from "@/lib/catalog";
 export const metadata: Metadata = { title: "Ubah produk" };
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdminPage();
@@ -23,17 +22,16 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     }),
   ]);
   if (!product) notFound();
-  // Galeri koleksi membuka foto ke-N lewat hash #foto-N, jadi cari posisi foto utama produk ini.
-  const gallery = product.published ? (await getCategory(product.categorySlug))?.photos ?? [] : [];
-  const photoIndex = gallery.findIndex((photo) => photo.src === product.images[0]?.src);
+  // Sama dengan syarat tampil di getProducts: ditampilkan dan punya foto.
+  const live = product.published && product.images.length > 0;
   return (
     <main id="utama" className="px-5 py-8 md:px-10 md:py-12">
       <AdminBack />
       <div className="mt-4 mb-8 flex max-w-5xl flex-wrap items-end justify-between gap-4">
         <h1 className="text-3xl tracking-[-.045em] md:text-4xl">Ubah produk</h1>
-        {photoIndex >= 0 ? (
+        {live ? (
           <Link
-            href={`/koleksi/${product.categorySlug}#foto-${photoIndex + 1}`}
+            href={`/produk/${product.slug}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-[15px] text-accent hover:underline"

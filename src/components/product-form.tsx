@@ -9,6 +9,7 @@ type Option = { slug: string; title: string };
 type ExistingImage = { id: number; src: string; alt: string };
 export type ProductFormValues = {
   name: string;
+  slug: string;
   categorySlug: string;
   description: string;
   price: number | null;
@@ -49,6 +50,27 @@ export function ProductForm({
           <div>
             <label htmlFor="name" className={label}>Nama produk</label>
             <input id="name" name="name" required defaultValue={product?.name} className={field} />
+          </div>
+          <div>
+            <label htmlFor="slug" className={label}>
+              Permalink <span className="font-normal text-muted">(opsional)</span>
+            </label>
+            <div className="flex min-h-12 items-center rounded-md border border-line bg-page focus-within:border-accent">
+              <span className="pl-3.5 text-muted">/produk/</span>
+              <input
+                id="slug"
+                name="slug"
+                defaultValue={product?.slug}
+                placeholder="dibuat otomatis dari nama"
+                aria-describedby="slug-help"
+                className="min-h-12 min-w-0 flex-1 bg-transparent pr-3.5 text-base focus:outline-none"
+              />
+            </div>
+            <p id="slug-help" className="mt-2 text-sm text-muted">
+              {product
+                ? "Mengubah permalink membuat tautan lama yang sudah dibagikan tidak berlaku."
+                : "Huruf kecil, angka, dan tanda hubung. Kosongkan agar dibuat dari nama produk."}
+            </p>
           </div>
           <div>
             <label htmlFor="description" className={label}>

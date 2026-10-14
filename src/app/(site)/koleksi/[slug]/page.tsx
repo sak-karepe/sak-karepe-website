@@ -3,23 +3,21 @@ import type { Metadata } from "next";
 import Image from "@/components/site-image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCatalog, getCategory } from "@/lib/catalog";
-import { ProductPhotos } from "@/components/product-photos";
+import { getCategories, getCategory, getProducts } from "@/lib/catalog";
+import { ProductCard } from "@/components/product-card";
 import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
 import { whatsappUrl } from "@/lib/contact";
-export const dynamicParams = false;
 
 export async function generateStaticParams() {
-  return (await getCatalog()).map((category) => ({ slug: category.slug }));
+  return (await getCategories()).map((category) => ({ slug: category.slug }));
 }
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
-  const category = await getCategory(slug);
+  const category = await getCategory((await params).slug);
   return {
     title: category
       ? `${category.title} ecoprint · Sak Karepe`
@@ -27,110 +25,88 @@ export async function generateMetadata({
     description: category?.description,
   };
 }
-export default async function ProductPage({
+export default async function CategoryPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const catalog = await getCatalog();
-  const product = catalog.find((category) => category.slug === slug);
-  if (!product) notFound();
-  // Koleksi tanpa produk yang ditampilkan tetap memakai foto utamanya.
-  const photos = product.photos.length
-    ? product.photos
-    : [{ src: product.coverImage, alt: product.description }];
+  const [category, products, categories] = await Promise.all([
+    getCategory(slug),
+    getProducts(slug),
+    getCategories(),
+  ]);
+  if (!category) notFound();
   return (
     <main id="utama" className="wrap pt-8 md:pt-10">
       <Breadcrumb
         items={[
           { label: "Koleksi", href: "/koleksi" },
-          { label: product.title },
+          { label: category.title },
         ]}
       />
       <section
-        className="mt-8 grid items-start gap-9 md:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)] md:gap-12 xl:gap-20"
-        aria-labelledby="product-title"
+        className="mt-8 grid gap-6 border-b border-line pb-10 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-end md:gap-16"
+        aria-labelledby="category-title"
       >
-        <ProductPhotos
-          key={product.slug}
-          title={product.title}
-          featuredSrc={product.coverImage}
-          photos={photos}
-        />
-        <div className="min-w-0 md:sticky md:top-28 md:pt-9">
+        <div>
           <p className="text-sm text-accent">Koleksi ecoprint</p>
-          <h1 id="product-title" className="page-title mt-4">
-            {product.title}
+          <h1 id="category-title" className="page-title mt-4">
+            {category.title}
             <span className="block text-accent">Sak Karepe.</span>
           </h1>
-          <p className="mt-6 text-xl">{product.intro}</p>
-          <p className="mt-5 text-muted">{product.character}</p>
-          <div className="mt-8 border-t border-line pt-6">
-            <p className="text-sm text-muted">
-              Harga, ukuran, pilihan material, serta ketersediaan dibicarakan
-              bersama sebelum memesan.
-            </p>
-            <a
-              href={whatsappUrl(
-                `Halo Sak Karepe, saya tertarik dengan koleksi ${product.title.toLowerCase()} ecoprint. Boleh saya tahu pilihan motif, ukuran, dan harga yang tersedia?`,
-              )}
-              className="btn mt-6"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Tanyakan koleksi <LinkIcon />
-            </a>
-          </div>
+        </div>
+        <div className="max-w-[540px]">
+          <p className="text-xl">{category.intro}</p>
+          <p className="mt-4 text-muted">{category.character}</p>
+          <a
+            href={whatsappUrl(
+              `Halo Sak Karepe, saya tertarik dengan koleksi ${category.title.toLowerCase()} ecoprint. Boleh saya tahu pilihan motif, ukuran, dan harga yang tersedia?`,
+            )}
+            className="text-link mt-6"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Tanyakan koleksi <LinkIcon />
+          </a>
         </div>
       </section>
-      <Reveal>
-        <section className="mt-16 grid gap-6 border-t border-line py-10 md:mt-24 md:grid-cols-[.8fr_1.2fr] md:gap-16">
-          <h2 className="text-[32px] md:text-[40px]">
-            Setiap jejak
-            <br />
-            punya karakter.
-          </h2>
-          <div className="max-w-[540px] text-muted">
-            <p>
-              Daun dan bunga menjadi sumber motif dan warna. Hasil setiap proses
-              dapat berbeda, sehingga motif pada foto tidak selalu dapat diulang
-              persis sama.
-            </p>
-            {photos.length > 1 && (
-              <p className="mt-4 text-sm">
-                Foto menampilkan beberapa karya dalam koleksi{" "}
-                {product.title.toLowerCase()}, masing-masing dengan motif dan
-                bentuknya sendiri.
-              </p>
-            )}
+      <section className="mt-8" aria-label={`Produk ${category.title.toLowerCase()}`}>
+        <p className="mb-7 text-[13px] text-muted">{products.length} produk</p>
+        {products.length ? (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-x-5 md:gap-y-10 xl:gap-x-6">
+            {products.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
           </div>
-        </section>
-      </Reveal>
+        ) : (
+          <p className="py-12 text-muted">Belum ada produk yang ditampilkan di koleksi ini.</p>
+        )}
+      </section>
       <Reveal>
-        <section className="mt-6 md:mt-12">
-          <h2 className="mb-8">Pilihan lainnya.</h2>
+        <section className="mt-16 border-t border-line pt-10 md:mt-24">
+          <h2 className="mb-8">Koleksi lainnya.</h2>
           <div className="grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-5 xl:gap-6">
-            {catalog
-              .filter((p) => p.slug !== slug)
+            {categories
+              .filter((c) => c.slug !== slug)
               .slice(0, 4)
-              .map((p) => (
+              .map((c) => (
                 <Link
-                  key={p.slug}
-                  href={`/koleksi/${p.slug}`}
+                  key={c.slug}
+                  href={`/koleksi/${c.slug}`}
                   className="group block min-w-0"
                 >
                   <div className="photo aspect-[4/5]">
                     <Image
-                      src={p.coverImage}
-                      alt={p.description}
+                      src={c.coverImage}
+                      alt={c.description}
                       fill
                       sizes="(max-width: 768px) 45vw, 25vw"
                       className="object-cover transition-transform duration-500 group-hover:scale-[1.035]"
                     />
                   </div>
                   <div className="mt-4 flex items-center justify-between gap-3">
-                    <h3 className="text-lg md:text-xl">{p.title}</h3>
+                    <h3 className="text-lg md:text-xl">{c.title}</h3>
                     <LinkIcon />
                   </div>
                 </Link>
