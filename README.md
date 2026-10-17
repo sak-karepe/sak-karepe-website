@@ -11,6 +11,7 @@ npm ci
 cp .env.example .env.local   # lalu isi nilainya
 npm run db:migrate           # buat tabel di data/sakkarepe.db
 npm run db:seed              # migrasi produk lama ke database (sekali saja)
+npm run db:seed-regions      # unduh data wilayah Indonesia + kode pos (sekali saja)
 npm run dev
 ```
 
@@ -67,7 +68,7 @@ Salin `.env.example` ke `.env.local`, lalu isi nilainya. Di Google Cloud Console
 
 1. Pembeli membuka `/produk/[slug]` dan menekan **Beli sekarang** (disembunyikan bila stok 0).
 2. Bila belum masuk, modal login terbuka. Login Google kembali ke `/produk/[slug]?beli=1`, lalu modal checkout langsung terbuka dan parameter `beli` dihapus dari URL.
-3. Modal checkout berisi jumlah barang dan pilihan alamat. Bila pembeli belum punya alamat, form alamat tampil lebih dulu; alamat baru bisa ditambah kapan saja.
+3. Modal checkout berisi jumlah barang dan pilihan alamat. Bila pembeli belum punya alamat, form alamat tampil lebih dulu; alamat baru bisa ditambah kapan saja. Provinsi, kota/kabupaten, kecamatan, dan kelurahan/desa dipilih bertingkat dari tabel `regions` (lewat `GET /api/regions?parent=<kode>`), dan kode pos terisi otomatis dari kelurahan/desa (masih bisa diubah).
 4. **Pesan lewat WhatsApp** mencatat pesanan berstatus `menunggu_konfirmasi`, lalu membuka WhatsApp Sak Karepe dengan pesan berisi produk, jumlah, kode pesanan (mis. `SK-261023-7K2P`), ID pembeli, dan alamat.
 5. Harga akhir, ongkir, dan pembayaran disepakati di WhatsApp. Pembuatan tagihan oleh penjual berdasarkan ID pembeli/kode pesanan belum dibuat; stok juga belum dikurangi saat pesanan dicatat.
 
@@ -83,7 +84,8 @@ Database memakai SQLite (libSQL) dengan Drizzle ORM. Skema ada di `src/db/schema
 - `products`: item produk dalam satu koleksi. Harga dan stok opsional; harga kosong berarti dibicarakan lewat konsultasi. `slug` unik menjadi permalink `/produk/[slug]`. Slug dibuat dari nama saat produk dibuat dan tidak ikut berubah saat nama diganti, agar tautan yang sudah dibagikan tetap berlaku. Admin bisa mengubahnya sendiri.
 - `product_images`: foto produk beserta teks alternatif dan urutannya.
 - `users`: akun yang pernah login Google (email unik).
-- `addresses`: alamat pengiriman milik pembeli.
+- `regions`: wilayah administrasi Indonesia sesuai Kepmendagri No 300.2.2-2430 Tahun 2025, dari provinsi sampai kelurahan/desa, beserta kode pos per kelurahan/desa. Sumber datanya [cahyadsn/wilayah](https://github.com/cahyadsn/wilayah) dan [cahyadsn/wilayah_kodepos](https://github.com/cahyadsn/wilayah_kodepos) (MIT), dikunci ke commit tertentu di `src/db/seed-regions.ts`. Isi dengan `npm run db:seed-regions`; tambahkan `-- --force` untuk mengisi ulang.
+- `addresses`: alamat pengiriman milik pembeli. Nama wilayah disalin dari `regions` berdasarkan kode kelurahan/desa yang dipilih.
 - `orders` dan `order_items`: pesanan dari tombol **Beli sekarang**. Nama penerima, alamat, nama produk, dan harga disalin saat memesan agar pesanan tidak berubah bila alamat atau produk diedit.
 
 Produk tampil di website bila dicentang "Tampilkan di website" dan punya minimal satu foto. Setiap perubahan dari admin memperbarui halaman publik lewat `revalidatePath`.
