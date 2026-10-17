@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /** Koleksi di etalase (busana, tas, ...). Slug dipakai di URL /koleksi/[slug]. */
 export const categories = sqliteTable("categories", {
@@ -51,6 +51,25 @@ export const users = sqliteTable("users", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
+/**
+ * Wilayah administrasi Indonesia (Kepmendagri 2025, dataset cahyadsn/wilayah), diisi `npm run db:seed-regions`.
+ * Kode bertingkat: "35" provinsi, "35.78" kab/kota, "35.78.08" kecamatan, "35.78.08.1001" kelurahan/desa.
+ */
+export const regions = sqliteTable(
+  "regions",
+  {
+    code: text("code").primaryKey(),
+    /** Kode wilayah induk; kosong untuk provinsi. */
+    parentCode: text("parent_code"),
+    /** 1 provinsi, 2 kab/kota, 3 kecamatan, 4 kelurahan/desa. */
+    level: integer("level").notNull(),
+    name: text("name").notNull(),
+    /** Hanya kelurahan/desa. */
+    postalCode: text("postal_code"),
+  },
+  (table) => [index("regions_parent_idx").on(table.parentCode)],
+);
+
 export const addresses = sqliteTable("addresses", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id")
@@ -58,11 +77,15 @@ export const addresses = sqliteTable("addresses", {
     .references(() => users.id, { onDelete: "cascade" }),
   recipientName: text("recipient_name").notNull(),
   phone: text("phone").notNull(),
-  /** Jalan, nomor rumah, RT/RW, kelurahan. */
+  /** Jalan, nomor rumah, RT/RW. */
   street: text("street").notNull(),
+  /** Nama wilayah disalin dari tabel regions berdasarkan `villageCode`. */
+  village: text("village").notNull().default(""),
   district: text("district").notNull(),
   city: text("city").notNull(),
   province: text("province").notNull(),
+  /** Kode kelurahan/desa di tabel regions; kosong untuk alamat lama yang diketik manual. */
+  villageCode: text("village_code"),
   postalCode: text("postal_code").notNull(),
   /** Patokan atau catatan untuk kurir. */
   notes: text("notes").notNull().default(""),
@@ -133,5 +156,6 @@ export type Product = typeof products.$inferSelect;
 export type ProductImage = typeof productImages.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Address = typeof addresses.$inferSelect;
+export type Region = typeof regions.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;

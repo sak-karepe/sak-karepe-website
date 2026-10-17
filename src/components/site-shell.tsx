@@ -274,7 +274,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
               ? "product-preview"
               : modal?.kind === "login"
                 ? "login-dialog"
-                : ""
+                : modal?.kind === "checkout"
+                  ? "checkout-dialog"
+                  : ""
         }
         ref={dialog}
         aria-labelledby="modal-title"
@@ -313,7 +315,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                 ? "product-preview-header"
                 : modal?.kind === "login"
                   ? "flex flex-col items-center px-8 pt-11 text-center"
-                  : "flex items-center justify-between gap-4 border-b border-line p-5 md:px-7"
+                  : modal?.kind === "checkout"
+                    ? "sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-line bg-page px-5 py-4 md:px-7"
+                    : "flex items-center justify-between gap-4 border-b border-line p-5 md:px-7"
           }
         >
           {modal?.kind === "login" && (
@@ -334,7 +338,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                   ? "sr-only"
                   : modal?.kind === "login"
                     ? "mt-6 text-[28px] tracking-[-.04em]"
-                    : "text-[25px] tracking-[-.035em]"
+                    : modal?.kind === "checkout"
+                      ? "text-[22px] tracking-[-.035em]"
+                      : "text-[25px] tracking-[-.035em]"
             }
           >
             {title}
@@ -345,7 +351,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                 ? "lightbox-close"
                 : modal?.kind === "login"
                   ? "square absolute top-3 right-3 size-10 text-muted"
-                  : "square size-11"
+                  : modal?.kind === "checkout"
+                    ? "square -mr-2 size-10 text-muted"
+                    : "square size-11"
             }
             aria-label="Tutup dialog"
             onClick={close}
@@ -361,7 +369,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                 ? "product-preview-stage"
                 : modal?.kind === "login"
                   ? "px-8 pt-2 pb-9 text-center"
-                  : "p-5 md:p-7"
+                  : modal?.kind === "checkout"
+                    ? "px-5 pt-6 md:px-7"
+                    : "p-5 md:p-7"
           }
         >
           {modal?.kind === "product" && (
