@@ -6,7 +6,7 @@ import { PackageIcon, ReceiptIcon, SquaresFourIcon } from "@phosphor-icons/react
 const menu = [
   { label: "Dashboard", href: "/admin", icon: SquaresFourIcon },
   { label: "Produk", href: "/admin/produk", icon: PackageIcon },
-  { label: "Penjualan", icon: ReceiptIcon },
+  { label: "Pesanan", href: "/admin/pesanan", icon: ReceiptIcon },
 ];
 
 export function AdminNav() {
@@ -14,17 +14,6 @@ export function AdminNav() {
   return (
     <nav aria-label="Menu admin" className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:px-3 lg:pb-0">
       {menu.map(({ label, href, icon: Icon }) => {
-        if (!href)
-          return (
-            <span
-              key={label}
-              aria-disabled="true"
-              className="flex shrink-0 items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-muted"
-            >
-              <Icon size={20} aria-hidden="true" /> {label}
-              <span className="text-xs opacity-75">Segera</span>
-            </span>
-          );
         const active = href === "/admin" ? pathname === href : pathname.startsWith(href);
         return (
           <Link
