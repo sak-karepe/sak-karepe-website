@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { WhatsappLogoIcon } from "@phosphor-icons/react/dist/ssr";
+import { ArrowSquareOutIcon, WhatsappLogoIcon } from "@phosphor-icons/react/dist/ssr";
 import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
 import { orders, orderStatuses } from "@/db/schema";
 import { AdminBack } from "@/components/admin-back";
+import { PaymentDialog } from "@/components/payment-dialog";
 import { formatDateTime, formatRupiah } from "@/lib/format";
-import { updateOrderStatus } from "@/lib/order-actions";
+import { createPayment, updateOrderStatus } from "@/lib/order-actions";
 import { orderStatusClass, orderStatusLabels } from "@/lib/order-status";
 export const metadata: Metadata = { title: "Detail pesanan" };
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -17,9 +18,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (!Number.isInteger(id)) notFound();
   const order = await db.query.orders.findFirst({
     where: eq(orders.id, id),
-    with: { user: true, items: true },
+    with: { user: true, items: true, payments: { orderBy: (payment, { desc }) => [desc(payment.id)], limit: 1 } },
   });
   if (!order) notFound();
+  const [payment] = order.payments;
+  const canPay = order.status === "menunggu_konfirmasi" || order.status === "menunggu_pembayaran";
+  const total = order.subtotal === null ? null : order.subtotal + (order.shippingCost ?? 0);
   // Nomor disimpan sebagai 08..., wa.me butuh 628...
   const buyerWhatsapp = `https://wa.me/${order.phone.replace(/^0/, "62")}?text=${encodeURIComponent(`Halo ${order.recipientName}, kami dari Sak Karepe tentang pesanan ${order.code}.`)}`;
   return (
@@ -62,13 +66,26 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 </li>
               ))}
             </ul>
-            <p className="mt-3 flex justify-between gap-4 font-medium">
+            <p className="mt-3 flex justify-between gap-4">
               Subtotal
               <span className="tabular-nums">
-                {order.subtotal === null ? <span className="font-normal text-muted">Perlu konsultasi harga</span> : formatRupiah(order.subtotal)}
+                {order.subtotal === null ? <span className="text-muted">Perlu konsultasi harga</span> : formatRupiah(order.subtotal)}
               </span>
             </p>
-            <p className="mt-1 text-sm text-muted">Belum termasuk ongkos kirim.</p>
+            {order.shippingCost === null ? (
+              <p className="mt-1 text-sm text-muted">Belum termasuk ongkos kirim.</p>
+            ) : (
+              <>
+                <p className="mt-1 flex justify-between gap-4 text-muted">
+                  Ongkos kirim <span className="tabular-nums">{formatRupiah(order.shippingCost)}</span>
+                </p>
+                {total !== null && (
+                  <p className="mt-3 flex justify-between gap-4 border-t border-line pt-3 font-medium">
+                    Total <span className="tabular-nums">{formatRupiah(total)}</span>
+                  </p>
+                )}
+              </>
+            )}
           </section>
           <section aria-labelledby="catatan">
             <h2 id="catatan" className="text-xl tracking-[-.03em]">Catatan pembeli</h2>
@@ -76,6 +93,40 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </section>
         </div>
         <aside className="grid content-start gap-8">
+          {(canPay || payment) && (
+            <section aria-labelledby="pembayaran" className="rounded-md border border-line p-5">
+              <h2 id="pembayaran" className="text-sm font-medium">Pembayaran</h2>
+              {payment ? (
+                <div className="mt-2">
+                  <p className="text-lg tabular-nums">{formatRupiah(payment.amount)}</p>
+                  <p className="text-sm text-muted">
+                    {payment.expiresAt < new Date() ? "Link kedaluwarsa" : "Link berlaku sampai"} {formatDateTime(payment.expiresAt)}
+                  </p>
+                  <a
+                    href={payment.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1.5 text-[15px] text-accent hover:underline"
+                  >
+                    Buka link DOKU <ArrowSquareOutIcon size={16} aria-hidden="true" />
+                  </a>
+                </div>
+              ) : (
+                <p className="mt-2 text-[15px] text-muted">Buat link DOKU Checkout setelah harga disepakati dengan pembeli.</p>
+              )}
+              {canPay && (
+                <div className="mt-4">
+                  <PaymentDialog
+                    action={createPayment.bind(null, order.id)}
+                    label={payment ? "Buat link baru" : "Buat pembayaran"}
+                    items={order.items.map((item) => ({ id: item.id, name: item.productName, quantity: item.quantity, price: item.price }))}
+                    shippingCost={order.shippingCost}
+                    buyer={{ name: order.recipientName, phone: order.phone, code: order.code }}
+                  />
+                </div>
+              )}
+            </section>
+          )}
           <form action={updateOrderStatus.bind(null, order.id)} className="rounded-md border border-line p-5">
             <label htmlFor="status" className="text-sm font-medium">Status pesanan</label>
             <select
@@ -90,7 +141,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 </option>
               ))}
             </select>
-            <button className="btn mt-3 min-h-11 w-full px-4 text-[15px]">Simpan status</button>
+            <button className="mt-3 min-h-11 w-full rounded-md border border-line px-4 text-[15px] font-medium transition-colors hover:border-accent hover:text-accent">
+              Simpan status
+            </button>
           </form>
           <section aria-labelledby="pengiriman">
             <h2 id="pengiriman" className="text-sm font-medium">Kirim ke</h2>
