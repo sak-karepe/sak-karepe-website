@@ -7,6 +7,7 @@
   --accent: #2e7436;
   --line: #c9d4c6;
   --button-ink: #f8fcf6;
+  --danger: #b3261e;
   color-scheme: light;
 }
 html[data-theme="dark"] {
@@ -17,6 +18,7 @@ html[data-theme="dark"] {
   --accent: #97c990;
   --line: #3e5342;
   --button-ink: #142419;
+  --danger: #ff9b8f;
   color-scheme: dark;
 }
 @theme inline {
@@ -27,6 +29,7 @@ html[data-theme="dark"] {
   --color-accent: var(--accent);
   --color-line: var(--line);
   --color-button-ink: var(--button-ink);
+  --color-danger: var(--danger);
   --font-sans: var(--font-body);
   --font-heading: var(--font-display);
 }

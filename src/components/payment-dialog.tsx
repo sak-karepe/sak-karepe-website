@@ -1,6 +1,6 @@
 "use client";
 import { useActionState, useRef, useState } from "react";
-import { CheckCircleIcon, CopyIcon, WhatsappLogoIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon, CopyIcon, WarningCircleIcon, WhatsappLogoIcon } from "@phosphor-icons/react";
 import { CloseIcon } from "@/components/icons";
 import type { PaymentFormState } from "@/lib/order-actions";
 
@@ -120,7 +120,11 @@ function PaymentForm({ action, items, shippingCost, buyer }: Props) {
         </li>
       </ul>
       {state.error && (
-        <p role="alert" className="mt-4 text-sm text-ink">
+        <p
+          role="alert"
+          className="mt-4 flex gap-2.5 rounded-md border border-danger/35 bg-danger/8 px-3.5 py-3 text-sm text-danger"
+        >
+          <WarningCircleIcon size={18} weight="bold" aria-hidden="true" className="mt-px shrink-0" />
           {state.error}
         </p>
       )}
