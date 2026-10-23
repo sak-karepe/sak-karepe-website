@@ -1,28 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import {
-  ArrowSquareOutIcon,
-  PackageIcon,
-  ReceiptIcon,
-  SignOutIcon,
-  SquaresFourIcon,
-} from "@phosphor-icons/react/dist/ssr";
+import { ArrowSquareOutIcon, SignOutIcon } from "@phosphor-icons/react/dist/ssr";
+import { AdminNav } from "@/components/admin-nav";
 import Image from "@/components/site-image";
-import { auth, isAdmin } from "@/auth";
+import { requireAdminPage } from "@/auth";
 import { signOutAdmin } from "@/lib/auth-actions";
 export const metadata: Metadata = {
   title: { default: "Admin · Sak Karepe", template: "%s · Admin Sak Karepe" },
   robots: { index: false },
 };
-const menu = [
-  { label: "Dashboard", href: "/admin", icon: SquaresFourIcon },
-  { label: "Produk", icon: PackageIcon },
-  { label: "Penjualan", icon: ReceiptIcon },
-];
 export default async function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const user = (await auth())?.user;
-  if (!user || !isAdmin(user.email)) redirect("/?error=SessionRequired");
+  const user = await requireAdminPage();
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[256px_minmax(0,1fr)]">
       <aside className="flex flex-col border-b border-line bg-surface lg:sticky lg:top-0 lg:h-dvh lg:border-r lg:border-b-0">
@@ -39,29 +27,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
             </button>
           </form>
         </div>
-        <nav aria-label="Menu admin" className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:px-3 lg:pb-0">
-          {menu.map(({ label, href, icon: Icon }) =>
-            href ? (
-              <Link
-                key={label}
-                href={href}
-                aria-current="page"
-                className="flex shrink-0 items-center gap-3 rounded-md bg-page px-3 py-2.5 text-[15px] font-medium"
-              >
-                <Icon size={20} aria-hidden="true" /> {label}
-              </Link>
-            ) : (
-              <span
-                key={label}
-                aria-disabled="true"
-                className="flex shrink-0 items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-muted"
-              >
-                <Icon size={20} aria-hidden="true" /> {label}
-                <span className="text-xs opacity-75">Segera</span>
-              </span>
-            ),
-          )}
-        </nav>
+        <AdminNav />
         <div className="mt-auto hidden border-t border-line p-5 lg:block">
           <p className="truncate text-sm font-medium">{user.name ?? user.email}</p>
           <p className="truncate text-xs text-muted">{user.email}</p>

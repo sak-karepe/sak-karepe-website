@@ -7,8 +7,10 @@ const nextConfig: NextConfig = {
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || "",
   trailingSlash: githubPages,
   images: { unoptimized: githubPages },
+  // Form produk mengunggah beberapa foto (maks. 5 MB per foto) lewat Server Action.
   experimental: {
     agentUpgrade: "security",
+    serverActions: { bodySizeLimit: "25mb" },
   },
   turbopack: {
     rules: {
