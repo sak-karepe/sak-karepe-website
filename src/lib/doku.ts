@@ -5,7 +5,8 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
  * DOKU_CLIENT_ID adalah Client ID (BRN-...) dari DOKU Back Office, bukan API Key (doku_key_...); DOKU_ENV=production memakai api.doku.com, selain itu sandbox.
  */
 const host = process.env.DOKU_ENV === "production" ? "https://api.doku.com" : "https://api-sandbox.doku.com";
-const target = "/checkout/v1/payment";
+const checkoutTarget = "/checkout/v1/payment";
+const cancelTarget = "/checkout/v3/cancellations";
 
 export type CheckoutRequest = {
   invoiceNumber: string;
@@ -16,7 +17,7 @@ export type CheckoutRequest = {
   customer: { id: string; name: string; email: string; phone: string; address: string; postcode: string };
 };
 
-export type CheckoutResult = { ok: true; url: string; expiresAt: Date } | { ok: false; error: string };
+export type CheckoutResult = { ok: true; url: string; expiresAt: Date; requestId: string } | { ok: false; error: string };
 
 /** Signature header: HMAC-SHA256 dari Client-Id, Request-Id, Request-Timestamp, Request-Target, dan Digest (SHA-256 body). */
 function sign(clientId: string, secret: string, requestId: string, timestamp: string, requestTarget: string, body: string) {
@@ -37,20 +38,20 @@ function parseExpiry(value: string) {
   return y ? new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}+07:00`) : null;
 }
 
-export async function createCheckout(request: CheckoutRequest): Promise<CheckoutResult> {
+type DokuBody = {
+  response?: { payment?: { url?: unknown; expired_date?: unknown } };
+  error_messages?: unknown;
+  message?: unknown;
+  error?: { message?: unknown };
+} | null;
+type DokuResponse = { ok: true; status: number; success: boolean; data: DokuBody; requestId: string } | { ok: false; error: string };
+
+/** POST bertanda tangan ke API DOKU; `success` bila HTTP 2xx. */
+async function post(target: string, payload: unknown): Promise<DokuResponse> {
   const clientId = process.env.DOKU_CLIENT_ID;
   const secret = process.env.DOKU_SECRET_KEY;
   if (!clientId || !secret) return { ok: false, error: "DOKU_CLIENT_ID dan DOKU_SECRET_KEY belum diisi di .env." };
-  const body = JSON.stringify({
-    order: {
-      amount: request.amount,
-      invoice_number: request.invoiceNumber,
-      currency: "IDR",
-      line_items: request.lineItems,
-    },
-    payment: { payment_due_date: request.dueMinutes },
-    customer: { ...request.customer, country: "ID" },
-  });
+  const body = JSON.stringify(payload);
   const requestId = randomUUID();
   const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   let response: Response;
@@ -70,13 +71,48 @@ export async function createCheckout(request: CheckoutRequest): Promise<Checkout
   } catch {
     return { ok: false, error: "Tidak bisa menghubungi DOKU. Coba lagi sebentar." };
   }
-  const data = await response.json().catch(() => null);
-  const payment = data?.response?.payment;
-  const expiresAt = typeof payment?.expired_date === "string" ? parseExpiry(payment.expired_date) : null;
-  if (response.ok && typeof payment?.url === "string" && expiresAt) return { ok: true, url: payment.url, expiresAt };
+  const data: DokuBody = await response.json().catch(() => null);
+  return { ok: true, status: response.status, success: response.ok, data, requestId };
+}
+
+function rejection(status: number, data: DokuBody) {
   const messages: unknown = data?.error_messages ?? data?.message ?? data?.error?.message;
-  const detail = Array.isArray(messages) ? messages.join(", ") : typeof messages === "string" ? messages : `HTTP ${response.status}`;
-  return { ok: false, error: `DOKU menolak permintaan: ${detail}` };
+  const detail = Array.isArray(messages) ? messages.join(", ") : typeof messages === "string" ? messages : `HTTP ${status}`;
+  return `DOKU menolak permintaan: ${detail}`;
+}
+
+export async function createCheckout(request: CheckoutRequest): Promise<CheckoutResult> {
+  const result = await post(checkoutTarget, {
+    order: {
+      amount: request.amount,
+      invoice_number: request.invoiceNumber,
+      currency: "IDR",
+      line_items: request.lineItems,
+    },
+    payment: { payment_due_date: request.dueMinutes },
+    customer: { ...request.customer, country: "ID" },
+  });
+  if (!result.ok) return result;
+  const payment = result.data?.response?.payment;
+  const expiresAt = typeof payment?.expired_date === "string" ? parseExpiry(payment.expired_date) : null;
+  if (result.success && typeof payment?.url === "string" && expiresAt)
+    return { ok: true, url: payment.url, expiresAt, requestId: result.requestId };
+  return { ok: false, error: rejection(result.status, result.data) };
+}
+
+/**
+ * Membatalkan link Checkout yang belum dibayar: https://developers.doku.com/accept-payments/doku-checkout/additional-feature/cancel-order-api
+ * Harus diaktifkan di Dashboard (Checkout Appearance → System Settings → Order Cancellation) dan hanya untuk VA/QRIS;
+ * link yang sudah dibayar, kedaluwarsa, atau memakai metode lain ditolak DOKU.
+ */
+export async function cancelCheckout(invoiceNumber: string, originalRequestId: string, note: string) {
+  const result = await post(cancelTarget, {
+    order: { invoice_number: invoiceNumber },
+    payment: { original_request_id: originalRequestId },
+    note,
+  });
+  if (!result.ok) return result;
+  return result.success ? { ok: true as const } : { ok: false as const, error: rejection(result.status, result.data) };
 }
 
 /**

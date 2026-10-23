@@ -73,7 +73,9 @@ export async function createPayment(orderId: number, _state: PaymentFormState, f
       .update(orders)
       .set({ subtotal, shippingCost, status: "menunggu_pembayaran", updatedAt: new Date() })
       .where(eq(orders.id, orderId));
-    await tx.insert(payments).values({ orderId, invoiceNumber, amount, url: result.url, expiresAt: result.expiresAt });
+    await tx
+      .insert(payments)
+      .values({ orderId, invoiceNumber, amount, url: result.url, expiresAt: result.expiresAt, requestId: result.requestId });
   });
   revalidatePath("/admin", "layout");
   return { url: result.url, expiresAt: result.expiresAt.toISOString() };
