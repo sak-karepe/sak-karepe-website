@@ -43,10 +43,16 @@ GITHUB_PAGES=true NEXT_PUBLIC_BASE_PATH=/sak-karepe-website npm run build
 - `/cerita`: perjalanan berdasarkan katalog Sak Karepe 2026.
 - `/fashion-show`: slider dan arsip 12 foto panggung.
 - `/kontak`: WhatsApp, alamat, dan peta.
-- `/masuk`: tampilan halaman masuk; autentikasi belum diimplementasikan.
+- `/admin`: dashboard admin, hanya untuk email di `ADMIN_EMAILS`.
 
 `src/lib/content.ts` menentukan foto featured di etalase. `src/lib/collection-details.ts` menyimpan foto pendukung detail. Foto berbeda dapat memperlihatkan karya berbeda dalam satu koleksi, bukan selalu sudut lain dari produk yang sama. Harga, ukuran, bahan, dan ketersediaan belum dianggap terkonfirmasi.
 
-Konsultasi membuka WhatsApp ke 0857-3158-0488, nomor yang dikonfirmasi pengguna. Lokasi mengacu pada SLB Khusus Bina Mandiri dari tautan yang diberikan pengguna. Website saat ini berfokus pada tampilan frontend, tanpa backend penjualan atau autentikasi.
+Konsultasi membuka WhatsApp ke 0857-3158-0488, nomor yang dikonfirmasi pengguna. Lokasi mengacu pada SLB Khusus Bina Mandiri dari tautan yang diberikan pengguna. Backend penjualan belum dibuat.
+
+## Login admin
+
+Tombol **Masuk** di navbar membuka modal login Google (Auth.js / `next-auth` v5). Setelah berhasil, admin diarahkan ke `/admin`. Akun Google yang emailnya tidak ada di `ADMIN_EMAILS` ditolak, dan pesan galatnya tampil di modal.
+
+Salin `.env.example` ke `.env.local`, lalu isi nilainya. Di Google Cloud Console, buat OAuth Client ID bertipe *Web application* dengan authorized redirect URI `http://localhost:3000/api/auth/callback/google`, ditambah URI yang sama untuk domain produksi. Login butuh server Next.js, jadi tidak berjalan di build static export GitHub Pages.
 
 Animasi dan autoplay menghormati preferensi reduced motion. Preview foto mendukung keyboard dan mengembalikan fokus ketika ditutup.

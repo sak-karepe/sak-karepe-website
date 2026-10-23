@@ -13,13 +13,19 @@ import {
   useCallback,
 } from "react";
 import { navigation, runwayPhotos, type Product } from "@/lib/content";
-import { WhatsappLogo } from "@phosphor-icons/react";
+import { GoogleLogo, WhatsappLogo } from "@phosphor-icons/react";
+import { signInWithGoogle } from "@/lib/auth-actions";
 import { whatsappUrl } from "@/lib/contact";
 import { GalleryLightbox } from "./gallery-lightbox";
 type Modal =
   | { kind: "product"; product: Product }
   | { kind: "consult"; message: string }
-  | { kind: "gallery"; index: number };
+  | { kind: "gallery"; index: number }
+  | { kind: "login"; notice?: string };
+const loginNotices: Record<string, string> = {
+  AccessDenied: "Akun Google ini belum terdaftar sebagai admin.",
+  SessionRequired: "Silakan masuk untuk membuka dashboard admin.",
+};
 const SiteContext = createContext<{ open: (modal: Modal) => void } | null>(
   null,
 );
@@ -103,6 +109,16 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
   }, [modalKind]);
   useEffect(() => () => animation.current?.cancel(), []);
   useEffect(() => {
+    // Auth.js mengarahkan error login ke beranda dengan ?error=...
+    const url = new URL(window.location.href);
+    const error = url.searchParams.get("error");
+    if (!error) return;
+    url.searchParams.delete("error");
+    window.history.replaceState(null, "", url);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- membaca URL sekali saat mount
+    open({ kind: "login", notice: loginNotices[error] ?? "Login gagal. Silakan coba lagi." });
+  }, [open]);
+  useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
   }, [dark]);
   useEffect(() => {
@@ -140,7 +156,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       ? `${modal.product.title} ecoprint`
       : modal?.kind === "consult"
         ? "Ceritakan kebutuhanmu."
-        : "Fashion show Sak Karepe";
+        : modal?.kind === "login"
+          ? "Masuk admin"
+          : "Fashion show Sak Karepe";
   return (
     <SiteContext.Provider value={{ open }}>
       <a
@@ -186,7 +204,12 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/masuk" className="whitespace-nowrap text-[13px] md:text-[15px]">Masuk</Link>
+            <button
+              className="whitespace-nowrap text-[13px] md:text-[15px]"
+              onClick={() => open({ kind: "login" })}
+            >
+              Masuk
+            </button>
             <button
               className="rounded-md border border-line px-3 py-2 text-sm lg:hidden"
               aria-expanded={menu}
@@ -362,6 +385,25 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                 Pesan akan dibuka di WhatsApp. Kamu dapat memeriksanya sebelum
                 mengirim.
               </p>
+            </>
+          )}
+          {modal?.kind === "login" && (
+            <>
+              <p className="mb-5 text-muted">
+                Khusus pengelola Sak Karepe. Gunakan akun Google yang sudah
+                terdaftar sebagai admin.
+              </p>
+              {modal.notice && (
+                <p role="alert" className="mb-5 rounded-md border border-line p-3 text-sm">
+                  {modal.notice}
+                </p>
+              )}
+              <form action={signInWithGoogle}>
+                <button className="btn w-full">
+                  <GoogleLogo size={20} weight="bold" aria-hidden="true" />
+                  Masuk dengan Google
+                </button>
+              </form>
             </>
           )}
           {modal?.kind === "gallery" && (
