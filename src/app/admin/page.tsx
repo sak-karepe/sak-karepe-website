@@ -4,14 +4,16 @@ import { eq } from "drizzle-orm";
 import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
 import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
-import { products } from "@/db/schema";
+import { orders, products } from "@/db/schema";
 export const metadata: Metadata = { title: "Dashboard" };
 export default async function AdminPage() {
   // Layout tidak dirender ulang di setiap navigasi, jadi halaman tetap memeriksa sesi sendiri.
   const user = await requireAdminPage();
-  const [total, published] = await Promise.all([
+  const [total, published, orderTotal, waiting] = await Promise.all([
     db.$count(products),
     db.$count(products, eq(products.published, true)),
+    db.$count(orders),
+    db.$count(orders, eq(orders.status, "menunggu_konfirmasi")),
   ]);
   return (
     <main id="utama" className="px-5 py-8 md:px-10 md:py-12">
@@ -28,11 +30,15 @@ export default async function AdminPage() {
             Kelola produk <ArrowRightIcon size={14} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" />
           </p>
         </Link>
-        <article className="rounded-md border border-line p-6">
-          <h2 className="text-xl tracking-[-.03em]">Penjualan</h2>
-          <p className="mt-2 text-[15px] text-muted">Catat pesanan dan penjualan yang masuk.</p>
-          <p className="mt-5 text-xs tracking-wide text-muted uppercase">Segera hadir</p>
-        </article>
+        <Link href="/admin/pesanan" className="group rounded-md border border-line p-6 transition-colors hover:border-accent">
+          <h2 className="text-xl tracking-[-.03em]">Pesanan</h2>
+          <p className="mt-2 text-[15px] text-muted">
+            {orderTotal} pesanan, {waiting} menunggu konfirmasi.
+          </p>
+          <p className="mt-5 inline-flex items-center gap-2 text-sm text-accent">
+            Kelola pesanan <ArrowRightIcon size={14} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" />
+          </p>
+        </Link>
       </section>
     </main>
   );

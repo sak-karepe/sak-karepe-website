@@ -51,6 +51,7 @@ GITHUB_PAGES=true NEXT_PUBLIC_BASE_PATH=/sak-karepe-website npm run build
 - `/admin`: panel admin dengan layout sendiri (`src/app/admin/layout.tsx`), terpisah dari navbar dan footer website. Hanya untuk email di `ADMIN_EMAILS`.
 
 - `/admin/produk`: tambah, ubah, sembunyikan, dan hapus produk beserta fotonya.
+- `/admin/pesanan`: daftar pesanan dengan filter status. Detail `/admin/pesanan/[id]` menampilkan produk, alamat kirim, catatan, akun pembeli (ID pembeli), tautan chat WhatsApp ke penerima, dan form untuk mengubah status.
 
 Halaman publik berada di route group `src/app/(site)/` yang memakai `SiteShell`; URL-nya tidak berubah.
 
