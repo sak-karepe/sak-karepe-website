@@ -110,6 +110,8 @@ export const orders = sqliteTable("orders", {
   postalCode: text("postal_code").notNull(),
   /** Jumlah harga katalog; kosong bila ada produk dengan harga konsultasi. */
   subtotal: integer("subtotal"),
+  /** Diisi admin saat membuat pembayaran, bersama harga hasil kesepakatan. */
+  shippingCost: integer("shipping_cost"),
   notes: text("notes").notNull().default(""),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
@@ -125,6 +127,20 @@ export const orderItems = sqliteTable("order_items", {
   productName: text("product_name").notNull(),
   price: integer("price"),
   quantity: integer("quantity").notNull(),
+});
+
+/** Link pembayaran DOKU Checkout. Membuat ulang link menambah baris baru; yang terbaru yang berlaku. */
+export const payments = sqliteTable("payments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderId: integer("order_id")
+    .notNull()
+    .references(() => orders.id, { onDelete: "cascade" }),
+  /** order.invoice_number di DOKU, unik per permintaan: kode pesanan + nomor urut, mis. SK261023Y7D3P1. */
+  invoiceNumber: text("invoice_number").notNull().unique(),
+  amount: integer("amount").notNull(),
+  url: text("url").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
 export const productsRelations = relations(products, ({ many, one }) => ({
@@ -145,6 +161,10 @@ export const addressesRelations = relations(addresses, ({ one }) => ({
 export const ordersRelations = relations(orders, ({ one, many }) => ({
   user: one(users, { fields: [orders.userId], references: [users.id] }),
   items: many(orderItems),
+  payments: many(payments),
+}));
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  order: one(orders, { fields: [payments.orderId], references: [orders.id] }),
 }));
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   order: one(orders, { fields: [orderItems.orderId], references: [orders.id] }),
@@ -159,3 +179,4 @@ export type Address = typeof addresses.$inferSelect;
 export type Region = typeof regions.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
+export type Payment = typeof payments.$inferSelect;

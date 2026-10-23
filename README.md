@@ -52,12 +52,13 @@ GITHUB_PAGES=true NEXT_PUBLIC_BASE_PATH=/sak-karepe-website npm run build
 
 - `/admin/produk`: tambah, ubah, sembunyikan, dan hapus produk beserta fotonya.
 - `/admin/pesanan`: daftar pesanan dengan filter status. Detail `/admin/pesanan/[id]` menampilkan produk, alamat kirim, catatan, akun pembeli (ID pembeli), tautan chat WhatsApp ke penerima, dan form untuk mengubah status.
+  Setelah harga disepakati di WhatsApp, admin menekan **Buat pembayaran**: modal berisi harga per produk (terisi dari katalog, bisa diubah hasil nego) dan ongkos kirim. Server menyimpan harga tersebut, membuat link [DOKU Checkout](https://developers.doku.com/accept-payments/doku-checkout/integration-guide/backend-integration) yang berlaku 24 jam, mencatatnya di tabel `payments`, dan mengubah status menjadi Menunggu pembayaran. Link bisa disalin atau dikirim ke pembeli lewat WhatsApp. Butuh `DOKU_API_KEY` (Client ID) dan `DOKU_SECRET_KEY`; `DOKU_ENV=production` untuk akun produksi. Status lunas belum otomatis (notifikasi DOKU belum ditangani), jadi ubah status ke Dibayar secara manual.
 
 Halaman publik berada di route group `src/app/(site)/` yang memakai `SiteShell`; URL-nya tidak berubah.
 
 Koleksi dan produk disimpan di database (lihat bagian **Database dan produk**). `src/lib/content.ts` kini hanya berisi foto fashion show dan navigasi. Foto berbeda dapat memperlihatkan karya berbeda dalam satu koleksi, bukan selalu sudut lain dari produk yang sama. Harga, ukuran, bahan, dan ketersediaan belum dianggap terkonfirmasi.
 
-Konsultasi dan pesanan membuka WhatsApp ke nomor di `NEXT_PUBLIC_WHATSAPP_NUMBER` (format `62...`). Bila kosong, dipakai 0857-3158-0488, nomor yang dikonfirmasi pengguna. Nilainya dibaca saat build, jadi build ulang setelah mengubahnya. Lokasi mengacu pada SLB Khusus Bina Mandiri dari tautan yang diberikan pengguna. Pencatatan pesanan sudah ada sampai pembeli diarahkan ke WhatsApp; pembayaran belum dibuat.
+Konsultasi dan pesanan membuka WhatsApp ke nomor di `NEXT_PUBLIC_WHATSAPP_NUMBER` (format `62...`). Bila kosong, dipakai 0857-3158-0488, nomor yang dikonfirmasi pengguna. Nilainya dibaca saat build, jadi build ulang setelah mengubahnya. Lokasi mengacu pada SLB Khusus Bina Mandiri dari tautan yang diberikan pengguna. Pencatatan pesanan sudah ada sampai pembeli diarahkan ke WhatsApp; link pembayaran DOKU dibuat admin dari halaman pesanan.
 
 ## Login
 
@@ -87,7 +88,8 @@ Database memakai SQLite (libSQL) dengan Drizzle ORM. Skema ada di `src/db/schema
 - `users`: akun yang pernah login Google (email unik).
 - `regions`: wilayah administrasi Indonesia sesuai Kepmendagri No 300.2.2-2430 Tahun 2025, dari provinsi sampai kelurahan/desa, beserta kode pos per kelurahan/desa. Sumber datanya [cahyadsn/wilayah](https://github.com/cahyadsn/wilayah) dan [cahyadsn/wilayah_kodepos](https://github.com/cahyadsn/wilayah_kodepos) (MIT), dikunci ke commit tertentu di `src/db/seed-regions.ts`. Isi dengan `npm run db:seed-regions`; tambahkan `-- --force` untuk mengisi ulang.
 - `addresses`: alamat pengiriman milik pembeli. Nama wilayah disalin dari `regions` berdasarkan kode kelurahan/desa yang dipilih.
-- `orders` dan `order_items`: pesanan dari tombol **Beli sekarang**. Nama penerima, alamat, nama produk, dan harga disalin saat memesan agar pesanan tidak berubah bila alamat atau produk diedit.
+- `orders` dan `order_items`: pesanan dari tombol **Beli sekarang**. Nama penerima, alamat, nama produk, dan harga disalin saat memesan agar pesanan tidak berubah bila alamat atau produk diedit. Saat admin membuat pembayaran, harga item dan `shipping_cost` diganti dengan hasil kesepakatan.
+- `payments`: link DOKU Checkout per pesanan (`invoice_number` unik: kode pesanan tanpa tanda hubung + `P1`, `P2`, ...). Membuat link baru menambah baris; yang terbaru yang berlaku.
 
 Produk tampil di website bila dicentang "Tampilkan di website" dan punya minimal satu foto. Setiap perubahan dari admin memperbarui halaman publik lewat `revalidatePath`.
 
