@@ -55,7 +55,7 @@ Halaman publik berada di route group `src/app/(site)/` yang memakai `SiteShell`;
 
 Koleksi dan produk disimpan di database (lihat bagian **Database dan produk**). `src/lib/content.ts` kini hanya berisi foto fashion show dan navigasi. Foto berbeda dapat memperlihatkan karya berbeda dalam satu koleksi, bukan selalu sudut lain dari produk yang sama. Harga, ukuran, bahan, dan ketersediaan belum dianggap terkonfirmasi.
 
-Konsultasi membuka WhatsApp ke 0857-3158-0488, nomor yang dikonfirmasi pengguna. Lokasi mengacu pada SLB Khusus Bina Mandiri dari tautan yang diberikan pengguna. Pencatatan pesanan sudah ada sampai pembeli diarahkan ke WhatsApp; pembayaran belum dibuat.
+Konsultasi dan pesanan membuka WhatsApp ke nomor di `NEXT_PUBLIC_WHATSAPP_NUMBER` (format `62...`). Bila kosong, dipakai 0857-3158-0488, nomor yang dikonfirmasi pengguna. Nilainya dibaca saat build, jadi build ulang setelah mengubahnya. Lokasi mengacu pada SLB Khusus Bina Mandiri dari tautan yang diberikan pengguna. Pencatatan pesanan sudah ada sampai pembeli diarahkan ke WhatsApp; pembayaran belum dibuat.
 
 ## Login
 
