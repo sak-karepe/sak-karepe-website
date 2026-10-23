@@ -1,9 +1,10 @@
 "use server";
 import { randomInt } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { currentUserId } from "@/auth";
 import { db } from "@/db";
-import { addresses, orderItems, orders, products, type Address } from "@/db/schema";
+import { addresses, orderItems, orders, products, regions, type Address } from "@/db/schema";
+import { formatAddress } from "@/lib/address";
 import { whatsappUrl } from "@/lib/contact";
 import { formatRupiah } from "@/lib/format";
 
@@ -29,9 +30,15 @@ export async function saveAddress(_state: AddressFormState, formData: FormData):
   const value = (name: string) => String(formData.get(name) ?? "").trim();
   const phone = normalizePhone(value("phone"));
   const postalCode = value("postalCode");
-  const required = ["recipientName", "street", "district", "city", "province"].every((name) => value(name));
-  if (!required) return { error: "Lengkapi nama penerima dan alamat." };
+  if (!value("recipientName")) return { error: "Isi nama penerima." };
   if (!phone) return { error: "Nomor HP tidak valid. Contoh: 081234567890." };
+  // Nama wilayah diambil dari tabel regions, bukan dari form: "35.78.08.1001" -> 35, 35.78, 35.78.08, 35.78.08.1001.
+  const parts = value("villageCode").split(".");
+  const codes = parts.map((_, index) => parts.slice(0, index + 1).join("."));
+  const found = parts.length === 4 ? await db.select().from(regions).where(inArray(regions.code, codes)) : [];
+  const [province, city, district, village] = codes.map((code) => found.find((region) => region.code === code));
+  if (!province || !city || !district || !village) return { error: "Pilih provinsi sampai kelurahan/desa." };
+  if (!value("street")) return { error: "Isi alamat jalan dan nomor rumah." };
   if (!/^\d{5}$/.test(postalCode)) return { error: "Kode pos terdiri dari 5 angka." };
   const [address] = await db
     .insert(addresses)
@@ -40,9 +47,11 @@ export async function saveAddress(_state: AddressFormState, formData: FormData):
       recipientName: value("recipientName"),
       phone,
       street: value("street"),
-      district: value("district"),
-      city: value("city"),
-      province: value("province"),
+      village: village.name,
+      district: district.name,
+      city: city.name,
+      province: province.name,
+      villageCode: village.code,
       postalCode,
       notes: value("notes"),
     })
@@ -88,7 +97,7 @@ export async function placeOrder(input: {
     return { error: product.stock > 0 ? `Stok tersisa ${product.stock}.` : "Stok produk sedang kosong." };
 
   const notes = String(input.notes ?? "").trim().slice(0, 500);
-  const shippingAddress = [address.street, address.district, address.city, address.province].join(", ");
+  const shippingAddress = formatAddress(address);
   const subtotal = product.price === null ? null : product.price * quantity;
   const code = await newOrderCode();
   const orderId = await db.transaction(async (tx) => {

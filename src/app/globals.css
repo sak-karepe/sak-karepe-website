@@ -35,9 +35,12 @@ html[data-theme="dark"] {
     scroll-behavior: smooth;
     scroll-padding-top: 100px;
   }
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--line) transparent;
+  /* Chrome 121+ mengabaikan ::-webkit-scrollbar bila scrollbar-width/color diset, jadi properti standar hanya untuk Firefox. */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--line) transparent;
+    }
   }
   ::-webkit-scrollbar {
     width: 6px;
@@ -418,6 +421,15 @@ dialog.product-preview {
 }
 dialog.login-dialog {
   width: min(400px, calc(100% - 32px));
+}
+dialog.checkout-dialog {
+  width: min(560px, calc(100% - 32px));
+  border-radius: 10px;
+  overscroll-behavior: contain;
+}
+/* Thumb scrollbar tidak menabrak sudut membulat dialog. */
+dialog::-webkit-scrollbar-track {
+  margin-block: 10px;
 }
 .login-google {
   display: inline-flex;
