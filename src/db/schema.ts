@@ -140,6 +140,10 @@ export const payments = sqliteTable("payments", {
   amount: integer("amount").notNull(),
   url: text("url").notNull(),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  /** Diisi dari HTTP Notification DOKU berstatus SUCCESS. */
+  paidAt: integer("paid_at", { mode: "timestamp" }),
+  /** channel.id dari DOKU, mis. QRIS_DOKU atau VIRTUAL_ACCOUNT_BCA. */
+  channel: text("channel"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 

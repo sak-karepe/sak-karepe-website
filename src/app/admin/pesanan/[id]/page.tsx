@@ -99,9 +99,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               {payment ? (
                 <div className="mt-2">
                   <p className="text-lg tabular-nums">{formatRupiah(payment.amount)}</p>
-                  <p className="text-sm text-muted">
-                    {payment.expiresAt < new Date() ? "Link kedaluwarsa" : "Link berlaku sampai"} {formatDateTime(payment.expiresAt)}
-                  </p>
+                  {payment.paidAt ? (
+                    <p className="text-sm text-accent">
+                      Lunas {formatDateTime(payment.paidAt)}
+                      {payment.channel && ` · ${payment.channel.replaceAll("_", " ")}`}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted">
+                      {payment.expiresAt < new Date() ? "Link kedaluwarsa" : "Link berlaku sampai"} {formatDateTime(payment.expiresAt)}
+                    </p>
+                  )}
                   <a
                     href={payment.url}
                     target="_blank"
