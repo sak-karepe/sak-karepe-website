@@ -416,3 +416,27 @@ dialog.product-preview {
   .collection-banner-photos > :first-child { margin-bottom: 12px; }
   .collection-banner-photos > :last-child { margin-top: 12px; }
 }
+dialog.login-dialog {
+  width: min(400px, calc(100% - 32px));
+}
+.login-google {
+  display: inline-flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: #fff;
+  color: #20352a;
+  font-size: 15px;
+  font-weight: 500;
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+.login-google:hover {
+  background: #f1f6ee;
+  transform: translateY(-2px);
+}
