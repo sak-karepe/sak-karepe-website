@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { CaretDownIcon, CheckCircleIcon, MinusIcon, PlusIcon } from "@phosphor-icons/react";
 import { LinkIcon } from "@/components/icons";
@@ -75,6 +76,9 @@ export function Checkout({ product }: { product: CheckoutProduct }) {
         <a className="btn mt-7 gap-3" href={placed.whatsapp} target="_blank" rel="noopener noreferrer">
           Buka WhatsApp <LinkIcon />
         </a>
+        <Link href={`/pesanan/${placed.code}`} className="mt-4 text-sm text-muted underline-offset-4 hover:text-ink hover:underline">
+          Lihat di Pesanan saya
+        </Link>
       </div>
     );
 

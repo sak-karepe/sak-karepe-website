@@ -1,14 +1,17 @@
 "use server";
 import { randomInt } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { currentUserId } from "@/auth";
 import { db } from "@/db";
-import { addresses, orderItems, orders, products, regions, type Address } from "@/db/schema";
+import { addresses, orderItems, orders, payments, products, regions, type Address } from "@/db/schema";
 import { formatAddress } from "@/lib/address";
+import { cancelCheckout } from "@/lib/doku";
 import { whatsappUrl } from "@/lib/contact";
 import { formatRupiah } from "@/lib/format";
 
 const loginRequired = "Sesi masuk berakhir. Silakan masuk kembali.";
+const notCancellable = "Pesanan ini sudah tidak bisa dibatalkan. Muat ulang halaman untuk melihat statusnya.";
 
 export async function listAddresses(): Promise<Address[]> {
   const userId = await currentUserId();
@@ -138,4 +141,39 @@ export async function placeOrder(input: {
     "⚠️ Mohon jangan menghapus atau mengubah pesan ini. ID dan kode pesanan dipakai penjual untuk memproses pesananmu.",
   ].join("\n");
   return { code, whatsapp: whatsappUrl(message) };
+}
+
+export type CancelOrderState = { error?: string };
+
+/**
+ * Pembeli hanya bisa membatalkan pesanannya sendiri selama belum dibayar. Link DOKU yang masih berlaku dibatalkan
+ * lebih dulu lewat Cancel Order API; bila DOKU menolak (mis. metode selain VA/QRIS), pesanan tidak dibatalkan.
+ */
+export async function cancelOrder(id: number): Promise<CancelOrderState> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const order = await db.query.orders.findFirst({
+    where: and(eq(orders.id, id), eq(orders.userId, userId)),
+    with: { payments: true },
+  });
+  if (!order || (order.status !== "menunggu_konfirmasi" && order.status !== "menunggu_pembayaran") || order.payments.some((p) => p.paidAt))
+    return { error: notCancellable };
+  const now = new Date();
+  const active = order.payments.filter((payment) => !payment.cancelledAt && payment.expiresAt > now);
+  for (const payment of active) {
+    // Link yang dibuat sebelum Request-Id disimpan tidak bisa dibatalkan lewat API.
+    if (!payment.requestId) return { error: "Link pembayaran pesanan ini tidak bisa dibatalkan otomatis. Hubungi Sak Karepe lewat WhatsApp." };
+    const result = await cancelCheckout(payment.invoiceNumber, payment.requestId, `Dibatalkan pembeli (${order.code})`);
+    if (!result.ok) return { error: `Pesanan tidak dibatalkan. ${result.error}` };
+    await db.update(payments).set({ cancelledAt: new Date() }).where(eq(payments.id, payment.id));
+  }
+  // Status ikut dicek di WHERE agar pembayaran yang baru masuk tidak ikut terbatalkan.
+  const [cancelled] = await db
+    .update(orders)
+    .set({ status: "dibatalkan", updatedAt: new Date() })
+    .where(and(eq(orders.id, id), eq(orders.userId, userId), inArray(orders.status, ["menunggu_konfirmasi", "menunggu_pembayaran"])))
+    .returning({ id: orders.id });
+  revalidatePath("/pesanan", "layout");
+  revalidatePath("/admin", "layout");
+  return cancelled ? {} : { error: notCancellable };
 }

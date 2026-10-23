@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
-import { SignOutIcon, SquaresFourIcon, UserCircleIcon } from "@phosphor-icons/react";
+import { ReceiptIcon, SignOutIcon, SquaresFourIcon, UserCircleIcon } from "@phosphor-icons/react";
 import Image from "@/components/site-image";
 
 /** Tombol "Masuk" di navbar; setelah login berganti menjadi ikon profil dengan menu. */
@@ -65,10 +65,17 @@ export function AccountMenu({ onLogin }: { onLogin: () => void }) {
             <p className="truncate text-[15px] font-medium">{user.name ?? user.email}</p>
             {user.name && <p className="truncate text-[13px] text-muted">{user.email}</p>}
           </div>
+          <Link
+            href="/pesanan"
+            className="mt-1 flex items-center gap-3 rounded-md px-3 py-2.5 text-[15px] hover:bg-surface"
+            onClick={() => setOpen(false)}
+          >
+            <ReceiptIcon size={18} aria-hidden="true" /> Pesanan saya
+          </Link>
           {user.isAdmin && (
             <Link
               href="/admin"
-              className="mt-1 flex items-center gap-3 rounded-md px-3 py-2.5 text-[15px] hover:bg-surface"
+              className="flex items-center gap-3 rounded-md px-3 py-2.5 text-[15px] hover:bg-surface"
               onClick={() => setOpen(false)}
             >
               <SquaresFourIcon size={18} aria-hidden="true" /> Dashboard admin
