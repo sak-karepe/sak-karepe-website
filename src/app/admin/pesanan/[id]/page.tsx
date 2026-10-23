@@ -104,6 +104,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                       Lunas {formatDateTime(payment.paidAt)}
                       {payment.channel && ` · ${payment.channel.replaceAll("_", " ")}`}
                     </p>
+                  ) : payment.cancelledAt ? (
+                    <p className="text-sm text-muted">Link dibatalkan {formatDateTime(payment.cancelledAt)}</p>
                   ) : (
                     <p className="text-sm text-muted">
                       {payment.expiresAt < new Date() ? "Link kedaluwarsa" : "Link berlaku sampai"} {formatDateTime(payment.expiresAt)}

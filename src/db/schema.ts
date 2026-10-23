@@ -144,6 +144,10 @@ export const payments = sqliteTable("payments", {
   paidAt: integer("paid_at", { mode: "timestamp" }),
   /** channel.id dari DOKU, mis. QRIS_DOKU atau VIRTUAL_ACCOUNT_BCA. */
   channel: text("channel"),
+  /** Request-Id saat membuat link; wajib untuk Cancel Order API (payment.original_request_id). */
+  requestId: text("request_id"),
+  /** Diisi setelah DOKU menerima pembatalan link. */
+  cancelledAt: integer("cancelled_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 

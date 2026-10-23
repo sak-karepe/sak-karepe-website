@@ -48,6 +48,7 @@ GITHUB_PAGES=true NEXT_PUBLIC_BASE_PATH=/sak-karepe-website npm run build
 - `/cerita`: perjalanan berdasarkan katalog Sak Karepe 2026.
 - `/fashion-show`: slider dan arsip 12 foto panggung.
 - `/kontak`: WhatsApp, alamat, dan peta.
+- `/pesanan`: pesanan milik pembeli yang sedang masuk (menu akun → **Pesanan saya**). Detail `/pesanan/[kode]` menampilkan produk, total, alamat kirim, tombol **Bayar sekarang** bila link DOKU masih berlaku, dan **Batalkan pesanan** selama status Menunggu konfirmasi atau Menunggu pembayaran. Link DOKU yang masih berlaku dibatalkan dulu lewat [Cancel Order API](https://developers.doku.com/accept-payments/doku-checkout/additional-feature/cancel-order-api); bila DOKU menolak, pesanan tidak dibatalkan. Fitur ini harus diaktifkan di DOKU Dashboard (Settings → Checkout Appearance → System Settings → Order Cancellation) dan hanya berlaku untuk Virtual Account (kecuali BTN, BNC, BPD, OCBC) dan QRIS. Pesanan akun lain menghasilkan 404.
 - `/admin`: panel admin dengan layout sendiri (`src/app/admin/layout.tsx`), terpisah dari navbar dan footer website. Hanya untuk email di `ADMIN_EMAILS`.
 
 - `/admin/produk`: tambah, ubah, sembunyikan, dan hapus produk beserta fotonya.
@@ -72,7 +73,7 @@ Salin `.env.example` ke `.env.local`, lalu isi nilainya. Di Google Cloud Console
 2. Bila belum masuk, modal login terbuka. Login Google kembali ke `/produk/[slug]?beli=1`, lalu modal checkout langsung terbuka dan parameter `beli` dihapus dari URL.
 3. Modal checkout berisi jumlah barang dan pilihan alamat. Bila pembeli belum punya alamat, form alamat tampil lebih dulu; alamat baru bisa ditambah kapan saja. Provinsi, kota/kabupaten, kecamatan, dan kelurahan/desa dipilih bertingkat dari tabel `regions` (lewat `GET /api/regions?parent=<kode>`), dan kode pos terisi otomatis dari kelurahan/desa (masih bisa diubah).
 4. **Pesan lewat WhatsApp** mencatat pesanan berstatus `menunggu_konfirmasi`, lalu membuka WhatsApp Sak Karepe dengan pesan berisi produk, jumlah, kode pesanan (mis. `SK-261023-7K2P`), ID pembeli, dan alamat.
-5. Harga akhir, ongkir, dan pembayaran disepakati di WhatsApp. Pembuatan tagihan oleh penjual berdasarkan ID pembeli/kode pesanan belum dibuat; stok juga belum dikurangi saat pesanan dicatat.
+5. Harga akhir dan ongkir disepakati di WhatsApp, lalu admin membuat link pembayaran DOKU dari halaman pesanan. Pembeli memantau status dan membayar dari `/pesanan`, dan bisa membatalkan selama belum dibayar. Stok belum dikurangi saat pesanan dicatat.
 
 Kode ada di `src/components/buy-button.tsx`, `src/components/checkout.tsx`, dan `src/lib/checkout-actions.ts`.
 
@@ -89,7 +90,7 @@ Database memakai SQLite (libSQL) dengan Drizzle ORM. Skema ada di `src/db/schema
 - `regions`: wilayah administrasi Indonesia sesuai Kepmendagri No 300.2.2-2430 Tahun 2025, dari provinsi sampai kelurahan/desa, beserta kode pos per kelurahan/desa. Sumber datanya [cahyadsn/wilayah](https://github.com/cahyadsn/wilayah) dan [cahyadsn/wilayah_kodepos](https://github.com/cahyadsn/wilayah_kodepos) (MIT), dikunci ke commit tertentu di `src/db/seed-regions.ts`. Isi dengan `npm run db:seed-regions`; tambahkan `-- --force` untuk mengisi ulang.
 - `addresses`: alamat pengiriman milik pembeli. Nama wilayah disalin dari `regions` berdasarkan kode kelurahan/desa yang dipilih.
 - `orders` dan `order_items`: pesanan dari tombol **Beli sekarang**. Nama penerima, alamat, nama produk, dan harga disalin saat memesan agar pesanan tidak berubah bila alamat atau produk diedit. Saat admin membuat pembayaran, harga item dan `shipping_cost` diganti dengan hasil kesepakatan.
-- `payments`: link DOKU Checkout per pesanan (`invoice_number` unik: kode pesanan tanpa tanda hubung + `P1`, `P2`, ...). Membuat link baru menambah baris; yang terbaru yang berlaku. `paid_at` dan `channel` diisi dari notifikasi DOKU.
+- `payments`: link DOKU Checkout per pesanan (`invoice_number` unik: kode pesanan tanpa tanda hubung + `P1`, `P2`, ...). Membuat link baru menambah baris; yang terbaru yang berlaku. `paid_at` dan `channel` diisi dari notifikasi DOKU. `request_id` (Request-Id saat membuat link) dipakai untuk Cancel Order API; `cancelled_at` diisi setelah DOKU menerima pembatalan.
 
 Produk tampil di website bila dicentang "Tampilkan di website" dan punya minimal satu foto. Setiap perubahan dari admin memperbarui halaman publik lewat `revalidatePath`.
 
