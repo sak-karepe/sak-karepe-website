@@ -1,10 +1,11 @@
 "use server";
-import { and, eq, max, notInArray } from "drizzle-orm";
+import { and, eq, like, max, ne, notInArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
 import { categories, productImages, products } from "@/db/schema";
+import { slugify } from "@/lib/slug";
 import { checkUpload, removeUpload, saveUpload } from "@/lib/uploads";
 
 export type ProductFormState = { error?: string };
@@ -15,7 +16,23 @@ function parseAmount(value: FormDataEntryValue | null) {
   return digits ? Number(digits) : null;
 }
 
-async function readForm(formData: FormData) {
+/** Slug dari form (atau dari nama bila kosong), diberi akhiran -2, -3, ... bila sudah dipakai produk lain. */
+async function uniqueSlug(input: string, excludeId?: number) {
+  const base = slugify(input);
+  const taken = new Set(
+    (
+      await db
+        .select({ slug: products.slug })
+        .from(products)
+        .where(and(or(eq(products.slug, base), like(products.slug, `${base}-%`)), excludeId ? ne(products.id, excludeId) : undefined))
+    ).map((row) => row.slug),
+  );
+  let slug = base;
+  for (let n = 2; taken.has(slug); n++) slug = `${base}-${n}`;
+  return slug;
+}
+
+async function readForm(formData: FormData, excludeId?: number) {
   const name = String(formData.get("name") ?? "").trim();
   const categorySlug = String(formData.get("categorySlug") ?? "");
   const files = formData.getAll("newImages").filter((file): file is File => file instanceof File && file.size > 0);
@@ -28,6 +45,7 @@ async function readForm(formData: FormData) {
     files,
     values: {
       name,
+      slug: await uniqueSlug(String(formData.get("slug") ?? "").trim() || name, excludeId),
       categorySlug,
       description: String(formData.get("description") ?? "").trim(),
       price: parseAmount(formData.get("price")),
@@ -71,7 +89,7 @@ export async function updateProduct(
   formData: FormData,
 ): Promise<ProductFormState> {
   await requireAdmin();
-  const form = await readForm(formData);
+  const form = await readForm(formData, id);
   if ("error" in form) return { error: form.error };
   // Urutan input imageId mengikuti urutan foto di form.
   const keptIds = formData.getAll("imageId").map(Number);

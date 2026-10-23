@@ -125,7 +125,7 @@ export default function Home() {
             Dari tote bag dan kaos, ecoprint berkembang menjadi busana, tas,
             sepatu, aksesori, dan homeware.
           </p>
-          <Collection />
+          <Collection limit={8} />
           <Link className="text-link mt-9" href="/koleksi">
             Lihat seluruh koleksi <LinkIcon />
           </Link>

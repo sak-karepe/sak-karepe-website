@@ -20,6 +20,8 @@ export const products = sqliteTable("products", {
     .notNull()
     .references(() => categories.slug, { onUpdate: "cascade" }),
   name: text("name").notNull(),
+  /** Permalink /produk/[slug]. Tidak ikut berubah saat nama diganti agar tautan lama tetap jalan. */
+  slug: text("slug").notNull().unique(),
   description: text("description").notNull().default(""),
   /** Rupiah. Kosong berarti harga dibicarakan lewat konsultasi. */
   price: integer("price"),

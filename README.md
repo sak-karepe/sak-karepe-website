@@ -41,8 +41,9 @@ GITHUB_PAGES=true NEXT_PUBLIC_BASE_PATH=/sak-karepe-website npm run build
 ## Halaman dan konten
 
 - `/`: beranda.
-- `/koleksi`: satu foto featured untuk setiap koleksi.
-- `/koleksi/busana`, `/koleksi/tas`, `/koleksi/sepatu`, `/koleksi/kain`, `/koleksi/rumah`: detail koleksi dan galeri foto pendukung.
+- `/koleksi`: grid semua produk dengan filter koleksi.
+- `/koleksi/busana`, `/koleksi/tas`, `/koleksi/sepatu`, `/koleksi/kain`, `/koleksi/rumah`: pengantar koleksi dan daftar produknya.
+- `/produk/[slug]`: detail produk dengan galeri foto, harga atau keterangan konsultasi, dan tombol WhatsApp.
 - `/cerita`: perjalanan berdasarkan katalog Sak Karepe 2026.
 - `/fashion-show`: slider dan arsip 12 foto panggung.
 - `/kontak`: WhatsApp, alamat, dan peta.
@@ -69,10 +70,10 @@ Animasi dan autoplay menghormati preferensi reduced motion. Preview foto menduku
 Database memakai SQLite (libSQL) dengan Drizzle ORM. Skema ada di `src/db/schema.ts`, sedangkan migrasi SQL di `drizzle/`.
 
 - `categories`: koleksi etalase (busana, tas, sepatu, kain, rumah), lengkap dengan teks halaman dan foto utama.
-- `products`: item produk dalam satu koleksi. Harga dan stok opsional; harga kosong berarti dibicarakan lewat konsultasi.
+- `products`: item produk dalam satu koleksi. Harga dan stok opsional; harga kosong berarti dibicarakan lewat konsultasi. `slug` unik menjadi permalink `/produk/[slug]`. Slug dibuat dari nama saat produk dibuat dan tidak ikut berubah saat nama diganti, agar tautan yang sudah dibagikan tetap berlaku. Admin bisa mengubahnya sendiri.
 - `product_images`: foto produk beserta teks alternatif dan urutannya.
 
-Galeri di `/koleksi/[slug]` berisi foto dari semua produk yang ditampilkan di koleksi tersebut. Setiap perubahan dari admin memperbarui halaman publik lewat `revalidatePath`.
+Produk tampil di website bila dicentang "Tampilkan di website" dan punya minimal satu foto. Setiap perubahan dari admin memperbarui halaman publik lewat `revalidatePath`.
 
 `npm run db:seed` memindahkan data etalase lama ke database: setiap foto galeri lama menjadi satu produk, dengan nama awal dari deskripsi fotonya. Seed dilewati bila kategori sudah terisi. Setelah mengubah skema, jalankan `npm run db:generate` lalu `npm run db:migrate`. `npm run db:studio` membuka penjelajah database.
 
