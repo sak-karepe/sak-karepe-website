@@ -26,6 +26,8 @@ export const products = sqliteTable("products", {
   /** Rupiah. Kosong berarti harga dibicarakan lewat konsultasi. */
   price: integer("price"),
   stock: integer("stock"),
+  /** Berat kemasan dalam gram untuk cek ongkir Biteship; kosong memakai berat default (lib/shipping). */
+  weight: integer("weight"),
   published: integer("published", { mode: "boolean" }).notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
@@ -92,8 +94,12 @@ export const addresses = sqliteTable("addresses", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
-/** Status awal "menunggu_konfirmasi": harga/ongkir masih dibicarakan lewat WhatsApp. */
-export const orderStatuses = ["menunggu_konfirmasi", "menunggu_pembayaran", "dibayar", "dikirim", "selesai", "dibatalkan"] as const;
+/**
+ * Status awal "menunggu_konfirmasi": harga masih dibicarakan lewat WhatsApp. Setelah admin mengisi harga dan membuat
+ * link checkout menjadi "menunggu_checkout"; pembeli mengisi alamat di halaman checkout, lalu link DOKU dibuat
+ * dan status menjadi "menunggu_pembayaran".
+ */
+export const orderStatuses = ["menunggu_konfirmasi", "menunggu_checkout", "menunggu_pembayaran", "dibayar", "dikirim", "selesai", "dibatalkan"] as const;
 
 export const orders = sqliteTable("orders", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -103,15 +109,20 @@ export const orders = sqliteTable("orders", {
     .notNull()
     .references(() => users.id),
   status: text("status", { enum: orderStatuses }).notNull().default("menunggu_konfirmasi"),
-  // Salinan alamat saat pesan dibuat, agar pesanan tidak berubah bila alamat diedit/dihapus.
-  recipientName: text("recipient_name").notNull(),
-  phone: text("phone").notNull(),
-  shippingAddress: text("shipping_address").notNull(),
-  postalCode: text("postal_code").notNull(),
+  // Salinan alamat saat pembeli checkout, agar pesanan tidak berubah bila alamat diedit/dihapus. Kosong sebelum checkout.
+  recipientName: text("recipient_name"),
+  phone: text("phone"),
+  shippingAddress: text("shipping_address"),
+  postalCode: text("postal_code"),
   /** Jumlah harga katalog; kosong bila ada produk dengan harga konsultasi. */
   subtotal: integer("subtotal"),
-  /** Diisi admin saat membuat pembayaran, bersama harga hasil kesepakatan. */
+  /** Dihitung saat pembeli checkout berdasarkan alamat dan layanan kurir pilihannya (lihat lib/shipping). */
   shippingCost: integer("shipping_cost"),
+  /** Kode kurir dan layanan Biteship pilihan pembeli, mis. "jnt" + "ez"; dipakai saat booking pengiriman. */
+  courierCode: text("courier_code"),
+  courierServiceCode: text("courier_service_code"),
+  /** Nama untuk ditampilkan, mis. "J&T EZ". */
+  courierName: text("courier_name"),
   notes: text("notes").notNull().default(""),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),

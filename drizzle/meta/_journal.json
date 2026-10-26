@@ -50,6 +50,20 @@
       "when": 1792727421265,
       "tag": "0006_payment_cancel",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792729850261,
+      "tag": "0007_order_checkout",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792730234660,
+      "tag": "0008_shipping",
+      "breakpoints": true
     }
   ]
 }

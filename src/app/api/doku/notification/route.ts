@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { orders, payments } from "@/db/schema";
 import { verifyNotification } from "@/lib/doku";
+import { checkoutStatuses } from "@/lib/order-status";
 
 /** Path Notification URL yang didaftarkan di DOKU Back Office; ikut dihitung dalam signature. */
 const requestTarget = "/api/doku/notification";
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     await tx
       .update(orders)
       .set({ status: "dibayar", updatedAt: new Date() })
-      .where(and(eq(orders.id, payment.orderId), inArray(orders.status, ["menunggu_konfirmasi", "menunggu_pembayaran"])));
+      .where(and(eq(orders.id, payment.orderId), inArray(orders.status, checkoutStatuses)));
   });
   revalidatePath("/admin", "layout");
   return new Response("OK");
