@@ -23,21 +23,9 @@ npm run build
 npm start
 ```
 
-## Deploy GitHub Pages
+## Preview frontend (GitHub Pages)
 
-Workflow `.github/workflows/deploy-pages.yml` berjalan otomatis setiap push ke `master`, atau secara manual melalui tab Actions. Workflow memasang dependency dengan `npm ci`, menjalankan lint, menghasilkan frontend statis, lalu deploy folder `out` ke GitHub Pages.
-
-Alamat website: https://sak-karepe.github.io/sak-karepe-website/
-
-Pengaturan repository Pages menggunakan sumber **GitHub Actions**. Deployment memakai environment `github-pages`, izin `pages: write` dan `id-token: write`; tidak membutuhkan token pribadi atau secrets tambahan.
-
-Untuk memeriksa build Pages di lokal:
-
-```sh
-GITHUB_PAGES=true NEXT_PUBLIC_BASE_PATH=/sak-karepe-website npm run build
-```
-
-`GITHUB_PAGES=true` mengaktifkan static export, trailing slash, dan gambar tanpa server optimasi. `NEXT_PUBLIC_BASE_PATH` memberi prefix pada route, gambar, logo, favicon, dan katalog. Workflow mengambil prefix ini dari metadata GitHub Pages. Pengembangan lokal tetap memakai route tanpa prefix.
+Branch `master` berisi aplikasi lengkap dengan fitur server (login, database, checkout, pembayaran) dan tidak di-deploy ke GitHub Pages. Preview frontend statis ada di branch `frontend-preview`, yang di-deploy otomatis ke https://sak-karepe.github.io/sak-karepe-website/ setiap kali di-push.
 
 ## Halaman dan konten
 
