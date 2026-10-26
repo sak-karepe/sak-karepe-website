@@ -25,11 +25,8 @@ const label = "mb-1.5 block text-[13px] font-medium text-muted";
 /** Mengisi lebar penuh area konten dialog (padding px-5 / md:px-7 di SiteShell). */
 const bleed = "-mx-5 px-5 md:-mx-7 md:px-7";
 
-/** Isi modal "Beli": jumlah, pilih alamat (atau isi alamat pertama), lalu catat pesanan dan buka WhatsApp. */
+/** Isi modal "Beli": jumlah dan catatan, lalu catat pesanan dan buka WhatsApp. Alamat diisi saat checkout. */
 export function Checkout({ product }: { product: CheckoutProduct }) {
-  const [addresses, setAddresses] = useState<Address[] | null>(null);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [adding, setAdding] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -37,23 +34,10 @@ export function Checkout({ product }: { product: CheckoutProduct }) {
   const [pending, startTransition] = useTransition();
   const maxQuantity = Math.min(product.stock ?? 99, 99);
 
-  useEffect(() => {
-    let active = true;
-    listAddresses().then((list) => {
-      if (!active) return;
-      setAddresses(list);
-      setSelected(list[0]?.id ?? null);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
   const submit = () => {
-    if (!selected) return;
     setError("");
     startTransition(async () => {
-      const result = await placeOrder({ productId: product.id, quantity, addressId: selected, notes });
+      const result = await placeOrder({ productId: product.id, quantity, notes });
       if ("error" in result) {
         setError(result.error);
         return;
@@ -70,8 +54,8 @@ export function Checkout({ product }: { product: CheckoutProduct }) {
         <p className="mt-4 text-sm text-muted">Pesanan tercatat</p>
         <p className="mt-1 font-heading text-[28px] font-bold tracking-[-.04em]">{placed.code}</p>
         <p className="mt-4 max-w-sm text-[15px] text-muted">
-          WhatsApp sedang dibuka. Kirim pesan yang sudah terisi tanpa menghapus atau mengubahnya, lalu Sak Karepe
-          akan mengonfirmasi harga, ongkos kirim, dan pembayaran.
+          WhatsApp sedang dibuka. Kirim pesan yang sudah terisi tanpa menghapus atau mengubahnya. Setelah harga
+          disepakati, Sak Karepe mengirim link checkout untuk mengisi alamat dan membayar.
         </p>
         <a className="btn mt-7 gap-3" href={placed.whatsapp} target="_blank" rel="noopener noreferrer">
           Buka WhatsApp <LinkIcon />
@@ -82,7 +66,6 @@ export function Checkout({ product }: { product: CheckoutProduct }) {
       </div>
     );
 
-  const showForm = addresses !== null && (adding || addresses.length === 0);
   return (
     <>
       <div className="flex gap-4">
@@ -120,95 +103,115 @@ export function Checkout({ product }: { product: CheckoutProduct }) {
         </div>
       </div>
 
-      <section className="mt-8" aria-labelledby="address-title">
-        <div className="flex items-baseline justify-between gap-4">
-          <h3 id="address-title" className="text-base tracking-[-.01em]">
-            {showForm ? "Alamat baru" : "Kirim ke"}
-          </h3>
-          {addresses !== null && !showForm && (
-            <button className="text-sm text-accent hover:underline" onClick={() => setAdding(true)}>
-              Tambah alamat
-            </button>
-          )}
-        </div>
-        {addresses === null ? (
-          <div className="mt-3 h-20 animate-pulse rounded-md bg-surface" aria-label="Memuat alamat" />
-        ) : showForm ? (
-          <AddressForm
-            onCancel={addresses.length > 0 ? () => setAdding(false) : undefined}
-            onSaved={(address) => {
-              setAddresses([address, ...addresses]);
-              setSelected(address.id);
-              setAdding(false);
-            }}
-          />
-        ) : (
-          <fieldset className="mt-3 space-y-2">
-            <legend className="sr-only">Pilih alamat</legend>
-            {addresses.map((address) => (
-              <label
-                key={address.id}
-                className="flex cursor-pointer gap-3 rounded-md border border-line px-4 py-3.5 transition-colors hover:border-muted has-checked:border-accent has-checked:bg-surface/60"
-              >
-                <input
-                  type="radio"
-                  name="address"
-                  className="mt-1 size-4 shrink-0 accent-(--accent)"
-                  checked={selected === address.id}
-                  onChange={() => setSelected(address.id)}
-                />
-                <span className="min-w-0 text-[15px] leading-snug">
-                  <span className="font-medium">{address.recipientName}</span>
-                  <span className="text-muted"> · {address.phone}</span>
-                  <span className="mt-1 block text-sm text-muted">
-                    {formatAddress(address)} {address.postalCode}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
+      <details className="group mt-8" open={notes.length > 0}>
+        <summary className="flex w-fit cursor-pointer list-none items-center gap-2 text-sm text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+          <PlusIcon size={14} className="transition-transform group-open:rotate-45" aria-hidden="true" />
+          Catatan untuk penjual
+        </summary>
+        <textarea
+          aria-label="Catatan untuk penjual"
+          className="mt-3 block min-h-20 w-full rounded-md border border-line bg-transparent p-3 text-[15px] placeholder:text-muted focus:border-accent focus:outline-none"
+          placeholder="Mis. ukuran, warna, atau motif yang diinginkan"
+          maxLength={500}
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+        />
+      </details>
+      <div className={`sticky bottom-0 mt-8 border-t border-line bg-page pt-4 pb-5 ${bleed}`}>
+        {error && (
+          <p role="alert" className="mb-3 text-sm text-ink">
+            {error}
+          </p>
         )}
-      </section>
-
-      {addresses !== null && !showForm && (
-        <>
-          <details className="group mt-6" open={notes.length > 0}>
-            <summary className="flex w-fit cursor-pointer list-none items-center gap-2 text-sm text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
-              <PlusIcon size={14} className="transition-transform group-open:rotate-45" aria-hidden="true" />
-              Catatan untuk penjual
-            </summary>
-            <textarea
-              aria-label="Catatan untuk penjual"
-              className="mt-3 block min-h-20 w-full rounded-md border border-line bg-transparent p-3 text-[15px] placeholder:text-muted focus:border-accent focus:outline-none"
-              placeholder="Mis. ukuran, warna, atau motif yang diinginkan"
-              maxLength={500}
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-            />
-          </details>
-          <div className={`sticky bottom-0 mt-8 border-t border-line bg-page pt-4 pb-5 ${bleed}`}>
-            {error && (
-              <p role="alert" className="mb-3 text-sm text-ink">
-                {error}
-              </p>
-            )}
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-[13px] text-muted">Subtotal</p>
-                <p className="text-lg leading-tight font-medium tabular-nums">
-                  {product.price === null ? "Dikonfirmasi penjual" : formatRupiah(product.price * quantity)}
-                </p>
-              </div>
-              <button className="btn gap-3 px-5" disabled={!selected || pending} onClick={submit}>
-                {pending ? "Mencatat…" : "Pesan via WhatsApp"}
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-muted">Ongkos kirim dan pembayaran disepakati di WhatsApp.</p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[13px] text-muted">Subtotal</p>
+            <p className="text-lg leading-tight font-medium tabular-nums">
+              {product.price === null ? "Dikonfirmasi penjual" : formatRupiah(product.price * quantity)}
+            </p>
           </div>
-        </>
-      )}
-      {showForm && <div className="h-6" />}
+          <button className="btn gap-3 px-5" disabled={pending} onClick={submit}>
+            {pending ? "Mencatat…" : "Pesan via WhatsApp"}
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-muted">Harga disepakati di WhatsApp. Alamat dan ongkos kirim diisi saat checkout.</p>
+      </div>
     </>
+  );
+}
+
+/**
+ * Pilih alamat tersimpan atau isi alamat baru. Alamat pertama yang dimuat atau baru disimpan langsung terpilih.
+ */
+export function AddressPicker({ selected, onSelect }: { selected: number | null; onSelect: (id: number | null) => void }) {
+  const [addresses, setAddresses] = useState<Address[] | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    listAddresses().then((list) => {
+      if (!active) return;
+      setAddresses(list);
+      onSelect(list[0]?.id ?? null);
+    });
+    return () => {
+      active = false;
+    };
+    // Hanya dimuat sekali saat komponen tampil.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const showForm = addresses !== null && (adding || addresses.length === 0);
+  return (
+    <section aria-labelledby="address-title">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 id="address-title" className="text-[24px] tracking-[-.03em]">
+          {showForm ? "Alamat baru" : "Kirim ke"}
+        </h2>
+        {addresses !== null && !showForm && (
+          <button className="text-sm text-accent hover:underline" onClick={() => setAdding(true)}>
+            Tambah alamat
+          </button>
+        )}
+      </div>
+      {addresses === null ? (
+        <div className="mt-3 h-20 animate-pulse rounded-md bg-surface" aria-label="Memuat alamat" />
+      ) : showForm ? (
+        <AddressForm
+          onCancel={addresses.length > 0 ? () => setAdding(false) : undefined}
+          onSaved={(address) => {
+            setAddresses([address, ...addresses]);
+            onSelect(address.id);
+            setAdding(false);
+          }}
+        />
+      ) : (
+        <fieldset className="mt-3 space-y-2">
+          <legend className="sr-only">Pilih alamat</legend>
+          {addresses.map((address) => (
+            <label
+              key={address.id}
+              className="flex cursor-pointer gap-3 rounded-md border border-line px-4 py-3.5 transition-colors hover:border-muted has-checked:border-accent has-checked:bg-surface/60"
+            >
+              <input
+                type="radio"
+                name="address"
+                className="mt-1 size-4 shrink-0 accent-(--accent)"
+                checked={selected === address.id}
+                onChange={() => onSelect(address.id)}
+              />
+              <span className="min-w-0 text-[15px] leading-snug">
+                <span className="font-medium">{address.recipientName}</span>
+                <span className="text-muted"> · {address.phone}</span>
+                <span className="mt-1 block text-sm text-muted">
+                  {formatAddress(address)} {address.postalCode}
+                </span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+    </section>
   );
 }
 

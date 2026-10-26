@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { ArrowSquareOutIcon, WhatsappLogoIcon } from "@phosphor-icons/react/dist/ssr";
@@ -11,12 +12,14 @@ import { Breadcrumb } from "@/components/page-intro";
 import { cancelOrder } from "@/lib/checkout-actions";
 import { whatsappUrl } from "@/lib/contact";
 import { formatDateTime, formatRupiah } from "@/lib/format";
-import { orderStatusClass, orderStatusLabels } from "@/lib/order-status";
+import { checkoutStatuses, orderStatusClass, orderStatusLabels } from "@/lib/order-status";
+import { isActivePayment } from "@/lib/payments";
 export const metadata: Metadata = { title: "Detail pesanan · Sak Karepe", robots: { index: false } };
 
 const statusHints: Record<Order["status"], string> = {
-  menunggu_konfirmasi: "Sak Karepe sedang mengonfirmasi harga dan ongkos kirim lewat WhatsApp.",
-  menunggu_pembayaran: "Harga sudah disepakati. Selesaikan pembayaran lewat link di bawah.",
+  menunggu_konfirmasi: "Sak Karepe sedang mengonfirmasi harga lewat WhatsApp.",
+  menunggu_checkout: "Harga sudah disepakati. Isi alamat pengiriman untuk menghitung ongkos kirim, lalu bayar.",
+  menunggu_pembayaran: "Selesaikan pembayaran lewat link di bawah.",
   dibayar: "Pembayaran diterima. Pesanan sedang disiapkan.",
   dikirim: "Pesanan sedang dalam pengiriman.",
   selesai: "Pesanan selesai. Terima kasih sudah berbelanja di Sak Karepe.",
@@ -44,8 +47,10 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
   });
   if (!order) notFound();
   const [payment] = order.payments;
-  const waiting = order.status === "menunggu_konfirmasi" || order.status === "menunggu_pembayaran";
-  const payable = order.status === "menunggu_pembayaran" && payment && !payment.paidAt && !payment.cancelledAt && payment.expiresAt > new Date();
+  const waiting = checkoutStatuses.includes(order.status);
+  const payable = order.status === "menunggu_pembayaran" && payment && isActivePayment(payment);
+  // Checkout dibuka lagi bila link DOKU sebelumnya kedaluwarsa atau dibatalkan.
+  const checkout = (order.status === "menunggu_checkout" || order.status === "menunggu_pembayaran") && !payable && !payment?.paidAt;
   const total = order.subtotal === null ? null : order.subtotal + (order.shippingCost ?? 0);
   return (
     <main id="utama" className="wrap pt-8 pb-20 md:pt-10">
@@ -88,11 +93,12 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
               </span>
             </p>
             {order.shippingCost === null ? (
-              <p className="mt-1 text-sm text-muted">Ongkos kirim dikonfirmasi lewat WhatsApp.</p>
+              <p className="mt-1 text-sm text-muted">Ongkos kirim dihitung saat checkout.</p>
             ) : (
               <>
                 <p className="mt-1 flex justify-between gap-4 text-muted">
-                  Ongkos kirim <span className="tabular-nums">{formatRupiah(order.shippingCost)}</span>
+                  <span>Ongkos kirim{order.courierName && ` · ${order.courierName}`}</span>
+                  <span className="tabular-nums">{formatRupiah(order.shippingCost)}</span>
                 </p>
                 {total !== null && (
                   <p className="mt-3 flex justify-between gap-4 border-t border-line pt-3 font-medium">
@@ -104,17 +110,34 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
           </section>
           <section aria-labelledby="pengiriman">
             <h2 id="pengiriman" className="text-[24px] tracking-[-.03em]">Dikirim ke</h2>
-            <p className="mt-3">
-              {order.recipientName} <span className="text-muted">· {order.phone}</span>
-            </p>
-            <p className="mt-1 max-w-xl text-[15px] leading-relaxed text-muted">
-              {order.shippingAddress} {order.postalCode}
-            </p>
+            {order.shippingAddress ? (
+              <>
+                <p className="mt-3">
+                  {order.recipientName} <span className="text-muted">· {order.phone}</span>
+                </p>
+                <p className="mt-1 max-w-xl text-[15px] leading-relaxed text-muted">
+                  {order.shippingAddress} {order.postalCode}
+                </p>
+              </>
+            ) : (
+              <p className="mt-3 text-[15px] text-muted">Alamat diisi saat checkout.</p>
+            )}
             {order.notes && <p className="mt-4 max-w-xl whitespace-pre-line text-[15px]">Catatan: {order.notes}</p>}
           </section>
         </div>
         <aside className="grid content-start gap-6">
-          {payment && (
+          {checkout && (
+            <section aria-labelledby="checkout" className="rounded-md border border-line p-5">
+              <h2 id="checkout" className="text-sm font-medium">Checkout</h2>
+              <p className="mt-2 text-[15px] text-muted">
+                {payment ? "Link pembayaran sebelumnya sudah tidak berlaku. Checkout lagi untuk membuat link baru." : "Isi alamat pengiriman, lalu bayar."}
+              </p>
+              <Link href={`/pesanan/${order.code}/checkout`} className="btn mt-4 w-full">
+                Lanjutkan checkout
+              </Link>
+            </section>
+          )}
+          {payment && !checkout && (
             <section aria-labelledby="pembayaran" className="rounded-md border border-line p-5">
               <h2 id="pembayaran" className="text-sm font-medium">Pembayaran</h2>
               <p className="mt-2 text-[22px] tabular-nums">{formatRupiah(payment.amount)}</p>
@@ -133,9 +156,7 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
                   </a>
                 </>
               ) : (
-                order.status === "menunggu_pembayaran" && (
-                  <p className="text-sm text-muted">Link pembayaran kedaluwarsa. Minta link baru lewat WhatsApp.</p>
-                )
+                <p className="text-sm text-muted">Link pembayaran kedaluwarsa.</p>
               )}
             </section>
           )}
@@ -147,7 +168,7 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
           >
             <WhatsappLogoIcon size={18} aria-hidden="true" /> Tanya lewat WhatsApp
           </a>
-          {waiting && <CancelOrder action={cancelOrder.bind(null, order.id)} hasPaymentLink={Boolean(payment && !payment.cancelledAt && payment.expiresAt > new Date())} />}
+          {waiting && <CancelOrder action={cancelOrder.bind(null, order.id)} hasPaymentLink={Boolean(payment && isActivePayment(payment))} />}
         </aside>
       </div>
     </main>

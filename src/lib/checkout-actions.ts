@@ -6,9 +6,12 @@ import { currentUserId } from "@/auth";
 import { db } from "@/db";
 import { addresses, orderItems, orders, payments, products, regions, type Address } from "@/db/schema";
 import { formatAddress } from "@/lib/address";
-import { cancelCheckout } from "@/lib/doku";
+import { createCheckout } from "@/lib/doku";
 import { whatsappUrl } from "@/lib/contact";
 import { formatRupiah } from "@/lib/format";
+import { checkoutStatuses } from "@/lib/order-status";
+import { cancelActivePayments, isActivePayment } from "@/lib/payments";
+import { quoteShipping, type ShippingOption } from "@/lib/shipping";
 
 const loginRequired = "Sesi masuk berakhir. Silakan masuk kembali.";
 const notCancellable = "Pesanan ini sudah tidak bisa dibatalkan. Muat ulang halaman untuk melihat statusnya.";
@@ -77,46 +80,26 @@ async function newOrderCode() {
 export type PlaceOrderResult = { error: string } | { code: string; whatsapp: string };
 
 /**
- * Mencatat pesanan berstatus "menunggu_konfirmasi" lalu mengembalikan tautan WhatsApp berisi kode pesanan
- * dan ID pembeli. Harga akhir, ongkir, dan pembayaran disepakati penjual lewat WhatsApp; stok belum dikurangi.
+ * Mencatat pesanan berstatus "menunggu_konfirmasi" lalu mengembalikan tautan WhatsApp berisi kode pesanan dan
+ * ID pembeli. Harga disepakati lewat WhatsApp; alamat dan ongkir diisi pembeli saat checkout. Stok belum dikurangi.
  */
-export async function placeOrder(input: {
-  productId: number;
-  quantity: number;
-  addressId: number;
-  notes?: string;
-}): Promise<PlaceOrderResult> {
+export async function placeOrder(input: { productId: number; quantity: number; notes?: string }): Promise<PlaceOrderResult> {
   const userId = await currentUserId();
   if (!userId) return { error: loginRequired };
   const quantity = Math.floor(Number(input.quantity));
   if (!(quantity >= 1 && quantity <= 99)) return { error: "Jumlah barang tidak valid." };
-  const [product, address] = await Promise.all([
-    db.query.products.findFirst({ where: and(eq(products.id, input.productId), eq(products.published, true)) }),
-    db.query.addresses.findFirst({ where: and(eq(addresses.id, input.addressId), eq(addresses.userId, userId)) }),
-  ]);
+  const product = await db.query.products.findFirst({
+    where: and(eq(products.id, input.productId), eq(products.published, true)),
+  });
   if (!product) return { error: "Produk tidak ditemukan atau sudah tidak dijual." };
-  if (!address) return { error: "Pilih alamat pengiriman." };
   if (product.stock !== null && quantity > product.stock)
     return { error: product.stock > 0 ? `Stok tersisa ${product.stock}.` : "Stok produk sedang kosong." };
 
   const notes = String(input.notes ?? "").trim().slice(0, 500);
-  const shippingAddress = formatAddress(address);
   const subtotal = product.price === null ? null : product.price * quantity;
   const code = await newOrderCode();
   const orderId = await db.transaction(async (tx) => {
-    const [order] = await tx
-      .insert(orders)
-      .values({
-        code,
-        userId,
-        recipientName: address.recipientName,
-        phone: address.phone,
-        shippingAddress: address.notes ? `${shippingAddress} (${address.notes})` : shippingAddress,
-        postalCode: address.postalCode,
-        subtotal,
-        notes,
-      })
-      .returning({ id: orders.id });
+    const [order] = await tx.insert(orders).values({ code, userId, subtotal, notes }).returning({ id: orders.id });
     await tx.insert(orderItems).values({ orderId: order.id, productId: product.id, productName: product.name, price: product.price, quantity });
     return order.id;
   });
@@ -129,18 +112,144 @@ export async function placeOrder(input: {
     `ID pesanan: ${orderId}`,
     `Kode pesanan: ${code}`,
     `ID pembeli: ${userId}`,
-    "",
-    "Dikirim ke:",
-    `${address.recipientName} (${address.phone})`,
-    `${shippingAddress} ${address.postalCode}`,
-    ...(address.notes ? [`Patokan: ${address.notes}`] : []),
     ...(notes ? ["", `Catatan: ${notes}`] : []),
     "",
-    "Mohon info total harga dan ongkos kirimnya. Terima kasih.",
+    "Mohon konfirmasi harganya. Terima kasih.",
     "",
     "⚠️ Mohon jangan menghapus atau mengubah pesan ini. ID dan kode pesanan dipakai penjual untuk memproses pesananmu.",
   ].join("\n");
   return { code, whatsapp: whatsappUrl(message) };
+}
+
+/** Pesanan milik pembeli yang sedang masuk beserta produk dan link pembayarannya. */
+async function findOwnOrder(userId: number, orderId: number) {
+  return db.query.orders.findFirst({
+    where: and(eq(orders.id, orderId), eq(orders.userId, userId)),
+    with: { user: true, items: { with: { product: { columns: { weight: true } } } }, payments: true },
+  });
+}
+
+type OwnOrder = NonNullable<Awaited<ReturnType<typeof findOwnOrder>>>;
+
+/** Pilihan kurir untuk produk pesanan ke kode pos tujuan; harga produk memakai harga kesepakatan. */
+function quoteOrder(order: OwnOrder, postalCode: string) {
+  return quoteShipping(
+    postalCode,
+    order.items.map((item) => ({
+      name: item.productName,
+      price: item.price ?? 0,
+      quantity: item.quantity,
+      weight: item.product?.weight ?? null,
+    })),
+  );
+}
+
+/** Checkout dibuka setelah admin mengisi harga, dan bisa diulang bila link DOKU sebelumnya kedaluwarsa atau dibatalkan. */
+const notCheckoutable = "Pesanan ini belum atau sudah tidak bisa di-checkout. Muat ulang halaman untuk melihat statusnya.";
+
+export type ShippingQuoteResult = { error: string } | { options: ShippingOption[] };
+
+/** Pilihan kurir dan ongkir ke alamat yang dipilih, untuk dipilih pembeli sebelum membayar. */
+export async function quoteOrderShipping(orderId: number, addressId: number): Promise<ShippingQuoteResult> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const [order, address] = await Promise.all([
+    findOwnOrder(userId, orderId),
+    db.query.addresses.findFirst({ where: and(eq(addresses.id, addressId), eq(addresses.userId, userId)) }),
+  ]);
+  if (!order) return { error: notCheckoutable };
+  if (!address) return { error: "Pilih alamat pengiriman." };
+  const quote = await quoteOrder(order, address.postalCode);
+  return quote.ok ? { options: quote.options } : { error: quote.error };
+}
+
+/** Link berlaku 24 jam agar pembeli sempat membayar. */
+const dueMinutes = 24 * 60;
+
+export type CheckoutOrderResult = { error: string } | { url: string };
+
+/**
+ * Menyalin alamat dan kurir pilihan ke pesanan, lalu membuat link DOKU Checkout dan mengubah status menjadi
+ * "menunggu_pembayaran". Ongkir diambil ulang dari Biteship, bukan dari browser. Bila link sebelumnya masih
+ * berlaku, link itu yang dikembalikan.
+ */
+export async function checkoutOrder(
+  orderId: number,
+  addressId: number,
+  courier: { courierCode: string; serviceCode: string },
+): Promise<CheckoutOrderResult> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const [order, address] = await Promise.all([
+    findOwnOrder(userId, orderId),
+    db.query.addresses.findFirst({ where: and(eq(addresses.id, addressId), eq(addresses.userId, userId)) }),
+  ]);
+  if (!order || order.payments.some((payment) => payment.paidAt)) return { error: notCheckoutable };
+  const active = order.payments.find((payment) => isActivePayment(payment));
+  if (order.status === "menunggu_pembayaran" && active) return { url: active.url };
+  if (order.status !== "menunggu_checkout" && order.status !== "menunggu_pembayaran") return { error: notCheckoutable };
+  if (order.items.some((item) => item.price === null)) return { error: notCheckoutable };
+  if (!address) return { error: "Pilih alamat pengiriman." };
+
+  const quote = await quoteOrder(order, address.postalCode);
+  if (!quote.ok) return { error: quote.error };
+  const option = quote.options.find(
+    (option) => option.courierCode === courier.courierCode && option.serviceCode === courier.serviceCode,
+  );
+  if (!option) return { error: "Layanan kurir itu tidak tersedia untuk alamat ini. Pilih kurir lain." };
+  const shippingCost = option.price;
+  const subtotal = order.items.reduce((sum, item) => sum + item.price! * item.quantity, 0);
+  const amount = subtotal + shippingCost;
+  const lineItems = order.items.map((item) => ({
+    id: String(item.productId ?? `item${item.id}`),
+    name: item.productName.slice(0, 255),
+    price: item.price!,
+    quantity: item.quantity,
+  }));
+  if (shippingCost) lineItems.push({ id: "ongkir", name: "Ongkos kirim", price: shippingCost, quantity: 1 });
+  const shippingAddress = formatAddress(address);
+  const fullAddress = address.notes ? `${shippingAddress} (${address.notes})` : shippingAddress;
+  // Tanpa simbol agar diterima semua kanal pembayaran (KKI), mis. SK261023Y7D3P1.
+  const invoiceNumber = `${order.code.replace(/[^A-Z0-9]/g, "")}P${order.payments.length + 1}`;
+  const result = await createCheckout({
+    invoiceNumber,
+    amount,
+    lineItems,
+    dueMinutes,
+    customer: {
+      id: String(userId),
+      name: address.recipientName.replace(/[^\p{L} ]/gu, "").trim().slice(0, 255),
+      email: order.user.email,
+      phone: address.phone.replace(/^0/, "62"),
+      address: fullAddress.slice(0, 400),
+      postcode: address.postalCode,
+    },
+  });
+  if (!result.ok) return { error: `Link pembayaran belum bisa dibuat. ${result.error}` };
+  await db.transaction(async (tx) => {
+    await tx
+      .update(orders)
+      .set({
+        recipientName: address.recipientName,
+        phone: address.phone,
+        shippingAddress: fullAddress,
+        postalCode: address.postalCode,
+        subtotal,
+        shippingCost,
+        courierCode: option.courierCode,
+        courierServiceCode: option.serviceCode,
+        courierName: option.name,
+        status: "menunggu_pembayaran",
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId));
+    await tx
+      .insert(payments)
+      .values({ orderId, invoiceNumber, amount, url: result.url, expiresAt: result.expiresAt, requestId: result.requestId });
+  });
+  revalidatePath("/pesanan", "layout");
+  revalidatePath("/admin", "layout");
+  return { url: result.url };
 }
 
 export type CancelOrderState = { error?: string };
@@ -156,22 +265,14 @@ export async function cancelOrder(id: number): Promise<CancelOrderState> {
     where: and(eq(orders.id, id), eq(orders.userId, userId)),
     with: { payments: true },
   });
-  if (!order || (order.status !== "menunggu_konfirmasi" && order.status !== "menunggu_pembayaran") || order.payments.some((p) => p.paidAt))
-    return { error: notCancellable };
-  const now = new Date();
-  const active = order.payments.filter((payment) => !payment.cancelledAt && payment.expiresAt > now);
-  for (const payment of active) {
-    // Link yang dibuat sebelum Request-Id disimpan tidak bisa dibatalkan lewat API.
-    if (!payment.requestId) return { error: "Link pembayaran pesanan ini tidak bisa dibatalkan otomatis. Hubungi Sak Karepe lewat WhatsApp." };
-    const result = await cancelCheckout(payment.invoiceNumber, payment.requestId, `Dibatalkan pembeli (${order.code})`);
-    if (!result.ok) return { error: `Pesanan tidak dibatalkan. ${result.error}` };
-    await db.update(payments).set({ cancelledAt: new Date() }).where(eq(payments.id, payment.id));
-  }
+  if (!order || !checkoutStatuses.includes(order.status) || order.payments.some((p) => p.paidAt)) return { error: notCancellable };
+  const cancelError = await cancelActivePayments(order.payments, `Dibatalkan pembeli (${order.code})`);
+  if (cancelError) return { error: `Pesanan tidak dibatalkan. ${cancelError} Hubungi Sak Karepe lewat WhatsApp.` };
   // Status ikut dicek di WHERE agar pembayaran yang baru masuk tidak ikut terbatalkan.
   const [cancelled] = await db
     .update(orders)
     .set({ status: "dibatalkan", updatedAt: new Date() })
-    .where(and(eq(orders.id, id), eq(orders.userId, userId), inArray(orders.status, ["menunggu_konfirmasi", "menunggu_pembayaran"])))
+    .where(and(eq(orders.id, id), eq(orders.userId, userId), inArray(orders.status, checkoutStatuses)))
     .returning({ id: orders.id });
   revalidatePath("/pesanan", "layout");
   revalidatePath("/admin", "layout");

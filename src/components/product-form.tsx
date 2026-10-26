@@ -14,6 +14,7 @@ export type ProductFormValues = {
   description: string;
   price: number | null;
   stock: number | null;
+  weight: number | null;
   published: boolean;
   images: ExistingImage[];
 };
@@ -184,6 +185,17 @@ export function ProductForm({
               Stok <span className="font-normal text-muted">(opsional)</span>
             </label>
             <input id="stock" name="stock" inputMode="numeric" defaultValue={product?.stock ?? ""} className={field} />
+          </div>
+          <div>
+            <label htmlFor="weight" className={label}>
+              Berat kemasan <span className="font-normal text-muted">(opsional)</span>
+            </label>
+            <div className="relative">
+              <input id="weight" name="weight" inputMode="numeric" placeholder="Kosong dihitung 1.000"
+                defaultValue={product?.weight ?? ""} className={`${field} pr-14`} />
+              <span className="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-muted">gram</span>
+            </div>
+            <p className="mt-1.5 text-sm text-muted">Dipakai untuk menghitung ongkos kirim.</p>
           </div>
           <label className="flex items-start gap-3 rounded-md border border-line p-4">
             <input type="checkbox" name="published" defaultChecked={product?.published ?? true}

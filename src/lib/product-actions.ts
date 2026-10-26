@@ -50,6 +50,7 @@ async function readForm(formData: FormData, excludeId?: number) {
       description: String(formData.get("description") ?? "").trim(),
       price: parseAmount(formData.get("price")),
       stock: parseAmount(formData.get("stock")),
+      weight: parseAmount(formData.get("weight")),
       published: formData.get("published") === "on",
     },
   } as const;

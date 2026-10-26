@@ -7,10 +7,11 @@ import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
 import { orders, orderStatuses } from "@/db/schema";
 import { AdminBack } from "@/components/admin-back";
-import { PaymentDialog } from "@/components/payment-dialog";
+import { CheckoutLinkDialog, CopyCheckoutLink } from "@/components/checkout-link-dialog";
 import { formatDateTime, formatRupiah } from "@/lib/format";
-import { createPayment, updateOrderStatus } from "@/lib/order-actions";
-import { orderStatusClass, orderStatusLabels } from "@/lib/order-status";
+import { createCheckoutLink, updateOrderStatus } from "@/lib/order-actions";
+import { checkoutStatuses, orderStatusClass, orderStatusLabels } from "@/lib/order-status";
+import { isActivePayment } from "@/lib/payments";
 export const metadata: Metadata = { title: "Detail pesanan" };
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdminPage();
@@ -22,10 +23,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   });
   if (!order) notFound();
   const [payment] = order.payments;
-  const canPay = order.status === "menunggu_konfirmasi" || order.status === "menunggu_pembayaran";
+  // Harga bisa diubah selama belum dibayar; link DOKU yang masih berlaku ikut dibatalkan.
+  const canPrice = checkoutStatuses.includes(order.status) && !payment?.paidAt;
   const total = order.subtotal === null ? null : order.subtotal + (order.shippingCost ?? 0);
-  // Nomor disimpan sebagai 08..., wa.me butuh 628...
-  const buyerWhatsapp = `https://wa.me/${order.phone.replace(/^0/, "62")}?text=${encodeURIComponent(`Halo ${order.recipientName}, kami dari Sak Karepe tentang pesanan ${order.code}.`)}`;
+  // Nomor disimpan sebagai 08..., wa.me butuh 628...; kosong sebelum pembeli checkout.
+  const buyerWhatsapp =
+    order.phone &&
+    `https://wa.me/${order.phone.replace(/^0/, "62")}?text=${encodeURIComponent(`Halo ${order.recipientName}, kami dari Sak Karepe tentang pesanan ${order.code}.`)}`;
   return (
     <main id="utama" className="px-5 py-8 md:px-10 md:py-12">
       <AdminBack href="/admin/pesanan" label="Semua pesanan" />
@@ -73,11 +77,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </span>
             </p>
             {order.shippingCost === null ? (
-              <p className="mt-1 text-sm text-muted">Belum termasuk ongkos kirim.</p>
+              <p className="mt-1 text-sm text-muted">Ongkos kirim dihitung saat pembeli checkout.</p>
             ) : (
               <>
                 <p className="mt-1 flex justify-between gap-4 text-muted">
-                  Ongkos kirim <span className="tabular-nums">{formatRupiah(order.shippingCost)}</span>
+                  <span>Ongkos kirim{order.courierName && ` · ${order.courierName}`}</span>
+                  <span className="tabular-nums">{formatRupiah(order.shippingCost)}</span>
                 </p>
                 {total !== null && (
                   <p className="mt-3 flex justify-between gap-4 border-t border-line pt-3 font-medium">
@@ -93,10 +98,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </section>
         </div>
         <aside className="grid content-start gap-8">
-          {(canPay || payment) && (
+          {(canPrice || payment) && (
             <section aria-labelledby="pembayaran" className="rounded-md border border-line p-5">
-              <h2 id="pembayaran" className="text-sm font-medium">Pembayaran</h2>
-              {payment ? (
+              <h2 id="pembayaran" className="text-sm font-medium">Checkout & pembayaran</h2>
+              {order.status === "menunggu_checkout" ? (
+                <p className="mt-2 text-[15px] text-muted">Link checkout sudah dibuat. Menunggu pembeli mengisi alamat dan membuat pembayaran.</p>
+              ) : payment ? (
                 <div className="mt-2">
                   <p className="text-lg tabular-nums">{formatRupiah(payment.amount)}</p>
                   {payment.paidAt ? (
@@ -121,16 +128,20 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   </a>
                 </div>
               ) : (
-                <p className="mt-2 text-[15px] text-muted">Buat link DOKU Checkout setelah harga disepakati dengan pembeli.</p>
+                <p className="mt-2 text-[15px] text-muted">
+                  Buat link checkout setelah harga disepakati. Pembeli mengisi alamat di sana, lalu link DOKU dibuat otomatis.
+                </p>
               )}
-              {canPay && (
-                <div className="mt-4">
-                  <PaymentDialog
-                    action={createPayment.bind(null, order.id)}
-                    label={payment ? "Buat link baru" : "Buat pembayaran"}
+              {canPrice && (
+                <div className="mt-4 grid gap-2">
+                  {(order.status === "menunggu_checkout" || (order.status === "menunggu_pembayaran" && !(payment && isActivePayment(payment)))) && (
+                    <CopyCheckoutLink code={order.code} />
+                  )}
+                  <CheckoutLinkDialog
+                    action={createCheckoutLink.bind(null, order.id)}
+                    label={order.status === "menunggu_konfirmasi" ? "Buat link checkout" : "Ubah harga"}
                     items={order.items.map((item) => ({ id: item.id, name: item.productName, quantity: item.quantity, price: item.price }))}
-                    shippingCost={order.shippingCost}
-                    buyer={{ name: order.recipientName, phone: order.phone, code: order.code }}
+                    code={order.code}
                   />
                 </div>
               )}
@@ -156,19 +167,25 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </form>
           <section aria-labelledby="pengiriman">
             <h2 id="pengiriman" className="text-sm font-medium">Kirim ke</h2>
-            <p className="mt-2">{order.recipientName}</p>
-            <p className="text-[15px] text-muted">{order.phone}</p>
-            <p className="mt-2 text-[15px] leading-relaxed">
-              {order.shippingAddress} {order.postalCode}
-            </p>
-            <a
-              href={buyerWhatsapp}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 inline-flex items-center gap-1.5 text-[15px] text-accent hover:underline"
-            >
-              <WhatsappLogoIcon size={18} aria-hidden="true" /> Chat penerima
-            </a>
+            {buyerWhatsapp ? (
+              <>
+                <p className="mt-2">{order.recipientName}</p>
+                <p className="text-[15px] text-muted">{order.phone}</p>
+                <p className="mt-2 text-[15px] leading-relaxed">
+                  {order.shippingAddress} {order.postalCode}
+                </p>
+                <a
+                  href={buyerWhatsapp}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 text-[15px] text-accent hover:underline"
+                >
+                  <WhatsappLogoIcon size={18} aria-hidden="true" /> Chat penerima
+                </a>
+              </>
+            ) : (
+              <p className="mt-2 text-[15px] text-muted">Pembeli belum mengisi alamat.</p>
+            )}
           </section>
           <section aria-labelledby="akun" className="border-t border-line pt-6">
             <h2 id="akun" className="text-sm font-medium">Akun pembeli</h2>
