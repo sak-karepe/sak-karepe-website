@@ -2,12 +2,16 @@ import { orderStatuses, type Order } from "@/db/schema";
 
 export const orderStatusLabels: Record<Order["status"], string> = {
   menunggu_konfirmasi: "Menunggu konfirmasi",
+  menunggu_checkout: "Menunggu checkout",
   menunggu_pembayaran: "Menunggu pembayaran",
   dibayar: "Dibayar",
   dikirim: "Dikirim",
   selesai: "Selesai",
   dibatalkan: "Dibatalkan",
 };
+
+/** Status yang belum dibayar: pembeli masih bisa membatalkan dan admin masih bisa mengubah harga. */
+export const checkoutStatuses: Order["status"][] = ["menunggu_konfirmasi", "menunggu_checkout", "menunggu_pembayaran"];
 
 export const isOrderStatus = (value: unknown): value is Order["status"] =>
   orderStatuses.includes(value as Order["status"]);

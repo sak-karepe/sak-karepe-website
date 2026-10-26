@@ -40,7 +40,7 @@ export default async function MyOrdersPage() {
       ) : (
         <>
           <p className="mt-3 max-w-xl text-muted">
-            {rows.length} pesanan. Harga akhir, ongkos kirim, dan link pembayaran dikonfirmasi Sak Karepe lewat WhatsApp.
+            {rows.length} pesanan. Harga dikonfirmasi Sak Karepe lewat WhatsApp; alamat dan ongkos kirim diisi saat checkout.
           </p>
           <ul className="mt-10 divide-y divide-line border-y border-line">
             {rows.map((order) => {
