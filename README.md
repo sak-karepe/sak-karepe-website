@@ -21,7 +21,7 @@ npm start
 
 ## Deploy GitHub Pages
 
-Workflow `.github/workflows/deploy-pages.yml` berjalan otomatis setiap push ke `master`, atau secara manual melalui tab Actions. Workflow memasang dependency dengan `npm ci`, menjalankan lint, menghasilkan frontend statis, lalu deploy folder `out` ke GitHub Pages.
+Branch `frontend-preview` khusus untuk preview frontend statis; fitur backend (login, database, checkout, pembayaran) dikembangkan di `master` dan tidak ikut ke branch ini. Workflow `.github/workflows/deploy-pages.yml` berjalan otomatis setiap push ke `frontend-preview`, atau secara manual melalui tab Actions. Workflow memasang dependency dengan `npm ci`, menjalankan lint, menghasilkan frontend statis, lalu deploy folder `out` ke GitHub Pages.
 
 Alamat website: https://sak-karepe.github.io/sak-karepe-website/
 
