@@ -2,7 +2,7 @@ name: Deploy frontend to GitHub Pages
 
 on:
   push:
-    branches: [master]
+    branches: [frontend-preview]
   workflow_dispatch:
 
 permissions:
@@ -43,7 +43,7 @@ jobs:
 
   deploy:
     needs: build
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/frontend-preview'
     runs-on: ubuntu-latest
     permissions:
       pages: write
