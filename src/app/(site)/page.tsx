@@ -1,4 +1,4 @@
-import { assetPath, productImage } from "@/lib/assets";
+import { assetPath, productImage, runwayImage } from "@/lib/assets";
 import { LinkIcon } from "@/components/icons";
 import Image from "@/components/site-image";
 import Link from "next/link";
@@ -136,30 +136,61 @@ export default function Home() {
         className="bg-surface py-11 md:pt-[72px] md:pb-12"
         aria-labelledby="runway-title"
       >
-        <Reveal className="wrap">
-          <div className="max-w-[660px]">
+        <div className="wrap grid items-center gap-9 py-9 md:min-h-[610px] md:grid-cols-[1fr_1.12fr] md:gap-9 md:py-12 xl:min-h-[680px] xl:gap-14">
+          {/* Kolom Kiri: Teks */}
+          <div>
             <p className="mb-4 text-[15px] text-accent">
               Sak Karepe di panggung fashion
             </p>
             <h2
               id="runway-title"
-              className="text-5xl md:text-[clamp(48px,5.3vw,72px)]"
+              className="text-5xl md:text-[clamp(48px,5.3vw,72px)] leading-[1.04] tracking-[-.065em]"
             >
               Jejak daun.
               <br />
-              Langkah baru.
+              Langkah Baru.
             </h2>
             <p className="mt-6 max-w-[540px] text-base text-muted md:text-[17px]">
               Karya dari ruang belajar hadir di panggung fashion. Dalam
               perjalanan Sak Karepe, koleksinya telah tampil di Jakarta,
               Yogyakarta, dan Surabaya.
             </p>
+
+            <div className="mt-8">
+              <Link
+                className="text-link inline-flex items-center gap-2"
+                href="/fashion-show"
+              >
+                Jelajahi galeri fashion show <LinkIcon />
+              </Link>
+            </div>
           </div>
-          <RunwayGallery />
-          <Link className="text-link mt-8" href="/fashion-show">
-            Jelajahi galeri fashion show <LinkIcon />
-          </Link>
-        </Reveal>
+
+          {/* Kolom Kanan: Layout Foto ala Hero Section */}
+          <div className="grid min-w-0 grid-cols-2 items-start gap-3 xl:gap-4">
+            {/* Gambar Kiri */}
+            <div className="photo relative aspect-[2/3] min-w-0 overflow-hidden rounded-2xl">
+              <Image
+                src={runwayImage("76e7b072-10ac-49da-9a8c-47ceb7187ad1")}
+                alt="Model memperagakan busana ecoprint Sak Karepe di runway"
+                fill
+                sizes="(max-width: 768px) 50vw, 33vw"
+                className="object-cover"
+              />
+            </div>
+
+            {/* Gambar Kanan: ukuran sama, posisi sedikit turun */}
+            <div className="photo relative mt-8 aspect-[2/3] min-w-0 overflow-hidden rounded-2xl xl:mt-12">
+              <Image
+                src={runwayImage("ac8c207d-3ad3-4ffc-9660-d6beaa4e6380")}
+                alt="Koleksi busana fashion show Sak Karepe"
+                fill
+                sizes="(max-width: 768px) 50vw, 33vw"
+                className="object-cover"
+              />
+            </div>
+          </div>
+        </div>
       </section>
       <section
         className="wrap grid items-center gap-7 py-14 md:grid-cols-2 md:gap-10 md:py-24 xl:gap-20"
