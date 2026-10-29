@@ -19,27 +19,104 @@ const methods = [
   { value: "drop_off", label: "Antar ke agen kurir", hint: "Admin membawa paket ke agen/gerai kurir." },
 ];
 
+function RadioGroup({ name, legend, options }: { name: string; legend: string; options: { value: string; label: string; hint: string }[] }) {
+  return (
+    <fieldset className="grid gap-2">
+      <legend className="sr-only">{legend}</legend>
+      {options.map((option, index) => (
+        <label key={option.value} className="flex gap-3 rounded-md border border-line p-3 has-checked:border-accent">
+          <input type="radio" name={name} value={option.value} defaultChecked={index === 0} className="mt-1 accent-accent" />
+          <span>
+            <span className="block text-[15px]">{option.label}</span>
+            <span className="block text-sm text-muted">{option.hint}</span>
+          </span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
 /** Admin memesan kurir di Biteship; resi muncul setelah berhasil (revalidatePath memuat ulang halaman). */
 export function ShipmentForm({ action }: { action: (state: State, formData: FormData) => Promise<State> }) {
   const [state, formAction, pending] = useActionState(action, {});
   return (
     <form action={formAction} className="mt-3">
-      <fieldset className="grid gap-2">
-        <legend className="sr-only">Cara penyerahan paket</legend>
-        {methods.map((method, index) => (
-          <label key={method.value} className="flex gap-3 rounded-md border border-line p-3 has-checked:border-accent">
-            <input type="radio" name="method" value={method.value} defaultChecked={index === 0} className="mt-1 accent-accent" />
-            <span>
-              <span className="block text-[15px]">{method.label}</span>
-              <span className="block text-sm text-muted">{method.hint}</span>
-            </span>
-          </label>
-        ))}
-      </fieldset>
+      <RadioGroup name="method" legend="Cara penyerahan paket" options={methods} />
       <ErrorAlert error={state.error} />
       <button className="btn mt-3 min-h-11 w-full px-4 text-[15px]" disabled={pending}>
         {pending ? "Memesan kurir…" : "Buat resi"}
       </button>
+    </form>
+  );
+}
+
+const payers = [
+  { value: "pembeli", label: "Ongkir ditanggung pembeli", hint: "Mis. alamat salah atau penerima tidak ada di tempat." },
+  { value: "sak_karepe", label: "Ongkir ditanggung Sak Karepe", hint: "Mis. kesalahan pengemasan atau kurir." },
+];
+const inputClass =
+  "mt-1 w-full rounded-md border border-line bg-page px-3 py-2.5 text-[15px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
+/** Pesanan gagal kirim: admin mengonfirmasi atau mengubah alamat lalu memesan kurir baru; resi lama masuk riwayat. */
+export function ResendShipmentForm({
+  action,
+  address,
+}: {
+  action: (state: State, formData: FormData) => Promise<State>;
+  address: { recipientName: string; phone: string; shippingAddress: string; postalCode: string };
+}) {
+  const [state, formAction, pending] = useActionState(action, {});
+  const fields = [
+    { name: "recipientName", label: "Nama penerima", autoComplete: "name" },
+    { name: "phone", label: "Nomor HP", autoComplete: "tel" },
+    { name: "shippingAddress", label: "Alamat", autoComplete: "street-address" },
+    { name: "postalCode", label: "Kode pos", autoComplete: "postal-code" },
+  ] as const;
+  return (
+    <form action={formAction} className="mt-3 grid gap-3">
+      {fields.map((field) => (
+        <label key={field.name} className="text-sm">
+          {field.label}
+          {field.name === "shippingAddress" ? (
+            <textarea name={field.name} defaultValue={address[field.name]} required rows={3} className={inputClass} />
+          ) : (
+            <input
+              name={field.name}
+              defaultValue={address[field.name]}
+              required
+              autoComplete={field.autoComplete}
+              inputMode={field.name === "recipientName" ? undefined : "numeric"}
+              className={inputClass}
+            />
+          )}
+        </label>
+      ))}
+      <RadioGroup name="paidBy" legend="Penanggung ongkir pengiriman ulang" options={payers} />
+      <RadioGroup name="method" legend="Cara penyerahan paket" options={methods} />
+      <ErrorAlert error={state.error} />
+      <button className="btn min-h-11 w-full px-4 text-[15px]" disabled={pending}>
+        {pending ? "Memesan kurir…" : "Kirim ulang"}
+      </button>
+    </form>
+  );
+}
+
+export function RefundButton({ action }: { action: () => Promise<State> }) {
+  const [state, formAction, pending] = useActionState(action, {});
+  return (
+    <form
+      action={formAction}
+      onSubmit={(event) => {
+        if (!confirm("Batalkan pesanan ini dan proses refund? Pesanan tidak bisa dikirim ulang setelahnya.")) event.preventDefault();
+      }}
+    >
+      <button
+        className="min-h-11 w-full rounded-md border border-danger px-4 text-[15px] font-medium text-danger transition-colors hover:bg-danger/10"
+        disabled={pending}
+      >
+        {pending ? "Menyimpan…" : "Batalkan & refund"}
+      </button>
+      <ErrorAlert error={state.error} />
     </form>
   );
 }

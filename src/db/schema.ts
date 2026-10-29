@@ -99,7 +99,7 @@ export const addresses = sqliteTable("addresses", {
  * link checkout menjadi "menunggu_checkout"; pembeli mengisi alamat di halaman checkout, lalu link DOKU dibuat
  * dan status menjadi "menunggu_pembayaran". Setelah dibayar admin memesan kurir (resi) dan status menjadi "dikirim"; detail
  * perjalanannya ada di `shipmentStatus`. Webhook Biteship mengubahnya menjadi "sampai", lalu "selesai" saat pembeli
- * mengonfirmasi atau 2 hari kemudian.
+ * mengonfirmasi atau 2 hari kemudian. Paket yang dikembalikan kurir menjadi "gagal_kirim", lalu dikirim ulang atau refund.
  * Aturan perpindahan status ada di lib/order-status (`orderTransitions`).
  */
 export const orderStatuses = [
@@ -150,6 +150,8 @@ export const orders = sqliteTable("orders", {
   collectionMethod: text("collection_method", { enum: ["pickup", "drop_off"] }),
   /** Kapan kurir melaporkan paket sampai; 2 hari kemudian pesanan otomatis selesai. */
   deliveredAt: integer("delivered_at", { mode: "timestamp" }),
+  /** Catatan kurir terakhir saat paket dikembalikan ("gagal_kirim"), mis. alamat tidak ditemukan. */
+  shipmentNote: text("shipment_note"),
   notes: text("notes").notNull().default(""),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
@@ -189,6 +191,23 @@ export const payments = sqliteTable("payments", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
+/** Resi lama yang gagal kirim, disimpan saat admin mengirim ulang; resi yang berlaku tetap di `orders`. */
+export const shipmentHistory = sqliteTable("shipment_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderId: integer("order_id")
+    .notNull()
+    .references(() => orders.id, { onDelete: "cascade" }),
+  shipmentId: text("shipment_id").notNull(),
+  waybillId: text("waybill_id"),
+  courierName: text("courier_name"),
+  /** Status order Biteship terakhir, mis. "returned". */
+  shipmentStatus: text("shipment_status"),
+  note: text("note"),
+  /** Siapa yang menanggung ongkir pengiriman ulang setelah resi ini. */
+  resendPaidBy: text("resend_paid_by", { enum: ["pembeli", "sak_karepe"] }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
 export const productsRelations = relations(products, ({ many, one }) => ({
   images: many(productImages),
   category: one(categories, { fields: [products.categorySlug], references: [categories.slug] }),
@@ -208,6 +227,10 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   user: one(users, { fields: [orders.userId], references: [users.id] }),
   items: many(orderItems),
   payments: many(payments),
+  shipmentHistory: many(shipmentHistory),
+}));
+export const shipmentHistoryRelations = relations(shipmentHistory, ({ one }) => ({
+  order: one(orders, { fields: [shipmentHistory.orderId], references: [orders.id] }),
 }));
 export const paymentsRelations = relations(payments, ({ one }) => ({
   order: one(orders, { fields: [payments.orderId], references: [orders.id] }),
@@ -226,3 +249,4 @@ export type Region = typeof regions.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
+export type ShipmentHistory = typeof shipmentHistory.$inferSelect;

@@ -9,14 +9,20 @@ const { eq } = await import("drizzle-orm");
 const { migrate } = await import("drizzle-orm/libsql/migrator");
 const { db } = await import("@/db");
 const { orders, users } = await import("@/db/schema");
-const { applyShipment, completeDeliveredOrders, autoCompleteMs } = await import("@/lib/shipments");
+const { applyShipment, completeDeliveredOrders, autoCompleteMs, onHoldMs, stuckOnHoldOrders } = await import("@/lib/shipments");
 
 await migrate(db, { migrationsFolder: "drizzle" });
 const [user] = await db.insert(users).values({ email: "cek@example.com" }).returning();
 const insert = async (code: string, shipmentId: string) =>
   (await db.insert(orders).values({ code, userId: user.id, status: "dikirim", shipmentId }).returning())[0].id;
 const read = async (id: number) => (await db.query.orders.findFirst({ where: eq(orders.id, id) }))!;
-const shipment = (id: string, status: string, waybillId: string | null = null) => ({ id, status, waybillId, trackingUrl: null });
+const shipment = (id: string, status: string, waybillId: string | null = null, note: string | null = null) => ({
+  id,
+  status,
+  waybillId,
+  trackingUrl: null,
+  note,
+});
 
 const id = await insert("SK-1", "bs1");
 await applyShipment(shipment("bs1", "allocated"));
@@ -39,5 +45,21 @@ const failed = await insert("SK-2", "bs2");
 await applyShipment(shipment("bs2", "courier_not_found", "RESI2"));
 const reset = await read(failed);
 assert.deepEqual([reset.status, reset.shipmentId, reset.waybillId], ["dibayar", null, null]);
+
+// Paket dikembalikan kurir: "gagal_kirim" dengan alasan, tidak pernah sampai/selesai otomatis.
+const returned = await insert("SK-3", "bs3");
+await applyShipment(shipment("bs3", "return_in_transit", "RESI3", "Alamat tidak ditemukan"));
+await applyShipment(shipment("bs3", "returned"));
+await applyShipment(shipment("bs3", "delivered"));
+const back = await read(returned);
+assert.deepEqual([back.status, back.shipmentStatus, back.shipmentNote, back.waybillId], ["gagal_kirim", "returned", "Alamat tidak ditemukan", "RESI3"]);
+assert.equal((await completeDeliveredOrders(new Date(Date.now() + 10 * autoCompleteMs))).length, 0);
+assert.equal((await read(returned)).status, "gagal_kirim");
+
+// on_hold lebih dari 3 hari ditandai.
+const held = await insert("SK-4", "bs4");
+await applyShipment(shipment("bs4", "on_hold"));
+assert.equal((await stuckOnHoldOrders()).length, 0);
+assert.deepEqual((await stuckOnHoldOrders(new Date(Date.now() + onHoldMs + 1000))).map((order) => order.id), [held]);
 
 console.log("ok");
