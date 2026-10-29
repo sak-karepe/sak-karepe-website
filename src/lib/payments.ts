@@ -55,10 +55,13 @@ export async function applyPayment(data: PaymentStatus) {
 
   const paidAt = data.transaction.date ? new Date(data.transaction.date) : new Date();
   const paidOrder = await db.transaction(async (tx) => {
-    await tx
+    const [recorded] = await tx
       .update(payments)
       .set({ paidAt: Number.isNaN(paidAt.getTime()) ? new Date() : paidAt, channel: data.channel?.id ?? null })
-      .where(and(eq(payments.id, payment.id), isNull(payments.paidAt)));
+      .where(and(eq(payments.id, payment.id), isNull(payments.paidAt)))
+      .returning({ id: payments.id });
+    // Sudah dicatat notifikasi, job, atau cek ulang yang berjalan bersamaan.
+    if (!recorded) return true;
     // Status yang sudah diubah admin (dikirim, selesai, dibatalkan) tidak ditimpa.
     const [updated] = await tx
       .update(orders)

@@ -111,6 +111,9 @@ export type Shipment = { id: string; status: string; waybillId: string | null; t
 export type ShipmentResult = ({ ok: true } & Shipment) | { ok: false; error: string };
 type OrderBody = { success?: boolean; error?: unknown; id?: string; status?: string; courier?: { waybill_id?: string | null; link?: string | null; history?: { note?: string | null }[] } } | null;
 
+/** Galat jaringan (bukan penolakan Biteship); webhook membalas non-200 agar dikirim ulang. */
+export const unreachable = "Tidak bisa menghubungi Biteship. Coba lagi sebentar.";
+
 async function biteship(url: string, init: RequestInit = {}): Promise<ShipmentResult> {
   const apiKey = process.env.BITESHIP_API_KEY;
   if (!apiKey) return { ok: false, error: "Biteship belum aktif (BITESHIP_API_KEY belum diisi)." };
@@ -122,7 +125,7 @@ async function biteship(url: string, init: RequestInit = {}): Promise<ShipmentRe
       signal: AbortSignal.timeout(20_000),
     });
   } catch {
-    return { ok: false, error: "Tidak bisa menghubungi Biteship. Coba lagi sebentar." };
+    return { ok: false, error: unreachable };
   }
   const data: OrderBody = await response.json().catch(() => null);
   if (!response.ok || !data?.success || !data.id) {

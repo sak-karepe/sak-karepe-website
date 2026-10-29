@@ -89,5 +89,9 @@ await paid(150000);
 assert.deepEqual([(await read(unpaid)).status, (await read(unpaid)).reviewNote], ["dibayar", null]);
 await paid(150000, "SK261029AB1PP9");
 assert.ok((await read(unpaid)).reviewNote?.includes("tidak dikenal"));
-
+// Uang masuk untuk pesanan yang sudah dibatalkan: status tetap, pesanan ditandai untuk refund manual.
+const cancelled = (await db.insert(orders).values({ code: "SK-261029-CD2", userId: user.id, status: "dibatalkan" }).returning())[0].id;
+await db.insert(payments).values({ orderId: cancelled, invoiceNumber: "SK261029CD2P1", amount: 50000, url: "https://doku", expiresAt: new Date() });
+await paid(50000, "SK261029CD2P1");
+assert.deepEqual([(await read(cancelled)).status, (await read(cancelled)).reviewNote?.includes("tidak sedang menunggu")], ["dibatalkan", true]);
 console.log("ok");
