@@ -44,3 +44,4 @@ next-env.d.ts
 # database & unggahan lokal
 /data/
 /storage/
+graphify-out
