@@ -1,4 +1,4 @@
-// Cek alur status pengiriman dan pembayaran di database sementara: npm run check
+// Cek alur status pengiriman, pembayaran, dan stok di database sementara: npm run check
 import assert from "node:assert";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,8 +8,9 @@ process.env.DATABASE_URL = `file:${join(mkdtempSync(join(tmpdir(), "sakkarepe-")
 const { eq } = await import("drizzle-orm");
 const { migrate } = await import("drizzle-orm/libsql/migrator");
 const { db } = await import("@/db");
-const { orders, payments, shipmentHistory, users } = await import("@/db/schema");
+const { categories, orderItems, orders, payments, products, shipmentHistory, users } = await import("@/db/schema");
 const { applyPayment } = await import("@/lib/payments");
+const { returnStock } = await import("@/lib/stock");
 const { applyShipment, completeDeliveredOrders, autoCompleteMs, onHoldMs, saveResend, stuckOnHoldOrders } = await import("@/lib/shipments");
 
 await migrate(db, { migrationsFolder: "drizzle" });
@@ -94,4 +95,35 @@ const cancelled = (await db.insert(orders).values({ code: "SK-261029-CD2", userI
 await db.insert(payments).values({ orderId: cancelled, invoiceNumber: "SK261029CD2P1", amount: 50000, url: "https://doku", expiresAt: new Date() });
 await paid(50000, "SK261029CD2P1");
 assert.deepEqual([(await read(cancelled)).status, (await read(cancelled)).reviewNote?.includes("tidak sedang menunggu")], ["dibatalkan", true]);
+
+// Stok: berkurang tepat sekali walau notifikasi DOKU datang berulang; tidak pernah negatif; produk tak dilacak dilewati.
+await db.insert(categories).values({ slug: "tas", title: "Tas", subtitle: "", description: "", intro: "", character: "", coverImage: "" });
+const product = async (slug: string, stock: number | null) =>
+  (await db.insert(products).values({ categorySlug: "tas", name: slug, slug, stock }).returning())[0].id;
+const stockOf = async (id: number) => (await db.query.products.findFirst({ where: eq(products.id, id) }))!.stock;
+const [tracked, untracked, scarce] = [await product("tas-a", 5), await product("tas-b", null), await product("tas-c", 1)];
+const stocked = (await db.insert(orders).values({ code: "SK-261029-EF3", userId: user.id, status: "menunggu_pembayaran" }).returning())[0].id;
+await db.insert(orderItems).values([
+  { orderId: stocked, productId: tracked, productName: "tas-a", quantity: 2 },
+  { orderId: stocked, productId: untracked, productName: "tas-b", quantity: 1 },
+  { orderId: stocked, productId: null, productName: "Item bebas", quantity: 1 },
+]);
+await db.insert(payments).values({ orderId: stocked, invoiceNumber: "SK261029EF3P1", amount: 10000, url: "https://doku", expiresAt: new Date() });
+await paid(10000, "SK261029EF3P1");
+await paid(10000, "SK261029EF3P1");
+assert.deepEqual([await stockOf(tracked), await stockOf(untracked)], [3, null]);
+await db.transaction((tx) => returnStock(tx, stocked));
+assert.deepEqual([await stockOf(tracked), await stockOf(untracked)], [5, null]);
+// Dua pembeli membayar barang terakhir: stok 0, pesanan kedua ditandai.
+const oversold = (await db.insert(orders).values({ code: "SK-261029-GH4", userId: user.id, status: "menunggu_pembayaran" }).returning())[0].id;
+await db.insert(orderItems).values({ orderId: oversold, productId: scarce, productName: "tas-c", quantity: 2 });
+await db.insert(payments).values({ orderId: oversold, invoiceNumber: "SK261029GH4P1", amount: 20000, url: "https://doku", expiresAt: new Date() });
+await paid(20000, "SK261029GH4P1");
+assert.equal(await stockOf(scarce), 0);
+assert.deepEqual([(await read(oversold)).status, (await read(oversold)).reviewNote?.includes("stok tas-c tidak cukup")], ["dibayar", true]);
+// Pesanan yang sudah dibatalkan lalu terbayar tidak mengambil stok.
+await db.insert(orderItems).values({ orderId: cancelled, productId: tracked, productName: "tas-a", quantity: 1 });
+await db.insert(payments).values({ orderId: cancelled, invoiceNumber: "SK261029CD2P2", amount: 50000, url: "https://doku", expiresAt: new Date() });
+await paid(50000, "SK261029CD2P2");
+assert.equal(await stockOf(tracked), 5);
 console.log("ok");

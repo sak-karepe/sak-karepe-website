@@ -75,13 +75,14 @@ export default async function AdminProductsPage({
                 <p className="hidden text-[15px] md:block">
                   {product.price === null ? <span className="text-muted">Konsultasi</span> : formatRupiah(product.price)}
                 </p>
-                <p className="hidden text-[15px] text-muted md:block">
-                  {product.stock === null ? "Stok —" : `Stok ${product.stock}`}
+                <p className={`hidden text-[15px] md:block ${product.stock === 0 ? "text-danger" : "text-muted"}`}>
+                  {product.stock === null ? "Stok tak terbatas" : product.stock === 0 ? "Stok habis" : `Stok ${product.stock}`}
                 </p>
+                {/* Stok 0 ikut disembunyikan dari toko (lib/catalog). */}
                 <span
-                  className={`justify-self-end rounded-full px-2.5 py-1 text-xs ${product.published ? "bg-surface text-accent" : "border border-line text-muted"}`}
+                  className={`justify-self-end rounded-full px-2.5 py-1 text-xs ${!product.published ? "border border-line text-muted" : product.stock === 0 ? "border border-danger text-danger" : "bg-surface text-accent"}`}
                 >
-                  {product.published ? "Tampil" : "Disembunyikan"}
+                  {!product.published ? "Disembunyikan" : product.stock === 0 ? "Habis" : "Tampil"}
                 </span>
               </Link>
             </li>

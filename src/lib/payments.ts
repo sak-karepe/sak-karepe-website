@@ -4,6 +4,7 @@ import { orders, payments, type Payment } from "@/db/schema";
 import { cancelCheckout, checkStatus, type PaymentStatus } from "@/lib/doku";
 import { formatRupiah } from "@/lib/format";
 import { checkoutStatuses } from "@/lib/order-status";
+import { takeStock } from "@/lib/stock";
 
 type DokuLink = Payment & { invoiceNumber: string; url: string; expiresAt: Date };
 
@@ -56,25 +57,28 @@ export async function applyPayment(data: PaymentStatus) {
     );
 
   const paidAt = data.transaction.date ? new Date(data.transaction.date) : new Date();
-  const paidOrder = await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [recorded] = await tx
       .update(payments)
       .set({ paidAt: Number.isNaN(paidAt.getTime()) ? new Date() : paidAt, channel: data.channel?.id ?? null })
       .where(and(eq(payments.id, payment.id), isNull(payments.paidAt)))
       .returning({ id: payments.id });
     // Sudah dicatat notifikasi, job, atau cek ulang yang berjalan bersamaan.
-    if (!recorded) return true;
+    if (!recorded) return { paid: true, short: [] };
     // Status yang sudah diubah admin (dikirim, selesai, dibatalkan) tidak ditimpa.
     const [updated] = await tx
       .update(orders)
       .set({ status: "dibayar", updatedAt: new Date() })
       .where(and(eq(orders.id, payment.orderId), inArray(orders.status, checkoutStatuses)))
       .returning({ id: orders.id });
-    return updated;
+    // Stok diambil hanya saat status benar-benar berpindah ke "dibayar", jadi notifikasi ulang tidak mengurangi lagi.
+    return { paid: !!updated, short: updated ? await takeStock(tx, payment.orderId) : [] };
   });
   // Uang masuk tapi pesanan sudah tidak menunggu pembayaran (mis. dibatalkan).
-  if (!paidOrder)
+  if (!result.paid)
     await flagOrders(eq(orders.id, payment.orderId), `Invoice ${invoiceNumber} lunas, tapi pesanan tidak sedang menunggu pembayaran.`);
+  else if (result.short.length)
+    await flagOrders(eq(orders.id, payment.orderId), `Pesanan sudah dibayar, tapi stok ${result.short.join(", ")} tidak cukup.`);
 }
 
 /** Link yang baru kedaluwarsa selama ini masih dicek, karena pembayaran di menit terakhir bisa tercatat belakangan. */

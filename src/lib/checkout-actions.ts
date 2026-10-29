@@ -82,7 +82,7 @@ export type PlaceOrderResult = { error: string } | { code: string; whatsapp: str
 /**
  * Mencatat isi keranjang sebagai satu pesanan berstatus "menunggu_konfirmasi" lalu mengembalikan tautan WhatsApp
  * berisi kode pesanan dan ID pembeli. Harga disepakati lewat WhatsApp; alamat dan ongkir diisi pembeli saat
- * checkout. Stok belum dikurangi.
+ * checkout. Stok baru dikurangi saat pembayaran lunas (lib/stock).
  */
 export async function placeOrder(input: { items: { productId: number; quantity: number }[]; notes?: string }): Promise<PlaceOrderResult> {
   const userId = await currentUserId();
@@ -148,7 +148,7 @@ export async function placeOrder(input: { items: { productId: number; quantity: 
 async function findOwnOrder(userId: number, orderId: number) {
   return db.query.orders.findFirst({
     where: and(eq(orders.id, orderId), eq(orders.userId, userId)),
-    with: { user: true, items: { with: { product: { columns: { weight: true } } } }, payments: true },
+    with: { user: true, items: { with: { product: { columns: { weight: true, stock: true } } } }, payments: true },
   });
 }
 
@@ -213,6 +213,14 @@ export async function checkoutOrder(
   if (order.status !== "menunggu_checkout" && order.status !== "menunggu_pembayaran") return { error: notCheckoutable };
   if (order.items.some((item) => item.price === null)) return { error: notCheckoutable };
   if (!address) return { error: "Pilih alamat pengiriman." };
+  // Stok baru dikurangi saat lunas; dicek lagi di sini karena bisa habis dibeli orang lain sejak pesanan dibuat.
+  const short = order.items.find((item) => item.product?.stock != null && item.quantity > item.product.stock);
+  if (short)
+    return {
+      error: short.product!.stock
+        ? `Stok ${short.productName} tersisa ${short.product!.stock}. Hubungi Sak Karepe lewat WhatsApp untuk mengubah pesanan.`
+        : `Stok ${short.productName} sudah habis. Hubungi Sak Karepe lewat WhatsApp untuk mengubah pesanan.`,
+    };
 
   const quote = await quoteOrder(order, address.postalCode);
   if (!quote.ok) return { error: quote.error };
