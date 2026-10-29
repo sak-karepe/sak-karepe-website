@@ -1,26 +1,42 @@
 "use server";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
 import { orderItems, orders } from "@/db/schema";
-import { checkoutStatuses, isOrderStatus } from "@/lib/order-status";
+import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } from "@/lib/order-status";
 import { cancelActivePayments } from "@/lib/payments";
 import { createShipment } from "@/lib/shipping";
 
-export async function updateOrderStatus(id: number, formData: FormData) {
+export type StatusFormState = { error?: string };
+
+/**
+ * Admin mengubah status lewat dropdown, hanya untuk perpindahan di `adminTransitions`. Status lama ikut dicek di WHERE
+ * agar tidak menimpa perubahan dari webhook atau pembeli yang masuk bersamaan.
+ */
+export async function updateOrderStatus(id: number, _state: StatusFormState, formData: FormData): Promise<StatusFormState> {
   await requireAdmin();
   const status = formData.get("status");
-  if (!isOrderStatus(status)) return;
-  // Tanggal sampai dicatat agar pesanan yang ditandai admin juga selesai otomatis 2 hari kemudian; menyimpan ulang
-  // status "sampai" tidak menggeser tanggalnya.
-  const deliveredAt = sql`case when ${orders.status} = 'sampai' then ${orders.deliveredAt} else unixepoch() end`;
-  await db
+  const order = await db.query.orders.findFirst({ where: eq(orders.id, id), with: { payments: true } });
+  if (!order) return { error: "Pesanan tidak ditemukan." };
+  if (!isOrderStatus(status) || !adminTransitions[order.status]?.includes(status))
+    return {
+      error: `Status "${orderStatusLabels[order.status]}" tidak bisa diubah ke "${isOrderStatus(status) ? orderStatusLabels[status] : status}" dari sini.`,
+    };
+  if (status === "dibatalkan") {
+    if (order.payments.some((payment) => payment.paidAt)) return { error: "Pesanan ini sudah dibayar; pembatalan harus lewat refund." };
+    // Link DOKU yang masih berlaku dibatalkan dulu agar pembeli tidak membayar pesanan yang sudah batal.
+    const cancelError = await cancelActivePayments(order.payments, `Dibatalkan admin (${order.code})`);
+    if (cancelError) return { error: `Pesanan tidak dibatalkan. ${cancelError}` };
+  }
+  const [saved] = await db
     .update(orders)
-    .set({ status, updatedAt: new Date(), ...(status === "sampai" && { deliveredAt }) })
-    .where(eq(orders.id, id));
+    .set({ status, updatedAt: new Date(), ...(status === "sampai" && { deliveredAt: new Date() }) })
+    .where(and(eq(orders.id, id), eq(orders.status, order.status)))
+    .returning({ id: orders.id });
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
+  return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
 }
 
 export type ShipmentFormState = { error?: string };

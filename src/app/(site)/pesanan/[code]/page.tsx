@@ -29,8 +29,11 @@ const statusHints: Record<Order["status"], string> = {
   menunggu_pembayaran: "Selesaikan pembayaran lewat link di bawah.",
   dibayar: "Pembayaran diterima. Pesanan sedang disiapkan.",
   dikirim: "Pesanan sudah diserahkan ke kurir. Ikuti perjalanannya di kotak Pengiriman.",
+  gagal_kirim: "Pengiriman gagal dan paket dikembalikan kurir. Hubungi Sak Karepe lewat WhatsApp untuk kirim ulang atau refund.",
   sampai: "Kurir melaporkan pesanan sudah sampai. Konfirmasi bila sudah diterima; pesanan otomatis selesai 2 hari setelah sampai.",
+  retur: "Komplain sedang ditinjau Sak Karepe.",
   selesai: "Pesanan selesai. Terima kasih sudah berbelanja di Sak Karepe.",
+  refund: "Pesanan dibatalkan. Dana sedang dikembalikan.",
   dibatalkan: "Pesanan ini dibatalkan.",
 };
 
