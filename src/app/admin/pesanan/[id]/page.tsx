@@ -8,9 +8,10 @@ import { db } from "@/db";
 import { orders, orderStatuses } from "@/db/schema";
 import { AdminBack } from "@/components/admin-back";
 import { CheckoutLinkDialog, CopyCheckoutLink } from "@/components/checkout-link-dialog";
+import { ShipmentForm } from "@/components/shipment-forms";
 import { formatDateTime, formatRupiah } from "@/lib/format";
-import { createCheckoutLink, updateOrderStatus } from "@/lib/order-actions";
-import { checkoutStatuses, orderStatusClass, orderStatusLabels } from "@/lib/order-status";
+import { bookShipment, createCheckoutLink, updateOrderStatus } from "@/lib/order-actions";
+import { checkoutStatuses, orderStatusClass, orderStatusLabels, shipmentStatusLabels } from "@/lib/order-status";
 import { isActivePayment } from "@/lib/payments";
 export const metadata: Metadata = { title: "Detail pesanan" };
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -144,6 +145,46 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                     code={order.code}
                   />
                 </div>
+              )}
+            </section>
+          )}
+          {(order.shipmentId || order.status === "dibayar") && (
+            <section aria-labelledby="resi" className="rounded-md border border-line p-5">
+              <h2 id="resi" className="text-sm font-medium">Resi pengiriman</h2>
+              {order.shipmentId ? (
+                <div className="mt-2">
+                  <p className="font-mono text-lg">{order.waybillId ?? "Menunggu resi dari kurir"}</p>
+                  <p className="text-sm text-muted">
+                    {order.courierName} · {order.collectionMethod === "drop_off" ? "Antar ke agen kurir" : "Kurir menjemput"}
+                  </p>
+                  {order.shipmentStatus && (
+                    <p className="mt-2 text-[15px]">
+                      {shipmentStatusLabels[order.shipmentStatus] ?? order.shipmentStatus}
+                      <span className="text-muted"> · {order.shipmentStatus}</span>
+                    </p>
+                  )}
+                  {(!order.shipmentStatus || order.shipmentStatus === "confirmed") && order.status === "dikirim" && (
+                    <p className="mt-2 text-[15px] text-muted">
+                      {order.collectionMethod === "drop_off"
+                        ? "Bawa paket beserta resi ke agen kurir. Status berubah otomatis setelah paket diterima kurir."
+                        : "Siapkan paket beserta resi. Status berubah otomatis setelah kurir mengambil paket."}
+                    </p>
+                  )}
+                  {/* Biteship tidak membuka API label di paket kami; label dicetak dari halaman pesanan di dashboard Biteship. */}
+                  <a
+                    href={`https://dashboard.biteship.com/orders/details/${order.shipmentId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn mt-4 min-h-11 w-full gap-2 px-4 text-[15px]"
+                  >
+                    Cetak resi di Biteship <ArrowSquareOutIcon size={16} aria-hidden="true" />
+                  </a>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-2 text-[15px] text-muted">Pesan {order.courierName ?? "kurir"} pilihan pembeli untuk mendapatkan resi.</p>
+                  <ShipmentForm action={bookShipment.bind(null, order.id)} />
+                </>
               )}
             </section>
           )}
