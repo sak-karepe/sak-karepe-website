@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const data: { order_id?: unknown } | null = await request.json().catch(() => null);
   if (typeof data?.order_id !== "string") return new Response("OK");
   const shipment = await getShipment(data.order_id);
-  // Hanya gangguan jaringan dibalas non-200 agar Biteship mengirim ulang; order yang ditolak Biteship atau API key kosong
+  // Hanya gangguan jaringan atau HTTP 5xx dibalas non-200 agar Biteship mengirim ulang; order yang ditolak Biteship atau API key kosong
   // tidak akan berhasil walau diulang. Job rekonsiliasi juga mengecek pesanan yang lama tidak berubah.
   if (!shipment.ok)
     return shipment.error === unreachable ? new Response("Gagal menghubungi Biteship", { status: 502 }) : new Response("OK");

@@ -249,7 +249,10 @@ export async function checkoutOrder(
       postcode: address.postalCode,
     },
   });
-  if (!result.ok) return { error: `Link pembayaran belum bisa dibuat. ${result.error}` };
+  if (!result.ok) {
+    console.warn(`[doku] Link ${invoiceNumber} pesanan ${order.code} gagal dibuat: ${result.error}`);
+    return { error: `Link pembayaran belum bisa dibuat. ${result.error}` };
+  }
   // Status dan updatedAt ikut dicek agar pembatalan atau ubah harga yang masuk selama link DOKU dibuat tidak tertimpa.
   const saved = await db.transaction(async (tx) => {
     const [updated] = await tx

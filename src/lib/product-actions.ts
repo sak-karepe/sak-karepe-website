@@ -37,8 +37,16 @@ async function readForm(formData: FormData, excludeId?: number) {
   if (!category) return { error: "Pilih koleksi produk." } as const;
   const uploadError = files.map(checkUpload).find(Boolean);
   if (uploadError) return { error: uploadError } as const;
+  let images: string[];
+  // shortcut: foto yang sudah tersimpan tidak dihapus bila upload lain atau tulis DB gagal; bersihkan bila storage membengkak.
+  try {
+    images = await Promise.all(files.map(saveUpload));
+  } catch (error) {
+    console.error("[upload] Foto produk gagal disimpan", error);
+    return { error: "Foto belum bisa disimpan. Coba lagi sebentar." } as const;
+  }
   return {
-    files,
+    images,
     values: {
       name,
       slug: await uniqueSlug(String(formData.get("slug") ?? "").trim() || name, excludeId),
@@ -53,9 +61,9 @@ async function readForm(formData: FormData, excludeId?: number) {
 }
 
 /** Foto baru ditaruh setelah foto lama; alt default memakai nama produk. */
-async function addImages(productId: number, files: File[], alt: string, startOrder: number) {
-  for (const [index, file] of files.entries()) {
-    await db.insert(productImages).values({ productId, src: await saveUpload(file), alt, sortOrder: startOrder + index });
+async function addImages(productId: number, images: string[], alt: string, startOrder: number) {
+  for (const [index, src] of images.entries()) {
+    await db.insert(productImages).values({ productId, src, alt, sortOrder: startOrder + index });
   }
 }
 
@@ -75,7 +83,7 @@ export async function createProduct(_state: ProductFormState, formData: FormData
     .insert(products)
     .values({ ...form.values, sortOrder: (last ?? -1) + 1 })
     .returning({ id: products.id });
-  await addImages(product.id, form.files, form.values.name, 0);
+  await addImages(product.id, form.images, form.values.name, 0);
   refreshCatalog();
   redirect("/admin/produk");
 }
@@ -106,7 +114,7 @@ export async function updateProduct(
     }
   });
   await Promise.all(removed.map((image) => removeUpload(image.src)));
-  await addImages(id, form.files, form.values.name, keptIds.length);
+  await addImages(id, form.images, form.values.name, keptIds.length);
   refreshCatalog();
   redirect("/admin/produk");
 }
