@@ -240,15 +240,13 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
 
 export const usersRelations = relations(users, ({ many }) => ({
   addresses: many(addresses),
-  orders: many(orders, { relationName: "buyer" }),
-  recordedOrders: many(orders, { relationName: "recorder" }),
+  orders: many(orders),
 }));
 export const addressesRelations = relations(addresses, ({ one }) => ({
   user: one(users, { fields: [addresses.userId], references: [users.id] }),
 }));
 export const ordersRelations = relations(orders, ({ one, many }) => ({
-  user: one(users, { fields: [orders.userId], references: [users.id], relationName: "buyer" }),
-  recorder: one(users, { fields: [orders.recordedBy], references: [users.id], relationName: "recorder" }),
+  user: one(users, { fields: [orders.userId], references: [users.id] }),
   items: many(orderItems),
   payments: many(payments),
   shipmentHistory: many(shipmentHistory),

@@ -56,8 +56,12 @@ export const orderTransitions: Record<Order["status"], Order["status"][]> = {
   dibatalkan: [],
 };
 
-/** Status awal pesanan: website mulai "menunggu_konfirmasi", penjualan langsung "dibayar"/"selesai", data historis "selesai". */
-export const initialStatuses: Order["status"][] = ["menunggu_konfirmasi", "dibayar", "selesai"];
+/** Status awal pesanan per sumber; penjualan langsung "dibayar" bila barang masih perlu dikirim. */
+export const initialStatuses: Record<Order["source"], Order["status"][]> = {
+  online: ["menunggu_konfirmasi"],
+  langsung: ["dibayar", "selesai"],
+  historis: ["selesai"],
+};
 
 /**
  * Perpindahan yang boleh lewat dropdown admin. Sisanya punya alur sendiri yang menyimpan data pendukung: link checkout,
