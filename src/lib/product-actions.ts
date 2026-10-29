@@ -38,6 +38,7 @@ async function readForm(formData: FormData, excludeId?: number) {
   const uploadError = files.map(checkUpload).find(Boolean);
   if (uploadError) return { error: uploadError } as const;
   let images: string[];
+  // shortcut: foto yang sudah tersimpan tidak dihapus bila upload lain atau tulis DB gagal; bersihkan bila storage membengkak.
   try {
     images = await Promise.all(files.map(saveUpload));
   } catch (error) {
