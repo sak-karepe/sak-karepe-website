@@ -97,9 +97,11 @@ export const addresses = sqliteTable("addresses", {
 /**
  * Status awal "menunggu_konfirmasi": harga masih dibicarakan lewat WhatsApp. Setelah admin mengisi harga dan membuat
  * link checkout menjadi "menunggu_checkout"; pembeli mengisi alamat di halaman checkout, lalu link DOKU dibuat
- * dan status menjadi "menunggu_pembayaran".
+ * dan status menjadi "menunggu_pembayaran". Setelah dibayar admin memesan kurir (resi) dan status menjadi "dikirim"; detail
+ * perjalanannya ada di `shipmentStatus`. Webhook Biteship mengubahnya menjadi "sampai", lalu "selesai" saat pembeli
+ * mengonfirmasi atau 2 hari kemudian.
  */
-export const orderStatuses = ["menunggu_konfirmasi", "menunggu_checkout", "menunggu_pembayaran", "dibayar", "dikirim", "selesai", "dibatalkan"] as const;
+export const orderStatuses = ["menunggu_konfirmasi", "menunggu_checkout", "menunggu_pembayaran", "dibayar", "dikirim", "sampai", "selesai", "dibatalkan"] as const;
 
 export const orders = sqliteTable("orders", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -123,6 +125,18 @@ export const orders = sqliteTable("orders", {
   courierServiceCode: text("courier_service_code"),
   /** Nama untuk ditampilkan, mis. "J&T EZ". */
   courierName: text("courier_name"),
+  /** ID order Biteship dari pemesanan kurir oleh admin; dipakai webhook untuk mencocokkan pesanan. */
+  shipmentId: text("shipment_id").unique(),
+  /** Status order Biteship apa adanya, mis. "confirmed", "picked", "dropping_off"; label di lib/order-status. */
+  shipmentStatus: text("shipment_status"),
+  /** Halaman lacak dari Biteship (courier.link). */
+  trackingUrl: text("tracking_url"),
+  /** Nomor resi; beberapa kurir baru memberinya setelah paket diambil (webhook order.waybill_id). */
+  waybillId: text("waybill_id"),
+  /** "pickup" (kurir menjemput) atau "drop_off" (admin mengantar ke agen kurir). */
+  collectionMethod: text("collection_method", { enum: ["pickup", "drop_off"] }),
+  /** Kapan kurir melaporkan paket sampai; 2 hari kemudian pesanan otomatis selesai. */
+  deliveredAt: integer("delivered_at", { mode: "timestamp" }),
   notes: text("notes").notNull().default(""),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
