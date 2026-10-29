@@ -8,9 +8,9 @@ import { db } from "@/db";
 import { orders } from "@/db/schema";
 import { AdminBack } from "@/components/admin-back";
 import { CheckoutLinkDialog, CopyCheckoutLink } from "@/components/checkout-link-dialog";
-import { ShipmentForm, StatusForm } from "@/components/shipment-forms";
+import { RefundButton, ResendShipmentForm, ShipmentForm, StatusForm } from "@/components/shipment-forms";
 import { formatDateTime, formatRupiah } from "@/lib/format";
-import { bookShipment, createCheckoutLink, updateOrderStatus } from "@/lib/order-actions";
+import { bookShipment, createCheckoutLink, refundFailedShipment, resendShipment, updateOrderStatus } from "@/lib/order-actions";
 import { adminTransitions, checkoutStatuses, orderStatusClass, orderStatusLabels, shipmentStatusLabels } from "@/lib/order-status";
 import { isActivePayment } from "@/lib/payments";
 export const metadata: Metadata = { title: "Detail pesanan" };
@@ -20,7 +20,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (!Number.isInteger(id)) notFound();
   const order = await db.query.orders.findFirst({
     where: eq(orders.id, id),
-    with: { user: true, items: true, payments: { orderBy: (payment, { desc }) => [desc(payment.id)], limit: 1 } },
+    with: { user: true, items: true, payments: { orderBy: (payment, { desc }) => [desc(payment.id)], limit: 1 },
+      shipmentHistory: { orderBy: (history, { desc }) => [desc(history.id)] },
+    },
   });
   if (!order) notFound();
   const [payment] = order.payments;
@@ -163,6 +165,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                       <span className="text-muted"> · {order.shipmentStatus}</span>
                     </p>
                   )}
+                  {order.status === "gagal_kirim" && (
+                    <p className="mt-2 text-[15px] text-danger">Alasan: {order.shipmentNote ?? "tidak diberikan kurir. Cek di dashboard Biteship."}</p>
+                  )}
                   {(!order.shipmentStatus || order.shipmentStatus === "confirmed") && order.status === "dikirim" && (
                     <p className="mt-2 text-[15px] text-muted">
                       {order.collectionMethod === "drop_off"
@@ -186,6 +191,45 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   <ShipmentForm action={bookShipment.bind(null, order.id)} />
                 </>
               )}
+            </section>
+          )}
+          {order.status === "gagal_kirim" && (
+            <section aria-labelledby="gagal-kirim" className="rounded-md border border-danger p-5">
+              <h2 id="gagal-kirim" className="text-sm font-medium">Paket dikembalikan kurir</h2>
+              <p className="mt-2 text-[15px] text-muted">
+                Konfirmasi alamat dengan pembeli, lalu kirim ulang dengan {order.courierName ?? "kurir yang sama"}, atau batalkan dan refund.
+              </p>
+              <ResendShipmentForm
+                action={resendShipment.bind(null, order.id)}
+                address={{
+                  recipientName: order.recipientName ?? "",
+                  phone: order.phone ?? "",
+                  shippingAddress: order.shippingAddress ?? "",
+                  postalCode: order.postalCode ?? "",
+                }}
+              />
+              <div className="mt-3">
+                <RefundButton action={refundFailedShipment.bind(null, order.id)} />
+              </div>
+            </section>
+          )}
+          {order.shipmentHistory.length > 0 && (
+            <section aria-labelledby="riwayat-resi">
+              <h2 id="riwayat-resi" className="text-sm font-medium">Riwayat resi gagal kirim</h2>
+              <ul className="mt-2 divide-y divide-line border-y border-line">
+                {order.shipmentHistory.map((history) => (
+                  <li key={history.id} className="py-3 text-[15px]">
+                    <p className="font-mono">{history.waybillId ?? history.shipmentId}</p>
+                    <p className="text-sm text-muted">
+                      {history.courierName} · {shipmentStatusLabels[history.shipmentStatus ?? ""] ?? history.shipmentStatus}
+                    </p>
+                    {history.note && <p className="text-sm text-muted">Alasan: {history.note}</p>}
+                    <p className="text-sm text-muted">
+                      Dikirim ulang {formatDateTime(history.createdAt)} · ongkir ditanggung {history.resendPaidBy === "pembeli" ? "pembeli" : "Sak Karepe"}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
           {adminTransitions[order.status] && (

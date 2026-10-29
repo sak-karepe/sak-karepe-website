@@ -6,7 +6,7 @@ import { currentUserId } from "@/auth";
 import { db } from "@/db";
 import { addresses, orderItems, orders, payments, products, regions, type Address } from "@/db/schema";
 import { formatAddress } from "@/lib/address";
-import { createCheckout } from "@/lib/doku";
+import { cancelCheckout, createCheckout } from "@/lib/doku";
 import { whatsappUrl } from "@/lib/contact";
 import { formatRupiah } from "@/lib/format";
 import { checkoutStatuses } from "@/lib/order-status";
@@ -249,8 +249,9 @@ export async function checkoutOrder(
     },
   });
   if (!result.ok) return { error: `Link pembayaran belum bisa dibuat. ${result.error}` };
-  await db.transaction(async (tx) => {
-    await tx
+  // Status dan updatedAt ikut dicek agar pembatalan atau ubah harga yang masuk selama link DOKU dibuat tidak tertimpa.
+  const saved = await db.transaction(async (tx) => {
+    const [updated] = await tx
       .update(orders)
       .set({
         recipientName: address.recipientName,
@@ -265,11 +266,20 @@ export async function checkoutOrder(
         status: "menunggu_pembayaran",
         updatedAt: new Date(),
       })
-      .where(eq(orders.id, orderId));
-    await tx
-      .insert(payments)
-      .values({ orderId, invoiceNumber, amount, url: result.url, expiresAt: result.expiresAt, requestId: result.requestId });
+      .where(and(eq(orders.id, orderId), eq(orders.status, order.status), eq(orders.updatedAt, order.updatedAt)))
+      .returning({ id: orders.id });
+    if (updated)
+      await tx
+        .insert(payments)
+        .values({ orderId, invoiceNumber, amount, url: result.url, expiresAt: result.expiresAt, requestId: result.requestId });
+    return updated;
   });
+  if (!saved) {
+    // Link DOKU baru tidak dicatat, jadi dibatalkan agar tidak bisa dibayar.
+    const cancel = await cancelCheckout(invoiceNumber, result.requestId, `Pesanan berubah saat checkout (${order.code})`);
+    if (!cancel.ok) console.warn(`[doku] Link ${invoiceNumber} tidak tercatat dan gagal dibatalkan: ${cancel.error}`);
+    return { error: notCheckoutable };
+  }
   revalidatePath("/pesanan", "layout");
   revalidatePath("/admin", "layout");
   return { url: result.url };

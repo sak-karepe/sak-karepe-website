@@ -3,9 +3,11 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
-import { orderItems, orders } from "@/db/schema";
+import { orderItems, orders, type Order, type OrderItem } from "@/db/schema";
+import { parseAmount } from "@/lib/format";
 import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } from "@/lib/order-status";
 import { cancelActivePayments } from "@/lib/payments";
+import { saveResend } from "@/lib/shipments";
 import { createShipment } from "@/lib/shipping";
 
 export type StatusFormState = { error?: string };
@@ -41,6 +43,25 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
 
 export type ShipmentFormState = { error?: string };
 
+/** Booking kurir pilihan pembeli di Biteship ke alamat pesanan; dipakai untuk resi pertama dan kirim ulang. */
+const bookCourier = (
+  order: Order & { items: (OrderItem & { product: { weight: number | null } | null })[] },
+  method: "pickup" | "drop_off",
+) =>
+  createShipment({
+    reference: `${order.code}-${Date.now().toString(36).toUpperCase()}`,
+    method,
+    courierCode: order.courierCode!,
+    serviceCode: order.courierServiceCode!,
+    destination: { name: order.recipientName ?? "", phone: order.phone ?? "", address: order.shippingAddress!, postalCode: order.postalCode! },
+    items: order.items.map((item) => ({
+      name: item.productName,
+      price: item.price ?? 0,
+      quantity: item.quantity,
+      weight: item.product?.weight ?? null,
+    })),
+  });
+
 /**
  * Memesan kurir pilihan pembeli di Biteship untuk pesanan yang sudah dibayar, menyimpan resinya, dan mengubah status
  * menjadi "dikirim". Perjalanan paket berikutnya diikuti dari webhook Biteship (lib/shipments).
@@ -56,19 +77,7 @@ export async function bookShipment(orderId: number, _state: ShipmentFormState, f
   if (!order || order.status !== "dibayar" || order.shipmentId) return { error: "Resi hanya bisa dibuat sekali untuk pesanan yang sudah dibayar." };
   if (!order.courierCode || !order.courierServiceCode || !order.shippingAddress || !order.postalCode)
     return { error: "Pesanan ini belum punya alamat atau kurir pilihan pembeli." };
-  const result = await createShipment({
-    reference: `${order.code}-${Date.now().toString(36).toUpperCase()}`,
-    method,
-    courierCode: order.courierCode,
-    serviceCode: order.courierServiceCode,
-    destination: { name: order.recipientName ?? "", phone: order.phone ?? "", address: order.shippingAddress, postalCode: order.postalCode },
-    items: order.items.map((item) => ({
-      name: item.productName,
-      price: item.price ?? 0,
-      quantity: item.quantity,
-      weight: item.product?.weight ?? null,
-    })),
-  });
+  const result = await bookCourier(order, method);
   // Bila balasan terputus, order bisa saja sudah terbuat di Biteship tanpa tercatat di sini.
   if (!result.ok)
     return { error: `Kurir belum bisa dipesan. ${result.error} Bila order ini sudah muncul di dashboard Biteship, batalkan dulu di sana.` };
@@ -94,13 +103,57 @@ export async function bookShipment(orderId: number, _state: ShipmentFormState, f
   return {};
 }
 
+/**
+ * Kirim ulang pesanan "gagal_kirim": admin mengonfirmasi atau mengubah alamat, lalu kurir yang sama dipesan lagi. Resi lama
+ * dipindah ke `shipmentHistory` beserta siapa yang menanggung ongkir kedua.
+ */
+export async function resendShipment(orderId: number, _state: ShipmentFormState, formData: FormData): Promise<ShipmentFormState> {
+  await requireAdmin();
+  const method = formData.get("method");
+  const paidBy = formData.get("paidBy");
+  const [recipientName, rawPhone, shippingAddress, postalCode] = ["recipientName", "phone", "shippingAddress", "postalCode"].map((key) =>
+    String(formData.get(key) ?? "").trim(),
+  );
+  const phone = rawPhone.replace(/\D/g, "").replace(/^62/, "0");
+  if (method !== "pickup" && method !== "drop_off") return { error: "Pilih cara penyerahan paket ke kurir." };
+  if (paidBy !== "pembeli" && paidBy !== "sak_karepe") return { error: "Pilih siapa yang menanggung ongkir pengiriman ulang." };
+  if (!recipientName || !shippingAddress) return { error: "Isi nama penerima dan alamat." };
+  if (!/^0\d{8,13}$/.test(phone)) return { error: "Nomor HP tidak valid. Contoh: 081234567890." };
+  if (!/^\d{5}$/.test(postalCode)) return { error: "Kode pos terdiri dari 5 angka." };
+  const order = await db.query.orders.findFirst({
+    where: eq(orders.id, orderId),
+    with: { items: { with: { product: { columns: { weight: true } } } } },
+  });
+  if (!order || order.status !== "gagal_kirim" || !order.shipmentId) return { error: "Kirim ulang hanya untuk pesanan yang gagal kirim." };
+  if (!order.courierCode || !order.courierServiceCode) return { error: "Pesanan ini belum punya kurir pilihan pembeli." };
+  const result = await bookCourier({ ...order, recipientName, phone, shippingAddress, postalCode }, method);
+  if (!result.ok)
+    return { error: `Kurir belum bisa dipesan. ${result.error} Bila order ini sudah muncul di dashboard Biteship, batalkan dulu di sana.` };
+  const saved = await saveResend(order, { recipientName, phone, shippingAddress, postalCode }, method, paidBy, result);
+  if (!saved) {
+    console.warn(`[biteship] Order ${result.id} ganda untuk pesanan ${order.code}; batalkan di dashboard Biteship`);
+    return { error: `Pesanan berubah atau sudah dikirim ulang dari tab lain. Batalkan order ${result.id} di dashboard Biteship karena ganda.` };
+  }
+  revalidatePath("/admin", "layout");
+  revalidatePath("/pesanan", "layout");
+  return {};
+}
+
+/** Pesanan gagal kirim yang tidak dikirim ulang dibatalkan dan masuk alur refund. */
+export async function refundFailedShipment(orderId: number): Promise<ShipmentFormState> {
+  await requireAdmin();
+  const [saved] = await db
+    .update(orders)
+    .set({ status: "refund", updatedAt: new Date() })
+    .where(and(eq(orders.id, orderId), eq(orders.status, "gagal_kirim")))
+    .returning({ id: orders.id });
+  revalidatePath("/admin", "layout");
+  revalidatePath("/pesanan", "layout");
+  return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
+}
+
 export type CheckoutLinkFormState = { error?: string; saved?: boolean };
 
-/** "150.000" atau "Rp150000" menjadi 150000; kosong menjadi null. */
-function parseAmount(value: FormDataEntryValue | null) {
-  const digits = String(value ?? "").replace(/\D/g, "");
-  return digits ? Number(digits) : null;
-}
 
 /**
  * Menyimpan harga kesepakatan lalu membuka checkout untuk pembeli (status "menunggu_checkout"). Ongkir dan link DOKU

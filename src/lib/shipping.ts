@@ -92,6 +92,8 @@ export async function quoteShipping(destinationPostalCode: string, items: Shippi
     }))
     .sort((a, b) => a.price - b.price);
   if (!options.length) return { ok: false, error: "Belum ada kurir yang melayani alamat ini." };
+  // Entri kedaluwarsa dibuang agar Map tidak terus membesar selama server hidup.
+  for (const [key, entry] of cache) if (entry.expires < Date.now()) cache.delete(key);
   cache.set(body, { expires: Date.now() + cacheMs, options });
   return { ok: true, options };
 }
@@ -104,9 +106,10 @@ export async function quoteShipping(destinationPostalCode: string, items: Shippi
 const ordersUrl = "https://api.biteship.com/v1/orders";
 
 export type CollectionMethod = "pickup" | "drop_off";
-export type Shipment = { id: string; status: string; waybillId: string | null; trackingUrl: string | null };
+/** `note`: catatan riwayat kurir terbaru, mis. alasan paket dikembalikan. */
+export type Shipment = { id: string; status: string; waybillId: string | null; trackingUrl: string | null; note: string | null };
 export type ShipmentResult = ({ ok: true } & Shipment) | { ok: false; error: string };
-type OrderBody = { success?: boolean; error?: unknown; id?: string; status?: string; courier?: { waybill_id?: string | null; link?: string | null } } | null;
+type OrderBody = { success?: boolean; error?: unknown; id?: string; status?: string; courier?: { waybill_id?: string | null; link?: string | null; history?: { note?: string | null }[] } } | null;
 
 async function biteship(url: string, init: RequestInit = {}): Promise<ShipmentResult> {
   const apiKey = process.env.BITESHIP_API_KEY;
@@ -132,6 +135,7 @@ async function biteship(url: string, init: RequestInit = {}): Promise<ShipmentRe
     status: data.status ?? "",
     waybillId: data.courier?.waybill_id || null,
     trackingUrl: data.courier?.link || null,
+    note: data.courier?.history?.at(-1)?.note || null,
   };
 }
 

@@ -5,16 +5,12 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
 import { categories, productImages, products } from "@/db/schema";
+import { parseAmount } from "@/lib/format";
 import { slugify } from "@/lib/slug";
 import { checkUpload, removeUpload, saveUpload } from "@/lib/uploads";
 
 export type ProductFormState = { error?: string };
 
-/** "150.000" atau "Rp150000" menjadi 150000; kosong menjadi null. */
-function parseAmount(value: FormDataEntryValue | null) {
-  const digits = String(value ?? "").replace(/\D/g, "");
-  return digits ? Number(digits) : null;
-}
 
 /** Slug dari form (atau dari nama bila kosong), diberi akhiran -2, -3, ... bila sudah dipakai produk lain. */
 async function uniqueSlug(input: string, excludeId?: number) {

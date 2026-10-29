@@ -1,19 +1,28 @@
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { orders } from "@/db/schema";
-import type { Shipment } from "@/lib/shipping";
+import { orders, shipmentHistory, type Order, type ShipmentHistory } from "@/db/schema";
+import type { CollectionMethod, Shipment } from "@/lib/shipping";
 
 /** Pemesanan kurir gagal sebelum paket diambil; resi dilepas agar admin bisa memesan kurir lagi. */
 const failedStatuses = ["cancelled", "rejected", "courier_not_found"];
+/** Paket dikembalikan kurir: pesanan "gagal_kirim" sampai admin mengirim ulang atau refund. */
+export const returnedStatuses = ["return_in_transit", "returned"];
 /** Pesanan yang sampai otomatis selesai bila pembeli tidak mengonfirmasi dalam 2 hari. */
 export const autoCompleteMs = 2 * 24 * 60 * 60 * 1000;
+/** Paket "on_hold" selama ini ditandai di dashboard admin untuk dicek. */
+export const onHoldMs = 3 * 24 * 60 * 60 * 1000;
 
 /**
- * Menyalin status, resi, dan link lacak Biteship ke pesanan "dikirim". Status pesanan hanya maju (dikirim -> sampai),
- * jadi notifikasi yang datang terlambat atau berulang tidak menimpa status yang sudah diubah admin atau pembeli.
+ * Menyalin status, resi, dan link lacak Biteship ke pesanan "dikirim". Status pesanan hanya maju (dikirim -> sampai atau
+ * gagal_kirim), jadi notifikasi yang datang terlambat atau berulang tidak menimpa status yang sudah diubah admin atau
+ * pembeli. Pesanan "gagal_kirim" hanya menerima status pengembalian (return_in_transit -> returned), tidak pernah "sampai".
  */
 export async function applyShipment(shipment: Shipment) {
-  const where = and(eq(orders.shipmentId, shipment.id), eq(orders.status, "dikirim"));
+  const returned = returnedStatuses.includes(shipment.status);
+  const where = and(
+    eq(orders.shipmentId, shipment.id),
+    returned ? inArray(orders.status, ["dikirim", "gagal_kirim"]) : eq(orders.status, "dikirim"),
+  );
   const now = new Date();
   if (failedStatuses.includes(shipment.status))
     await db
@@ -28,10 +37,51 @@ export async function applyShipment(shipment: Shipment) {
         ...(shipment.waybillId && { waybillId: shipment.waybillId }),
         ...(shipment.trackingUrl && { trackingUrl: shipment.trackingUrl }),
         ...(shipment.status === "delivered" && { status: "sampai", deliveredAt: now }),
+        ...(returned && { status: "gagal_kirim", ...(shipment.note && { shipmentNote: shipment.note }) }),
         updatedAt: now,
       })
       .where(where);
 }
+
+/**
+ * Menyimpan booking kirim ulang: alamat dan resi baru ke pesanan "gagal_kirim", resi lama ke `shipmentHistory`.
+ * Mengembalikan undefined bila pesanan sudah berubah (mis. dikirim ulang dari tab lain).
+ */
+export const saveResend = (
+  order: Order,
+  address: Pick<Order, "recipientName" | "phone" | "shippingAddress" | "postalCode">,
+  method: CollectionMethod,
+  paidBy: ShipmentHistory["resendPaidBy"],
+  shipment: Shipment,
+) =>
+  db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(orders)
+      .set({
+        ...address,
+        status: "dikirim",
+        shipmentId: shipment.id,
+        shipmentStatus: shipment.status,
+        waybillId: shipment.waybillId,
+        trackingUrl: shipment.trackingUrl,
+        collectionMethod: method,
+        shipmentNote: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(orders.id, order.id), eq(orders.status, "gagal_kirim"), eq(orders.shipmentId, order.shipmentId!)))
+      .returning({ id: orders.id });
+    if (updated)
+      await tx.insert(shipmentHistory).values({
+        orderId: order.id,
+        shipmentId: order.shipmentId!,
+        waybillId: order.waybillId,
+        courierName: order.courierName,
+        shipmentStatus: order.shipmentStatus,
+        note: order.shipmentNote,
+        resendPaidBy: paidBy,
+      });
+    return updated;
+  });
 
 export const completeDeliveredOrders = (now = new Date()) =>
   db
@@ -39,3 +89,15 @@ export const completeDeliveredOrders = (now = new Date()) =>
     .set({ status: "selesai", updatedAt: now })
     .where(and(eq(orders.status, "sampai"), lte(orders.deliveredAt, new Date(now.getTime() - autoCompleteMs))))
     .returning({ id: orders.id });
+
+/**
+ * Pesanan yang paketnya tertahan kurir terlalu lama.
+ * shortcut: memakai updatedAt (webhook terakhir) sebagai awal on_hold; tambah kolom waktu status bila Biteship mengirim
+ * webhook on_hold berulang sehingga penanda tidak pernah muncul.
+ */
+export const stuckOnHoldOrders = (now = new Date()) =>
+  db.query.orders.findMany({
+    columns: { id: true, code: true, updatedAt: true },
+    where: and(eq(orders.status, "dikirim"), eq(orders.shipmentStatus, "on_hold"), lte(orders.updatedAt, new Date(now.getTime() - onHoldMs))),
+    orderBy: orders.updatedAt,
+  });
