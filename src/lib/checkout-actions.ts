@@ -242,7 +242,8 @@ export async function checkoutOrder(
     customer: {
       id: String(userId),
       name: address.recipientName.replace(/[^\p{L} ]/gu, "").trim().slice(0, 255),
-      email: order.user.email,
+      // findOwnOrder mencocokkan userId, jadi akun pembeli selalu ada.
+      email: order.user!.email,
       phone: address.phone.replace(/^0/, "62"),
       address: fullAddress.slice(0, 400),
       postcode: address.postalCode,

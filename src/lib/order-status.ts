@@ -1,4 +1,4 @@
-import { orderStatuses, type Order } from "@/db/schema";
+import { orderStatuses, type Order, type Payment } from "@/db/schema";
 
 export const orderStatusLabels: Record<Order["status"], string> = {
   menunggu_konfirmasi: "Menunggu konfirmasi",
@@ -12,6 +12,20 @@ export const orderStatusLabels: Record<Order["status"], string> = {
   selesai: "Selesai",
   refund: "Proses refund",
   dibatalkan: "Dibatalkan",
+};
+
+export const orderSourceLabels: Record<Order["source"], string> = {
+  online: "Online",
+  langsung: "Penjualan langsung",
+  historis: "Transaksi lama",
+};
+
+export const paymentMethodLabels: Record<Payment["method"], string> = {
+  doku: "DOKU",
+  tunai: "Tunai",
+  transfer: "Transfer",
+  qris: "QRIS",
+  lainnya: "Lainnya",
 };
 
 /** Status yang belum dibayar: pembeli masih bisa membatalkan dan admin masih bisa mengubah harga. */
@@ -42,8 +56,12 @@ export const orderTransitions: Record<Order["status"], Order["status"][]> = {
   dibatalkan: [],
 };
 
-/** Status awal pesanan: website mulai "menunggu_konfirmasi", penjualan langsung "dibayar"/"selesai", data historis "selesai". */
-export const initialStatuses: Order["status"][] = ["menunggu_konfirmasi", "dibayar", "selesai"];
+/** Status awal pesanan per sumber; penjualan langsung "dibayar" bila barang masih perlu dikirim. */
+export const initialStatuses: Record<Order["source"], Order["status"][]> = {
+  online: ["menunggu_konfirmasi"],
+  langsung: ["dibayar", "selesai"],
+  historis: ["selesai"],
+};
 
 /**
  * Perpindahan yang boleh lewat dropdown admin. Sisanya punya alur sendiri yang menyimpan data pendukung: link checkout,

@@ -162,7 +162,8 @@ export async function recheckOrder(orderId: number): Promise<StatusFormState> {
   const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { payments: true } });
   if (!order) return { error: "Pesanan tidak ditemukan." };
   const errors: string[] = [];
-  for (const payment of order.payments.filter((payment) => !payment.paidAt)) {
+  for (const payment of order.payments) {
+    if (payment.paidAt || !payment.invoiceNumber) continue;
     const result = await checkStatus(payment.invoiceNumber);
     if (result.ok) await applyPayment(result.status);
     else errors.push(`${payment.invoiceNumber}: ${result.error}`);

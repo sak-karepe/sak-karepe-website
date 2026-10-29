@@ -39,8 +39,12 @@ test("alur yang sudah ada tercakup tabel", () => {
   for (const [from, to] of flows) assert.ok(allowed(from, to), `${from} -> ${to}`);
 });
 
-test("status awal: website, penjualan langsung, historis", () => {
-  assert.deepEqual(initialStatuses, ["menunggu_konfirmasi", "dibayar", "selesai"]);
+test("status awal per sumber", () => {
+  assert.deepEqual(initialStatuses, {
+    online: ["menunggu_konfirmasi"],
+    langsung: ["dibayar", "selesai"],
+    historis: ["selesai"],
+  });
 });
 
 test("setiap status punya baris transisi", () => {
