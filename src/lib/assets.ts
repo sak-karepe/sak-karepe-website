@@ -7,3 +7,4 @@ export function assetPath(path: string) {
 }
 
 export const productImage = (name: string) => `/images/products/${name}.jpeg`;
+export const runwayImage = (name: string) => `/images/runway/${name}.jpeg`;
