@@ -92,6 +92,8 @@ export async function quoteShipping(destinationPostalCode: string, items: Shippi
     }))
     .sort((a, b) => a.price - b.price);
   if (!options.length) return { ok: false, error: "Belum ada kurir yang melayani alamat ini." };
+  // Entri kedaluwarsa dibuang agar Map tidak terus membesar selama server hidup.
+  for (const [key, entry] of cache) if (entry.expires < Date.now()) cache.delete(key);
   cache.set(body, { expires: Date.now() + cacheMs, options });
   return { ok: true, options };
 }

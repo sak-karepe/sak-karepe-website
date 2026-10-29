@@ -1,7 +1,7 @@
 import { and, eq, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { orders } from "@/db/schema";
-import type { Shipment } from "@/lib/shipping";
+import { orders, shipmentHistory, type Order, type ShipmentHistory } from "@/db/schema";
+import type { CollectionMethod, Shipment } from "@/lib/shipping";
 
 /** Pemesanan kurir gagal sebelum paket diambil; resi dilepas agar admin bisa memesan kurir lagi. */
 const failedStatuses = ["cancelled", "rejected", "courier_not_found"];
@@ -42,6 +42,46 @@ export async function applyShipment(shipment: Shipment) {
       })
       .where(where);
 }
+
+/**
+ * Menyimpan booking kirim ulang: alamat dan resi baru ke pesanan "gagal_kirim", resi lama ke `shipmentHistory`.
+ * Mengembalikan undefined bila pesanan sudah berubah (mis. dikirim ulang dari tab lain).
+ */
+export const saveResend = (
+  order: Order,
+  address: Pick<Order, "recipientName" | "phone" | "shippingAddress" | "postalCode">,
+  method: CollectionMethod,
+  paidBy: ShipmentHistory["resendPaidBy"],
+  shipment: Shipment,
+) =>
+  db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(orders)
+      .set({
+        ...address,
+        status: "dikirim",
+        shipmentId: shipment.id,
+        shipmentStatus: shipment.status,
+        waybillId: shipment.waybillId,
+        trackingUrl: shipment.trackingUrl,
+        collectionMethod: method,
+        shipmentNote: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(orders.id, order.id), eq(orders.status, "gagal_kirim"), eq(orders.shipmentId, order.shipmentId!)))
+      .returning({ id: orders.id });
+    if (updated)
+      await tx.insert(shipmentHistory).values({
+        orderId: order.id,
+        shipmentId: order.shipmentId!,
+        waybillId: order.waybillId,
+        courierName: order.courierName,
+        shipmentStatus: order.shipmentStatus,
+        note: order.shipmentNote,
+        resendPaidBy: paidBy,
+      });
+    return updated;
+  });
 
 export const completeDeliveredOrders = (now = new Date()) =>
   db

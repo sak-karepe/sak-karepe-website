@@ -46,17 +46,21 @@ export async function POST(request: Request) {
   }
 
   const paidAt = data.transaction.date ? new Date(data.transaction.date) : new Date();
-  await db.transaction(async (tx) => {
+  const paidOrder = await db.transaction(async (tx) => {
     await tx
       .update(payments)
       .set({ paidAt: Number.isNaN(paidAt.getTime()) ? new Date() : paidAt, channel: data.channel?.id ?? null })
       .where(and(eq(payments.id, payment.id), isNull(payments.paidAt)));
     // Status yang sudah diubah admin (dikirim, selesai, dibatalkan) tidak ditimpa.
-    await tx
+    const [updated] = await tx
       .update(orders)
       .set({ status: "dibayar", updatedAt: new Date() })
-      .where(and(eq(orders.id, payment.orderId), inArray(orders.status, checkoutStatuses)));
+      .where(and(eq(orders.id, payment.orderId), inArray(orders.status, checkoutStatuses)))
+      .returning({ id: orders.id });
+    return updated;
   });
+  // Uang masuk tapi pesanan sudah tidak menunggu pembayaran (mis. dibatalkan): perlu ditangani admin.
+  if (!paidOrder) console.warn(`[doku] Invoice ${invoiceNumber} lunas, tapi pesanan ${payment.orderId} tidak sedang menunggu pembayaran`);
   revalidatePath("/admin", "layout");
   return new Response("OK");
 }

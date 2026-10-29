@@ -8,8 +8,8 @@ process.env.DATABASE_URL = `file:${join(mkdtempSync(join(tmpdir(), "sakkarepe-")
 const { eq } = await import("drizzle-orm");
 const { migrate } = await import("drizzle-orm/libsql/migrator");
 const { db } = await import("@/db");
-const { orders, users } = await import("@/db/schema");
-const { applyShipment, completeDeliveredOrders, autoCompleteMs, onHoldMs, stuckOnHoldOrders } = await import("@/lib/shipments");
+const { orders, shipmentHistory, users } = await import("@/db/schema");
+const { applyShipment, completeDeliveredOrders, autoCompleteMs, onHoldMs, saveResend, stuckOnHoldOrders } = await import("@/lib/shipments");
 
 await migrate(db, { migrationsFolder: "drizzle" });
 const [user] = await db.insert(users).values({ email: "cek@example.com" }).returning();
@@ -55,6 +55,18 @@ const back = await read(returned);
 assert.deepEqual([back.status, back.shipmentStatus, back.shipmentNote, back.waybillId], ["gagal_kirim", "returned", "Alamat tidak ditemukan", "RESI3"]);
 assert.equal((await completeDeliveredOrders(new Date(Date.now() + 10 * autoCompleteMs))).length, 0);
 assert.equal((await read(returned)).status, "gagal_kirim");
+
+// Kirim ulang: resi baru di pesanan, resi lama tersimpan di riwayat; kirim ulang kedua dari tab lain ditolak.
+const address = { recipientName: "Budi", phone: "081234567890", shippingAddress: "Jl. Baru 1", postalCode: "60111" };
+assert.ok(await saveResend(back, address, "pickup", "pembeli", shipment("bs3b", "confirmed")));
+assert.equal(await saveResend(back, address, "pickup", "pembeli", shipment("bs3c", "confirmed")), undefined);
+const resent = await read(returned);
+assert.deepEqual([resent.status, resent.shipmentId, resent.shippingAddress, resent.shipmentNote], ["dikirim", "bs3b", "Jl. Baru 1", null]);
+const history = await db.query.shipmentHistory.findMany({ where: eq(shipmentHistory.orderId, returned) });
+assert.deepEqual(
+  history.map((row) => [row.shipmentId, row.waybillId, row.shipmentStatus, row.note, row.resendPaidBy]),
+  [["bs3", "RESI3", "returned", "Alamat tidak ditemukan", "pembeli"]],
+);
 
 // on_hold lebih dari 3 hari ditandai.
 const held = await insert("SK-4", "bs4");

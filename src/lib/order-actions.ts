@@ -3,9 +3,11 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
-import { orderItems, orders, shipmentHistory, type Order, type OrderItem } from "@/db/schema";
+import { orderItems, orders, type Order, type OrderItem } from "@/db/schema";
+import { parseAmount } from "@/lib/format";
 import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } from "@/lib/order-status";
 import { cancelActivePayments } from "@/lib/payments";
+import { saveResend } from "@/lib/shipments";
 import { createShipment } from "@/lib/shipping";
 
 export type StatusFormState = { error?: string };
@@ -127,37 +129,7 @@ export async function resendShipment(orderId: number, _state: ShipmentFormState,
   const result = await bookCourier({ ...order, recipientName, phone, shippingAddress, postalCode }, method);
   if (!result.ok)
     return { error: `Kurir belum bisa dipesan. ${result.error} Bila order ini sudah muncul di dashboard Biteship, batalkan dulu di sana.` };
-  const saved = await db.transaction(async (tx) => {
-    const [updated] = await tx
-      .update(orders)
-      .set({
-        status: "dikirim",
-        recipientName,
-        phone,
-        shippingAddress,
-        postalCode,
-        shipmentId: result.id,
-        shipmentStatus: result.status,
-        waybillId: result.waybillId,
-        trackingUrl: result.trackingUrl,
-        collectionMethod: method,
-        shipmentNote: null,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(orders.id, orderId), eq(orders.status, "gagal_kirim"), eq(orders.shipmentId, order.shipmentId!)))
-      .returning({ id: orders.id });
-    if (updated)
-      await tx.insert(shipmentHistory).values({
-        orderId,
-        shipmentId: order.shipmentId!,
-        waybillId: order.waybillId,
-        courierName: order.courierName,
-        shipmentStatus: order.shipmentStatus,
-        note: order.shipmentNote,
-        resendPaidBy: paidBy,
-      });
-    return updated;
-  });
+  const saved = await saveResend(order, { recipientName, phone, shippingAddress, postalCode }, method, paidBy, result);
   if (!saved) {
     console.warn(`[biteship] Order ${result.id} ganda untuk pesanan ${order.code}; batalkan di dashboard Biteship`);
     return { error: `Pesanan berubah atau sudah dikirim ulang dari tab lain. Batalkan order ${result.id} di dashboard Biteship karena ganda.` };
@@ -182,11 +154,6 @@ export async function refundFailedShipment(orderId: number): Promise<ShipmentFor
 
 export type CheckoutLinkFormState = { error?: string; saved?: boolean };
 
-/** "150.000" atau "Rp150000" menjadi 150000; kosong menjadi null. */
-function parseAmount(value: FormDataEntryValue | null) {
-  const digits = String(value ?? "").replace(/\D/g, "");
-  return digits ? Number(digits) : null;
-}
 
 /**
  * Menyimpan harga kesepakatan lalu membuka checkout untuk pembeli (status "menunggu_checkout"). Ongkir dan link DOKU

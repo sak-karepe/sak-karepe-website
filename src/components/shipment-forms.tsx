@@ -19,13 +19,31 @@ const methods = [
   { value: "drop_off", label: "Antar ke agen kurir", hint: "Admin membawa paket ke agen/gerai kurir." },
 ];
 
-function RadioGroup({ name, legend, options }: { name: string; legend: string; options: { value: string; label: string; hint: string }[] }) {
+/** `noDefault`: tidak ada pilihan terisi, agar admin memilih dengan sadar. */
+function RadioGroup({
+  name,
+  legend,
+  options,
+  noDefault,
+}: {
+  name: string;
+  legend: string;
+  options: { value: string; label: string; hint: string }[];
+  noDefault?: boolean;
+}) {
   return (
     <fieldset className="grid gap-2">
       <legend className="sr-only">{legend}</legend>
       {options.map((option, index) => (
         <label key={option.value} className="flex gap-3 rounded-md border border-line p-3 has-checked:border-accent">
-          <input type="radio" name={name} value={option.value} defaultChecked={index === 0} className="mt-1 accent-accent" />
+          <input
+            type="radio"
+            name={name}
+            value={option.value}
+            defaultChecked={!noDefault && index === 0}
+            required={noDefault}
+            className="mt-1 accent-accent"
+          />
           <span>
             <span className="block text-[15px]">{option.label}</span>
             <span className="block text-sm text-muted">{option.hint}</span>
@@ -85,13 +103,13 @@ export function ResendShipmentForm({
               defaultValue={address[field.name]}
               required
               autoComplete={field.autoComplete}
-              inputMode={field.name === "recipientName" ? undefined : "numeric"}
+              inputMode={field.name === "phone" ? "tel" : field.name === "postalCode" ? "numeric" : undefined}
               className={inputClass}
             />
           )}
         </label>
       ))}
-      <RadioGroup name="paidBy" legend="Penanggung ongkir pengiriman ulang" options={payers} />
+      <RadioGroup name="paidBy" legend="Penanggung ongkir pengiriman ulang" options={payers} noDefault />
       <RadioGroup name="method" legend="Cara penyerahan paket" options={methods} />
       <ErrorAlert error={state.error} />
       <button className="btn min-h-11 w-full px-4 text-[15px]" disabled={pending}>
