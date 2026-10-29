@@ -184,3 +184,19 @@ export function StatusForm({
     </form>
   );
 }
+
+/** Tombol satu aksi tanpa isian, mis. cek ulang status atau menandai sudah dicek. */
+export function ActionButton({ action, label, pendingLabel }: { action: () => Promise<State>; label: string; pendingLabel: string }) {
+  const [state, formAction, pending] = useActionState(action, {});
+  return (
+    <form action={formAction}>
+      <button
+        className="min-h-11 w-full rounded-md border border-line px-4 text-[15px] font-medium transition-colors hover:border-accent hover:text-accent"
+        disabled={pending}
+      >
+        {pending ? pendingLabel : label}
+      </button>
+      <ErrorAlert error={state.error} />
+    </form>
+  );
+}

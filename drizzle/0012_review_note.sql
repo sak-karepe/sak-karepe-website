@@ -1,0 +1,1 @@
+ALTER TABLE `orders` ADD `review_note` text;

@@ -2,15 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { ArrowSquareOutIcon, WhatsappLogoIcon } from "@phosphor-icons/react/dist/ssr";
+import { ArrowSquareOutIcon, WarningCircleIcon, WhatsappLogoIcon } from "@phosphor-icons/react/dist/ssr";
 import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 import { AdminBack } from "@/components/admin-back";
 import { CheckoutLinkDialog, CopyCheckoutLink } from "@/components/checkout-link-dialog";
-import { RefundButton, ResendShipmentForm, ShipmentForm, StatusForm } from "@/components/shipment-forms";
+import { ActionButton, RefundButton, ResendShipmentForm, ShipmentForm, StatusForm } from "@/components/shipment-forms";
 import { formatDateTime, formatRupiah } from "@/lib/format";
-import { bookShipment, createCheckoutLink, refundFailedShipment, resendShipment, updateOrderStatus } from "@/lib/order-actions";
+import {
+  bookShipment,
+  createCheckoutLink,
+  markReviewed,
+  recheckOrder,
+  refundFailedShipment,
+  resendShipment,
+  updateOrderStatus,
+} from "@/lib/order-actions";
 import { adminTransitions, checkoutStatuses, orderStatusClass, orderStatusLabels, shipmentStatusLabels } from "@/lib/order-status";
 import { isActivePayment } from "@/lib/payments";
 export const metadata: Metadata = { title: "Detail pesanan" };
@@ -48,6 +56,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           {orderStatusLabels[order.status]}
         </span>
       </div>
+      {order.reviewNote && (
+        <section aria-labelledby="perlu-dicek" className="mb-8 flex max-w-5xl flex-wrap items-start justify-between gap-4 rounded-md border border-danger p-5">
+          <div className="min-w-0 flex-1">
+            <h2 id="perlu-dicek" className="flex items-center gap-2 text-sm font-medium text-danger">
+              <WarningCircleIcon size={18} weight="bold" aria-hidden="true" /> Perlu dicek
+            </h2>
+            <p className="mt-2 text-[15px]">{order.reviewNote}</p>
+            <p className="mt-1 text-sm text-muted">Cocokkan dengan transaksi di DOKU Back Office, lalu tandai sudah dicek.</p>
+          </div>
+          <ActionButton action={markReviewed.bind(null, order.id)} label="Sudah dicek" pendingLabel="Menyimpan…" />
+        </section>
+      )}
       <div className="grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="grid content-start gap-10">
           <section aria-labelledby="produk">
@@ -231,6 +251,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 ))}
               </ul>
             </section>
+          )}
+          {(order.payments.length > 0 || order.shipmentId) && (
+            <ActionButton action={recheckOrder.bind(null, order.id)} label="Cek ulang status" pendingLabel="Mengecek DOKU & Biteship…" />
           )}
           {adminTransitions[order.status] && (
             <StatusForm

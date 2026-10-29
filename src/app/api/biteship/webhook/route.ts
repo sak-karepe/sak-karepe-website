@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { applyShipment } from "@/lib/shipments";
-import { getShipment } from "@/lib/shipping";
+import { getShipment, unreachable } from "@/lib/shipping";
 
 /** Header rahasia yang diisi di form webhook Biteship (Headers Signature Key/Secret); kosong berarti tidak dicek. */
 const headerName = process.env.BITESHIP_WEBHOOK_HEADER || "X-Sakkarepe-Signature";
@@ -24,7 +24,10 @@ export async function POST(request: Request) {
   const data: { order_id?: unknown } | null = await request.json().catch(() => null);
   if (typeof data?.order_id !== "string") return new Response("OK");
   const shipment = await getShipment(data.order_id);
-  if (!shipment.ok) return new Response("OK");
+  // Hanya gangguan jaringan dibalas non-200 agar Biteship mengirim ulang; order yang ditolak Biteship atau API key kosong
+  // tidak akan berhasil walau diulang. Job rekonsiliasi juga mengecek pesanan yang lama tidak berubah.
+  if (!shipment.ok)
+    return shipment.error === unreachable ? new Response("Gagal menghubungi Biteship", { status: 502 }) : new Response("OK");
   await applyShipment(shipment);
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
