@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   output: githubPages ? "export" : undefined,
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || "",
   trailingSlash: githubPages,
+  // Dev server diakses lewat Cloudflare Tunnel (~/.cloudflared/config.yml).
+  allowedDevOrigins: ["sakkarepe.dipras.my.id"],
   images: {
     unoptimized: githubPages,
     // Foto profil Google di menu akun navbar.
