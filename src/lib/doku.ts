@@ -7,6 +7,7 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
 const host = process.env.DOKU_ENV === "production" ? "https://api.doku.com" : "https://api-sandbox.doku.com";
 const checkoutTarget = "/checkout/v1/payment";
 const cancelTarget = "/checkout/v3/cancellations";
+const statusTarget = "/orders/v1/status";
 
 export type CheckoutRequest = {
   invoiceNumber: string;
@@ -19,15 +20,17 @@ export type CheckoutRequest = {
 
 export type CheckoutResult = { ok: true; url: string; expiresAt: Date; requestId: string } | { ok: false; error: string };
 
-/** Signature header: HMAC-SHA256 dari Client-Id, Request-Id, Request-Timestamp, Request-Target, dan Digest (SHA-256 body). */
-function sign(clientId: string, secret: string, requestId: string, timestamp: string, requestTarget: string, body: string) {
-  const digest = createHash("sha256").update(body, "utf8").digest("base64");
+/**
+ * Signature header: HMAC-SHA256 dari Client-Id, Request-Id, Request-Timestamp, Request-Target, dan Digest (SHA-256 body).
+ * Permintaan GET tanpa body tidak memakai Digest.
+ */
+function sign(clientId: string, secret: string, requestId: string, timestamp: string, requestTarget: string, body?: string) {
   const component = [
     `Client-Id:${clientId}`,
     `Request-Id:${requestId}`,
     `Request-Timestamp:${timestamp}`,
     `Request-Target:${requestTarget}`,
-    `Digest:${digest}`,
+    ...(body === undefined ? [] : [`Digest:${createHash("sha256").update(body, "utf8").digest("base64")}`]),
   ].join("\n");
   return `HMACSHA256=${createHmac("sha256", secret).update(component).digest("base64")}`;
 }
@@ -38,28 +41,35 @@ function parseExpiry(value: string) {
   return y ? new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}+07:00`) : null;
 }
 
-type DokuBody = {
+/** Bagian HTTP Notification dan Check Status API yang dipakai; bentuk keduanya sama. */
+export type PaymentStatus = {
+  order?: { invoice_number?: string; amount?: number | string };
+  transaction?: { status?: string; date?: string };
+  channel?: { id?: string };
+};
+
+type DokuBody = (PaymentStatus & {
   response?: { payment?: { url?: unknown; expired_date?: unknown } };
   error_messages?: unknown;
   message?: unknown;
   error?: { message?: unknown };
-} | null;
+}) | null;
 type DokuResponse = { ok: true; status: number; success: boolean; data: DokuBody; requestId: string } | { ok: false; error: string };
 
-/** POST bertanda tangan ke API DOKU; `success` bila HTTP 2xx. */
-async function post(target: string, payload: unknown): Promise<DokuResponse> {
+/** Permintaan bertanda tangan ke API DOKU: POST bila ada payload, selain itu GET; `success` bila HTTP 2xx. */
+async function send(target: string, payload?: unknown): Promise<DokuResponse> {
   const clientId = process.env.DOKU_CLIENT_ID;
   const secret = process.env.DOKU_SECRET_KEY;
   if (!clientId || !secret) return { ok: false, error: "DOKU_CLIENT_ID dan DOKU_SECRET_KEY belum diisi di .env." };
-  const body = JSON.stringify(payload);
+  const body = payload === undefined ? undefined : JSON.stringify(payload);
   const requestId = randomUUID();
   const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   let response: Response;
   try {
     response = await fetch(host + target, {
-      method: "POST",
+      method: body === undefined ? "GET" : "POST",
       headers: {
-        "Content-Type": "application/json",
+        ...(body !== undefined && { "Content-Type": "application/json" }),
         "Client-Id": clientId,
         "Request-Id": requestId,
         "Request-Timestamp": timestamp,
@@ -82,7 +92,7 @@ function rejection(status: number, data: DokuBody) {
 }
 
 export async function createCheckout(request: CheckoutRequest): Promise<CheckoutResult> {
-  const result = await post(checkoutTarget, {
+  const result = await send(checkoutTarget, {
     order: {
       amount: request.amount,
       invoice_number: request.invoiceNumber,
@@ -106,13 +116,25 @@ export async function createCheckout(request: CheckoutRequest): Promise<Checkout
  * link yang sudah dibayar, kedaluwarsa, atau memakai metode lain ditolak DOKU.
  */
 export async function cancelCheckout(invoiceNumber: string, originalRequestId: string, note: string) {
-  const result = await post(cancelTarget, {
+  const result = await send(cancelTarget, {
     order: { invoice_number: invoiceNumber },
     payment: { original_request_id: originalRequestId },
     note,
   });
   if (!result.ok) return result;
   return result.success ? { ok: true as const } : { ok: false as const, error: rejection(result.status, result.data) };
+}
+
+/**
+ * Status pembayaran terbaru (Check Status API), untuk rekonsiliasi bila HTTP Notification tidak sampai:
+ * https://developers.doku.com/accept-payments/doku-checkout/additional-feature/check-status-api
+ */
+export async function checkStatus(invoiceNumber: string) {
+  const result = await send(`${statusTarget}/${encodeURIComponent(invoiceNumber)}`);
+  if (!result.ok) return result;
+  return result.success && result.data
+    ? { ok: true as const, status: result.data }
+    : { ok: false as const, error: rejection(result.status, result.data) };
 }
 
 /**

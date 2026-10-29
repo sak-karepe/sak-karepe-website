@@ -152,6 +152,8 @@ export const orders = sqliteTable("orders", {
   deliveredAt: integer("delivered_at", { mode: "timestamp" }),
   /** Catatan kurir terakhir saat paket dikembalikan ("gagal_kirim"), mis. alamat tidak ditemukan. */
   shipmentNote: text("shipment_note"),
+  /** Alasan pesanan ditandai "Perlu dicek" di dashboard admin, mis. nominal DOKU tidak cocok; dikosongkan admin. */
+  reviewNote: text("review_note"),
   notes: text("notes").notNull().default(""),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),

@@ -24,7 +24,8 @@ export async function POST(request: Request) {
   const data: { order_id?: unknown } | null = await request.json().catch(() => null);
   if (typeof data?.order_id !== "string") return new Response("OK");
   const shipment = await getShipment(data.order_id);
-  if (!shipment.ok) return new Response("OK");
+  // Non-200 agar Biteship mengirim ulang webhook; job rekonsiliasi juga mengecek pesanan yang lama tidak berubah.
+  if (!shipment.ok) return new Response("Gagal mengambil order Biteship", { status: 502 });
   await applyShipment(shipment);
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");

@@ -1,7 +1,7 @@
-import { and, eq, inArray, lte } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { orders, shipmentHistory, type Order, type ShipmentHistory } from "@/db/schema";
-import type { CollectionMethod, Shipment } from "@/lib/shipping";
+import { getShipment, type CollectionMethod, type Shipment } from "@/lib/shipping";
 
 /** Pemesanan kurir gagal sebelum paket diambil; resi dilepas agar admin bisa memesan kurir lagi. */
 const failedStatuses = ["cancelled", "rejected", "courier_not_found"];
@@ -11,6 +11,8 @@ export const returnedStatuses = ["return_in_transit", "returned"];
 export const autoCompleteMs = 2 * 24 * 60 * 60 * 1000;
 /** Paket "on_hold" selama ini ditandai di dashboard admin untuk dicek. */
 export const onHoldMs = 3 * 24 * 60 * 60 * 1000;
+/** Pesanan "dikirim" yang tidak berubah selama ini dicek ulang ke Biteship, bila webhook tidak sampai. */
+export const staleShipmentMs = 6 * 60 * 60 * 1000;
 
 /**
  * Menyalin status, resi, dan link lacak Biteship ke pesanan "dikirim". Status pesanan hanya maju (dikirim -> sampai atau
@@ -101,3 +103,29 @@ export const stuckOnHoldOrders = (now = new Date()) =>
     where: and(eq(orders.status, "dikirim"), eq(orders.shipmentStatus, "on_hold"), lte(orders.updatedAt, new Date(now.getTime() - onHoldMs))),
     orderBy: orders.updatedAt,
   });
+
+/**
+ * Mengambil status terbaru dari Biteship dan menerapkannya hanya bila status atau resi berubah, agar `updatedAt` tetap
+ * menandai awal on_hold (`stuckOnHoldOrders`).
+ */
+export async function refreshShipment(order: Pick<Order, "shipmentId" | "shipmentStatus" | "waybillId">) {
+  const shipment = await getShipment(order.shipmentId!);
+  if (shipment.ok && (shipment.status !== order.shipmentStatus || (shipment.waybillId && shipment.waybillId !== order.waybillId)))
+    await applyShipment(shipment);
+  return shipment;
+}
+
+/**
+ * Mengecek ulang pesanan "dikirim" yang lama tidak berubah. Mengembalikan jumlah yang gagal dicek.
+ * shortcut: pesanan yang memang lama di jalan dicek setiap kali job berjalan; batasi per pesanan bila jumlahnya membuat
+ * kuota API Biteship terasa.
+ */
+export async function reconcileShipments(now = new Date()) {
+  const stale = await db.query.orders.findMany({
+    columns: { shipmentId: true, shipmentStatus: true, waybillId: true },
+    where: and(eq(orders.status, "dikirim"), isNotNull(orders.shipmentId), lte(orders.updatedAt, new Date(now.getTime() - staleShipmentMs))),
+  });
+  let failed = 0;
+  for (const order of stale) if (!(await refreshShipment(order)).ok) failed++;
+  return failed;
+}

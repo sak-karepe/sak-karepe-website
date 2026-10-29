@@ -1,4 +1,4 @@
-// Cek alur status pengiriman di database sementara: npm run check
+// Cek alur status pengiriman dan pembayaran di database sementara: npm run check
 import assert from "node:assert";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,7 +8,8 @@ process.env.DATABASE_URL = `file:${join(mkdtempSync(join(tmpdir(), "sakkarepe-")
 const { eq } = await import("drizzle-orm");
 const { migrate } = await import("drizzle-orm/libsql/migrator");
 const { db } = await import("@/db");
-const { orders, shipmentHistory, users } = await import("@/db/schema");
+const { orders, payments, shipmentHistory, users } = await import("@/db/schema");
+const { applyPayment } = await import("@/lib/payments");
 const { applyShipment, completeDeliveredOrders, autoCompleteMs, onHoldMs, saveResend, stuckOnHoldOrders } = await import("@/lib/shipments");
 
 await migrate(db, { migrationsFolder: "drizzle" });
@@ -73,5 +74,20 @@ const held = await insert("SK-4", "bs4");
 await applyShipment(shipment("bs4", "on_hold"));
 assert.equal((await stuckOnHoldOrders()).length, 0);
 assert.deepEqual((await stuckOnHoldOrders(new Date(Date.now() + onHoldMs + 1000))).map((order) => order.id), [held]);
+
+// Pembayaran: nominal tidak cocok dan invoice tak dikenal ditandai, bukan dicatat lunas; notifikasi berulang aman.
+const unpaid = (await db.insert(orders).values({ code: "SK-261029-AB1P", userId: user.id, status: "menunggu_pembayaran" }).returning())[0].id;
+await db.insert(payments).values({ orderId: unpaid, invoiceNumber: "SK261029AB1PP1", amount: 150000, url: "https://doku", expiresAt: new Date() });
+const paid = (amount: number | string, invoice = "SK261029AB1PP1") =>
+  applyPayment({ order: { invoice_number: invoice, amount }, transaction: { status: "SUCCESS" }, channel: { id: "QRIS" } });
+await applyPayment({ order: { invoice_number: "SK261029AB1PP1", amount: 150000 }, transaction: { status: "FAILED" } });
+await paid(1000);
+assert.deepEqual([(await read(unpaid)).status, (await read(unpaid)).reviewNote?.includes("tidak cocok")], ["menunggu_pembayaran", true]);
+await db.update(orders).set({ reviewNote: null }).where(eq(orders.id, unpaid));
+await paid("150000.00");
+await paid(150000);
+assert.deepEqual([(await read(unpaid)).status, (await read(unpaid)).reviewNote], ["dibayar", null]);
+await paid(150000, "SK261029AB1PP9");
+assert.ok((await read(unpaid)).reviewNote?.includes("tidak dikenal"));
 
 console.log("ok");

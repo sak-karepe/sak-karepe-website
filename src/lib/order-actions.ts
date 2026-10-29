@@ -6,8 +6,9 @@ import { db } from "@/db";
 import { orderItems, orders, type Order, type OrderItem } from "@/db/schema";
 import { parseAmount } from "@/lib/format";
 import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } from "@/lib/order-status";
-import { cancelActivePayments } from "@/lib/payments";
-import { saveResend } from "@/lib/shipments";
+import { checkStatus } from "@/lib/doku";
+import { applyPayment, cancelActivePayments } from "@/lib/payments";
+import { refreshShipment, saveResend } from "@/lib/shipments";
 import { createShipment } from "@/lib/shipping";
 
 export type StatusFormState = { error?: string };
@@ -150,6 +151,37 @@ export async function refundFailedShipment(orderId: number): Promise<ShipmentFor
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
   return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
+}
+
+/**
+ * Cek ulang status pembayaran (DOKU) dan pengiriman (Biteship) bila webhook tidak sampai. Semua link yang belum lunas
+ * dicek, termasuk yang sudah kedaluwarsa atau dibatalkan, karena pembayaran bisa masuk tepat sebelumnya.
+ */
+export async function recheckOrder(orderId: number): Promise<StatusFormState> {
+  await requireAdmin();
+  const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { payments: true } });
+  if (!order) return { error: "Pesanan tidak ditemukan." };
+  const errors: string[] = [];
+  for (const payment of order.payments.filter((payment) => !payment.paidAt)) {
+    const result = await checkStatus(payment.invoiceNumber);
+    if (result.ok) await applyPayment(result.status);
+    else errors.push(`${payment.invoiceNumber}: ${result.error}`);
+  }
+  if (order.shipmentId) {
+    const result = await refreshShipment(order);
+    if (!result.ok) errors.push(`Biteship: ${result.error}`);
+  }
+  revalidatePath("/admin", "layout");
+  revalidatePath("/pesanan", "layout");
+  return errors.length ? { error: `Sebagian status belum bisa dicek. ${errors.join(" · ")}` } : {};
+}
+
+/** Admin selesai menangani pesanan yang ditandai "Perlu dicek". */
+export async function markReviewed(orderId: number): Promise<StatusFormState> {
+  await requireAdmin();
+  await db.update(orders).set({ reviewNote: null }).where(eq(orders.id, orderId));
+  revalidatePath("/admin", "layout");
+  return {};
 }
 
 export type CheckoutLinkFormState = { error?: string; saved?: boolean };
