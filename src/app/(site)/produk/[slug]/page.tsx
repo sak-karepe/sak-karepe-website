@@ -9,7 +9,7 @@ import { ProductCard } from "@/components/product-card";
 import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
 import { whatsappUrl } from "@/lib/contact";
-import { BuyButton } from "@/components/buy-button";
+import { AddToCartButton, BuyButton } from "@/components/buy-button";
 import { MobileProductActions } from "@/components/mobile-product-actions";
 
 export async function generateStaticParams() {
@@ -43,6 +43,13 @@ export default async function ProductPage({
     ...others.filter((p) => p.categorySlug === product.categorySlug),
     ...others.filter((p) => p.categorySlug !== product.categorySlug),
   ].slice(0, 4);
+  const cartProduct = {
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    stock: product.stock,
+    image: product.images[0],
+  };
 
   return (
     <main id="utama" className="wrap pt-0 md:pt-8">
@@ -119,16 +126,8 @@ export default async function ProductPage({
 
             {/* Tombol desktop */}
             <div className="mt-6 hidden flex-wrap items-center gap-x-6 gap-y-4 md:flex">
-              <BuyButton
-                slug={product.slug}
-                product={{
-                  id: product.id,
-                  name: product.name,
-                  price: product.price,
-                  stock: product.stock,
-                  image: product.images[0],
-                }}
-              />
+              <BuyButton product={cartProduct} />
+              <AddToCartButton product={cartProduct} className="btn bg-transparent text-accent" />
 
               <a
                 href={whatsappUrl(
@@ -162,7 +161,6 @@ export default async function ProductPage({
       {/* Sticky action bar khusus mobile */}
       <MobileProductActions
         id={Number(product.id)}
-        slug={product.slug}
         name={product.name}
         price={product.price}
         stock={product.stock}

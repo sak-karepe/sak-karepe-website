@@ -112,8 +112,12 @@ function CheckoutLinkForm({ action, items, code }: Props) {
           <li key={item.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center sm:gap-4">
             <label htmlFor={`price-${item.id}`} className="min-w-0">
               <span className="line-clamp-2">{item.name}</span>
-              <span className="text-sm text-muted">
+              <span className="block text-sm text-muted">
                 {item.quantity} barang · harga satuan{item.price === null && " (konsultasi)"}
+              </span>
+              <span className="block text-sm tabular-nums">
+                {item.quantity} × Rp{rupiah.format(Number(prices[index] || 0))} ={" "}
+                <span className="font-medium">Rp{rupiah.format(Number(prices[index] || 0) * item.quantity)}</span>
               </span>
             </label>
             <AmountInput

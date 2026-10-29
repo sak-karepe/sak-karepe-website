@@ -13,27 +13,33 @@ import {
   useCallback,
 } from "react";
 import { navigation, runwayPhotos } from "@/lib/content";
-import { WhatsappLogoIcon } from "@phosphor-icons/react";
+import { ShoppingCartSimpleIcon, WhatsappLogoIcon } from "@phosphor-icons/react";
 import { SessionProvider } from "next-auth/react";
 import { signInWithGoogle } from "@/lib/auth-actions";
 import { AccountMenu } from "./account-menu";
 import { whatsappUrl } from "@/lib/contact";
 import { GalleryLightbox } from "./gallery-lightbox";
-import { Checkout, type CheckoutProduct } from "./checkout";
+import { Checkout, type CartItem } from "./checkout";
 type Modal =
   | { kind: "product"; product: { title: string; src: string; description: string } }
   | { kind: "consult"; message: string }
   | { kind: "gallery"; index: number }
   /** `redirectTo`: tujuan setelah login, mis. kembali ke produk untuk melanjutkan pembelian. */
   | { kind: "login"; notice?: string; redirectTo?: string }
-  | { kind: "checkout"; product: CheckoutProduct };
+  | { kind: "checkout" };
 const loginNotices: Record<string, string> = {
   AccessDenied: "Login ditolak. Pastikan email akun Google sudah terverifikasi.",
   SessionRequired: "Masuk dengan akun admin untuk membuka dashboard.",
 };
-const SiteContext = createContext<{ open: (modal: Modal) => void } | null>(
-  null,
-);
+const SiteContext = createContext<{
+  open: (modal: Modal) => void;
+  cart: CartItem[];
+  updateCart: (change: (items: CartItem[]) => CartItem[]) => void;
+} | null>(null);
+/** Keranjang disimpan di browser; harga dan stok dicek ulang di server saat memesan. */
+const cartKey = "sak-karepe-cart";
+/** Penanda di URL untuk membuka keranjang lagi setelah login Google. */
+const cartParam = "keranjang";
 export function useSite() {
   const value = useContext(SiteContext);
   if (!value) throw new Error("SiteProvider missing");
@@ -60,7 +66,8 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     [menu, setMenu] = useState(false),
     [dark, setDark] = useState(false),
     [message, setMessage] = useState(""),
-    [status, setStatus] = useState("");
+    [status, setStatus] = useState(""),
+    [cart, setCart] = useState<CartItem[]>([]);
   const dialog = useRef<HTMLDialogElement>(null),
     textarea = useRef<HTMLTextAreaElement>(null),
     animation = useRef<Animation | null>(null),
@@ -74,6 +81,27 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     if (next.kind === "consult") setMessage(next.message);
     setModal(next);
   }, []);
+  const updateCart = useCallback((change: (items: CartItem[]) => CartItem[]) => {
+    setCart((items) => {
+      const next = change(items);
+      try {
+        localStorage.setItem(cartKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(cartKey) ?? "[]");
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- membaca localStorage sekali saat mount
+      if (Array.isArray(saved)) setCart(saved);
+    } catch {}
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(cartParam)) return;
+    url.searchParams.delete(cartParam);
+    window.history.replaceState(null, "", url);
+    open({ kind: "checkout" });
+  }, [open]);
   const close = useCallback(() => {
     const element = dialog.current;
     if (!element || animation.current) return;
@@ -164,11 +192,11 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         : modal?.kind === "login"
           ? "Masuk"
           : modal?.kind === "checkout"
-            ? "Lengkapi pesanan."
+            ? "Keranjang"
             : "Fashion show Sak Karepe";
   return (
     <SessionProvider basePath={`${basePath}/api/auth`}>
-    <SiteContext.Provider value={{ open }}>
+    <SiteContext.Provider value={{ open, cart, updateCart }}>
       <a
         href="#utama"
         className="fixed -top-24 left-5 z-50 bg-page p-3 focus:top-3"
@@ -212,6 +240,18 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             ))}
           </div>
           <div className="flex items-center gap-3">
+            <button
+              className="relative grid size-10 place-items-center rounded-full text-ink transition-colors hover:bg-surface hover:text-accent"
+              aria-label={`Keranjang, ${cart.length} produk`}
+              onClick={() => open({ kind: "checkout" })}
+            >
+              <ShoppingCartSimpleIcon size={24} aria-hidden="true" />
+              {cart.length > 0 && (
+                <span className="absolute top-0.5 right-0 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-button-ink tabular-nums ring-2 ring-page">
+                  {cart.length}
+                </span>
+              )}
+            </button>
             <AccountMenu onLogin={() => open({ kind: "login" })} />
             <button
               className="rounded-md border border-line px-3 py-2 text-sm lg:hidden"
@@ -446,7 +486,17 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
               )}
             </>
           )}
-          {modal?.kind === "checkout" && <Checkout product={modal.product} />}
+          {modal?.kind === "checkout" && (
+            <Checkout
+              onLogin={() =>
+                open({
+                  kind: "login",
+                  notice: "Masuk dulu untuk melanjutkan pemesanan.",
+                  redirectTo: `${pathname}?${cartParam}=1`,
+                })
+              }
+            />
+          )}
           {modal?.kind === "gallery" && (
             <GalleryLightbox
               index={modal.index}

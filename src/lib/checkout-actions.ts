@@ -80,34 +80,57 @@ async function newOrderCode() {
 export type PlaceOrderResult = { error: string } | { code: string; whatsapp: string };
 
 /**
- * Mencatat pesanan berstatus "menunggu_konfirmasi" lalu mengembalikan tautan WhatsApp berisi kode pesanan dan
- * ID pembeli. Harga disepakati lewat WhatsApp; alamat dan ongkir diisi pembeli saat checkout. Stok belum dikurangi.
+ * Mencatat isi keranjang sebagai satu pesanan berstatus "menunggu_konfirmasi" lalu mengembalikan tautan WhatsApp
+ * berisi kode pesanan dan ID pembeli. Harga disepakati lewat WhatsApp; alamat dan ongkir diisi pembeli saat
+ * checkout. Stok belum dikurangi.
  */
-export async function placeOrder(input: { productId: number; quantity: number; notes?: string }): Promise<PlaceOrderResult> {
+export async function placeOrder(input: { items: { productId: number; quantity: number }[]; notes?: string }): Promise<PlaceOrderResult> {
   const userId = await currentUserId();
   if (!userId) return { error: loginRequired };
-  const quantity = Math.floor(Number(input.quantity));
-  if (!(quantity >= 1 && quantity <= 99)) return { error: "Jumlah barang tidak valid." };
-  const product = await db.query.products.findFirst({
-    where: and(eq(products.id, input.productId), eq(products.published, true)),
+  if (!Array.isArray(input.items) || input.items.length === 0) return { error: "Keranjang masih kosong." };
+  if (input.items.length > 20) return { error: "Maksimal 20 produk dalam satu pesanan." };
+  const requested = input.items.map((item) => ({ productId: Number(item.productId), quantity: Math.floor(Number(item.quantity)) }));
+  if (requested.some((item) => !(item.quantity >= 1 && item.quantity <= 99))) return { error: "Jumlah barang tidak valid." };
+  if (new Set(requested.map((item) => item.productId)).size !== requested.length) return { error: "Ada produk ganda di keranjang." };
+  const found = await db.query.products.findMany({
+    where: and(inArray(products.id, requested.map((item) => item.productId)), eq(products.published, true)),
   });
-  if (!product) return { error: "Produk tidak ditemukan atau sudah tidak dijual." };
-  if (product.stock !== null && quantity > product.stock)
-    return { error: product.stock > 0 ? `Stok tersisa ${product.stock}.` : "Stok produk sedang kosong." };
+  const lines: { product: (typeof found)[number]; quantity: number }[] = [];
+  for (const item of requested) {
+    const product = found.find((product) => product.id === item.productId);
+    if (!product) return { error: "Ada produk yang sudah tidak dijual. Hapus dari keranjang lalu coba lagi." };
+    if (product.stock !== null && item.quantity > product.stock)
+      return { error: product.stock > 0 ? `Stok ${product.name} tersisa ${product.stock}.` : `Stok ${product.name} sedang kosong.` };
+    lines.push({ product, quantity: item.quantity });
+  }
 
   const notes = String(input.notes ?? "").trim().slice(0, 500);
-  const subtotal = product.price === null ? null : product.price * quantity;
+  const subtotal = lines.some((line) => line.product.price === null)
+    ? null
+    : lines.reduce((sum, line) => sum + line.product.price! * line.quantity, 0);
   const code = await newOrderCode();
   const orderId = await db.transaction(async (tx) => {
     const [order] = await tx.insert(orders).values({ code, userId, subtotal, notes }).returning({ id: orders.id });
-    await tx.insert(orderItems).values({ orderId: order.id, productId: product.id, productName: product.name, price: product.price, quantity });
+    await tx.insert(orderItems).values(
+      lines.map(({ product, quantity }) => ({
+        orderId: order.id,
+        productId: product.id,
+        productName: product.name,
+        price: product.price,
+        quantity,
+      })),
+    );
     return order.id;
   });
 
   const message = [
     "Halo Sak Karepe, saya ingin memesan:",
     "",
-    `• ${product.name} × ${quantity}${subtotal === null ? " (harga melalui konsultasi)" : ` — ${formatRupiah(subtotal)}`}`,
+    ...lines.map(
+      ({ product, quantity }) =>
+        `• ${product.name} × ${quantity}${product.price === null ? " (harga melalui konsultasi)" : ` — ${formatRupiah(product.price * quantity)}`}`,
+    ),
+    ...(lines.length > 1 && subtotal !== null ? ["", `Subtotal: ${formatRupiah(subtotal)}`] : []),
     "",
     `ID pesanan: ${orderId}`,
     `Kode pesanan: ${code}`,

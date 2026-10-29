@@ -1,43 +1,46 @@
 "use client";
-import { useEffect } from "react";
-import { useSession } from "next-auth/react";
-import type { CheckoutProduct } from "@/components/checkout";
+import { useState } from "react";
+import { maxQuantity, type CartItem, type CheckoutProduct } from "@/components/checkout";
 import { useSite } from "@/components/site-shell";
 
-/** Penanda di URL bahwa pengguna sedang membeli sebelum diarahkan ke login Google. */
-const resumeParam = "beli";
+/** Menambah satu produk ke keranjang, tanpa melewati batas stok. */
+function addItem(items: CartItem[], product: CheckoutProduct) {
+  const existing = items.find((item) => item.id === product.id);
+  if (!existing) return [...items, { ...product, quantity: 1 }];
+  return items.map((item) =>
+    item.id === product.id ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity(product)) } : item,
+  );
+}
 
-/**
- * Tombol "Beli sekarang". Pengunjung yang belum masuk diminta login dulu; login Google kembali ke halaman ini
- * dengan ?beli=1 sehingga modal alamat langsung terbuka.
- */
-export function BuyButton({ product, slug }: { product: CheckoutProduct; slug: string }) {
-  const { status } = useSession();
-  const { open } = useSite();
+/** "Tambah ke keranjang" lalu lanjut belanja; login baru diminta saat memesan dari keranjang. */
+export function AddToCartButton({ product, className }: { product: CheckoutProduct; className: string }) {
+  const { updateCart } = useSite();
+  const [added, setAdded] = useState(false);
+  if (product.stock === 0) return null;
+  return (
+    <button
+      className={className}
+      onClick={() => {
+        updateCart((items) => addItem(items, product));
+        setAdded(true);
+      }}
+    >
+      <span aria-live="polite">{added ? "Ditambahkan ✓" : "Tambah ke keranjang"}</span>
+    </button>
+  );
+}
 
-  useEffect(() => {
-    if (status === "loading") return;
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has(resumeParam)) return;
-    url.searchParams.delete(resumeParam);
-    window.history.replaceState(null, "", url);
-    if (status === "authenticated") open({ kind: "checkout", product });
-  }, [status, open, product]);
-
+/** "Beli sekarang": masukkan ke keranjang (bila belum ada) lalu buka keranjang. */
+export function BuyButton({ product }: { product: CheckoutProduct }) {
+  const { open, updateCart } = useSite();
   if (product.stock === 0) return null;
   return (
     <button
       className="btn"
-      disabled={status === "loading"}
-      onClick={() =>
-        status === "authenticated"
-          ? open({ kind: "checkout", product })
-          : open({
-              kind: "login",
-              notice: "Masuk dulu untuk melanjutkan pembelian.",
-              redirectTo: `/produk/${slug}?${resumeParam}=1`,
-            })
-      }
+      onClick={() => {
+        updateCart((items) => (items.some((item) => item.id === product.id) ? items : addItem(items, product)));
+        open({ kind: "checkout" });
+      }}
     >
       Beli sekarang
     </button>

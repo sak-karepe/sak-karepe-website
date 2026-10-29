@@ -1,8 +1,10 @@
 "use client";
 import Link from "next/link";
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { CaretDownIcon, CheckCircleIcon, MinusIcon, PlusIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, CheckCircleIcon, MinusIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import { useSession } from "next-auth/react";
 import { LinkIcon } from "@/components/icons";
+import { useSite } from "@/components/site-shell";
 import Image from "@/components/site-image";
 import type { RegionOption } from "@/app/api/regions/route";
 import type { Address } from "@/db/schema";
@@ -19,30 +21,50 @@ export type CheckoutProduct = {
   image: { src: string; alt: string };
 };
 
+export type CartItem = CheckoutProduct & { quantity: number };
+
+/** Batas jumlah per produk: stok bila diisi, maksimal 99 (sama dengan validasi placeOrder). */
+export const maxQuantity = (product: CheckoutProduct) => Math.min(product.stock ?? 99, 99);
+
 const field =
   "h-11 w-full rounded-md border border-line bg-transparent px-3 text-[15px] text-ink transition-colors placeholder:text-muted focus:border-accent focus:outline-none disabled:opacity-50";
 const label = "mb-1.5 block text-[13px] font-medium text-muted";
 /** Mengisi lebar penuh area konten dialog (padding px-5 / md:px-7 di SiteShell). */
 const bleed = "-mx-5 px-5 md:-mx-7 md:px-7";
 
-/** Isi modal "Beli": jumlah dan catatan, lalu catat pesanan dan buka WhatsApp. Alamat diisi saat checkout. */
-export function Checkout({ product }: { product: CheckoutProduct }) {
-  const [quantity, setQuantity] = useState(1);
+/**
+ * Isi modal keranjang: jumlah per produk dan catatan, lalu catat semuanya sebagai satu pesanan dan buka WhatsApp.
+ * Alamat diisi saat checkout. Pengunjung yang belum masuk diarahkan ke login lewat `onLogin`.
+ */
+export function Checkout({ onLogin }: { onLogin: () => void }) {
+  const { status } = useSession();
+  const { cart, updateCart } = useSite();
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [placed, setPlaced] = useState<{ code: string; whatsapp: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const maxQuantity = Math.min(product.stock ?? 99, 99);
+  const subtotal = cart.some((item) => item.price === null)
+    ? null
+    : cart.reduce((sum, item) => sum + item.price! * item.quantity, 0);
+
+  const setQuantity = (id: number, quantity: number) =>
+    updateCart((items) => items.map((item) => (item.id === id ? { ...item, quantity } : item)));
+  const remove = (id: number) => updateCart((items) => items.filter((item) => item.id !== id));
 
   const submit = () => {
+    if (status !== "authenticated") return onLogin();
     setError("");
     startTransition(async () => {
-      const result = await placeOrder({ productId: product.id, quantity, notes });
+      const result = await placeOrder({
+        items: cart.map((item) => ({ productId: item.id, quantity: item.quantity })),
+        notes,
+      });
       if ("error" in result) {
         setError(result.error);
         return;
       }
       setPlaced(result);
+      updateCart(() => []);
       window.location.assign(result.whatsapp);
     });
   };
@@ -66,42 +88,65 @@ export function Checkout({ product }: { product: CheckoutProduct }) {
       </div>
     );
 
+  if (cart.length === 0)
+    return (
+      <div className="flex flex-col items-center pt-4 pb-9 text-center">
+        <p className="text-[15px] text-muted">Keranjang masih kosong.</p>
+        <Link href="/koleksi" className="btn mt-6">
+          Lihat koleksi
+        </Link>
+      </div>
+    );
+
   return (
     <>
-      <div className="flex gap-4">
-        <div className="photo size-18 shrink-0">
-          <Image className="object-cover" src={product.image.src} alt={product.image.alt} fill sizes="72px" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-[15px] leading-snug font-medium">{product.name}</p>
-          <div className="mt-2 flex items-center justify-between gap-3">
-            <p className="text-sm text-muted">
-              {product.price === null ? "Harga melalui konsultasi" : formatRupiah(product.price)}
-            </p>
-            <div className="flex h-9 shrink-0 items-center rounded-full border border-line" role="group" aria-label="Jumlah">
-              <button
-                className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:text-ink disabled:opacity-35"
-                aria-label="Kurangi jumlah"
-                disabled={quantity <= 1}
-                onClick={() => setQuantity(quantity - 1)}
-              >
-                <MinusIcon size={14} aria-hidden="true" />
-              </button>
-              <output className="w-6 text-center text-[15px] tabular-nums" aria-live="polite">
-                {quantity}
-              </output>
-              <button
-                className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:text-ink disabled:opacity-35"
-                aria-label="Tambah jumlah"
-                disabled={quantity >= maxQuantity}
-                onClick={() => setQuantity(quantity + 1)}
-              >
-                <PlusIcon size={14} aria-hidden="true" />
-              </button>
+      <ul className="space-y-5">
+        {cart.map((item) => (
+          <li key={item.id} className="flex gap-4">
+            <div className="photo size-18 shrink-0">
+              <Image className="object-cover" src={item.image.src} alt={item.image.alt} fill sizes="72px" />
             </div>
-          </div>
-        </div>
-      </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <p className="line-clamp-2 text-[15px] leading-snug font-medium">{item.name}</p>
+                <button
+                  className="-mt-1 -mr-1 grid size-8 shrink-0 place-items-center rounded-full text-muted transition-colors hover:text-ink"
+                  aria-label={`Hapus ${item.name}`}
+                  onClick={() => remove(item.id)}
+                >
+                  <TrashIcon size={16} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="text-sm text-muted">
+                  {item.price === null ? "Harga melalui konsultasi" : formatRupiah(item.price)}
+                </p>
+                <div className="flex h-9 shrink-0 items-center rounded-full border border-line" role="group" aria-label={`Jumlah ${item.name}`}>
+                  <button
+                    className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:text-ink disabled:opacity-35"
+                    aria-label="Kurangi jumlah"
+                    disabled={item.quantity <= 1}
+                    onClick={() => setQuantity(item.id, item.quantity - 1)}
+                  >
+                    <MinusIcon size={14} aria-hidden="true" />
+                  </button>
+                  <output className="w-6 text-center text-[15px] tabular-nums" aria-live="polite">
+                    {item.quantity}
+                  </output>
+                  <button
+                    className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:text-ink disabled:opacity-35"
+                    aria-label="Tambah jumlah"
+                    disabled={item.quantity >= maxQuantity(item)}
+                    onClick={() => setQuantity(item.id, item.quantity + 1)}
+                  >
+                    <PlusIcon size={14} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
 
       <details className="group mt-8" open={notes.length > 0}>
         <summary className="flex w-fit cursor-pointer list-none items-center gap-2 text-sm text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
@@ -127,11 +172,11 @@ export function Checkout({ product }: { product: CheckoutProduct }) {
           <div className="min-w-0">
             <p className="text-[13px] text-muted">Subtotal</p>
             <p className="text-lg leading-tight font-medium tabular-nums">
-              {product.price === null ? "Dikonfirmasi penjual" : formatRupiah(product.price * quantity)}
+              {subtotal === null ? "Dikonfirmasi penjual" : formatRupiah(subtotal)}
             </p>
           </div>
-          <button className="btn gap-3 px-5" disabled={pending} onClick={submit}>
-            {pending ? "Mencatat…" : "Pesan via WhatsApp"}
+          <button className="btn gap-3 px-5" disabled={pending || status === "loading"} onClick={submit}>
+            {pending ? "Mencatat…" : status === "authenticated" ? "Pesan via WhatsApp" : "Masuk untuk memesan"}
           </button>
         </div>
         <p className="mt-2 text-xs text-muted">Harga disepakati di WhatsApp. Alamat dan ongkos kirim diisi saat checkout.</p>
