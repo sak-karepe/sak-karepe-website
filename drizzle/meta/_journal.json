@@ -64,6 +64,20 @@
       "when": 1792730234660,
       "tag": "0008_shipping",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793240822934,
+      "tag": "0009_shipment",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793250057242,
+      "tag": "0010_shipment_status",
+      "breakpoints": true
     }
   ]
 }
