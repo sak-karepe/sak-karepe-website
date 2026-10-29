@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { ArrowRightIcon, WarningCircleIcon } from "@phosphor-icons/react/dist/ssr";
 import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
@@ -13,7 +13,8 @@ export default async function AdminPage() {
   const user = await requireAdminPage();
   const [total, published, orderTotal, waiting, onHold, flagged] = await Promise.all([
     db.$count(products),
-    db.$count(products, eq(products.published, true)),
+    // Stok 0 ikut disembunyikan dari toko (lib/catalog).
+    db.$count(products, and(eq(products.published, true), or(isNull(products.stock), ne(products.stock, 0)))),
     db.$count(orders),
     db.$count(orders, eq(orders.status, "menunggu_konfirmasi")),
     stuckOnHoldOrders(),

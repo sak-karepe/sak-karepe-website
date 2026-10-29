@@ -184,7 +184,12 @@ export function ProductForm({
             <label htmlFor="stock" className={label}>
               Stok <span className="font-normal text-muted">(opsional)</span>
             </label>
-            <input id="stock" name="stock" inputMode="numeric" defaultValue={product?.stock ?? ""} className={field} />
+            <input id="stock" name="stock" inputMode="numeric" placeholder="Tidak dibatasi" aria-describedby="stock-hint"
+              defaultValue={product?.stock ?? ""} className={field} />
+            <p id="stock-hint" className="mt-1.5 text-sm text-muted">
+              Kosongkan bila produk selalu bisa dipesan, mis. dibuat sesuai pesanan. Bila diisi, stok berkurang otomatis
+              setiap pesanan dibayar, dan produk disembunyikan dari toko saat stok 0.
+            </p>
           </div>
           <div>
             <label htmlFor="weight" className={label}>

@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     return new Response("Invalid JSON", { status: 400 });
   }
   await applyPayment(data);
-  revalidatePath("/admin", "layout");
+  // Seluruh situs: stok yang habis menyembunyikan produk dari etalase.
+  revalidatePath("/", "layout");
   return new Response("OK");
 }

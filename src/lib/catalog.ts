@@ -23,7 +23,7 @@ export async function getCategory(slug: string) {
   return db.query.categories.findFirst({ where: eq(categories.slug, slug) });
 }
 
-/** Produk yang ditampilkan dan punya foto, urut sesuai koleksi lalu urutan produk. */
+/** Produk yang ditampilkan, punya foto, dan stoknya belum habis (stok kosong = tidak dibatasi), urut sesuai koleksi lalu urutan produk. */
 export async function getProducts(categorySlug?: string): Promise<CatalogProduct[]> {
   const rows = await db.query.products.findMany({
     where: and(eq(products.published, true), categorySlug ? eq(products.categorySlug, categorySlug) : undefined),
@@ -34,7 +34,7 @@ export async function getProducts(categorySlug?: string): Promise<CatalogProduct
     },
   });
   return rows
-    .filter((row) => row.images.length > 0)
+    .filter((row) => row.images.length > 0 && row.stock !== 0)
     .sort((a, b) => a.category.sortOrder - b.category.sortOrder)
     .map(({ category, ...row }) => ({
       id: row.id,

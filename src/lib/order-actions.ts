@@ -176,8 +176,8 @@ export async function recheckOrder(orderId: number): Promise<StatusFormState> {
     const result = await refreshShipment(order);
     if (!result.ok) errors.push(`Biteship: ${result.error}`);
   }
-  revalidatePath("/admin", "layout");
-  revalidatePath("/pesanan", "layout");
+  // Seluruh situs: pembayaran yang baru tercatat bisa menghabiskan stok produk di etalase.
+  revalidatePath("/", "layout");
   return errors.length ? { error: `Sebagian status belum bisa dicek. ${errors.join(" · ")}` } : {};
 }
 

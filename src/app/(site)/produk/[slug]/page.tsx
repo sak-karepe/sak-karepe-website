@@ -104,11 +104,7 @@ export default async function ProductPage({
           </p>
 
           {product.stock !== null && (
-            <p className="mt-1 text-sm text-muted">
-              {product.stock > 0
-                ? `Stok ${product.stock}`
-                : "Stok sedang kosong, tanyakan untuk pesanan berikutnya"}
-            </p>
+            <p className="mt-1 text-sm text-muted">Stok {product.stock}</p>
           )}
 
           {product.description && (
@@ -133,7 +129,7 @@ export default async function ProductPage({
                 href={whatsappUrl(
                   `Halo Sak Karepe, saya tertarik dengan produk "${product.name}". Boleh saya tahu ukuran, motif, dan harga yang tersedia?`,
                 )}
-                className={product.stock === 0 ? "btn" : "text-link"}
+                className="text-link"
                 target="_blank"
                 rel="noopener noreferrer"
               >
