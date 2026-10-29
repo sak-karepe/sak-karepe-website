@@ -1,3 +1,5 @@
+import { contact } from "@/lib/contact";
+
 /**
  * Cek ongkir Biteship (Rates API): https://biteship.com/id/docs/api/rates/retrieve
  * BITESHIP_API_KEY berawalan biteship_test. (mode testing) atau biteship_live. (produksi); keduanya memakai host yang sama.
@@ -93,3 +95,82 @@ export async function quoteShipping(destinationPostalCode: string, items: Shippi
   cache.set(body, { expires: Date.now() + cacheMs, options });
   return { ok: true, options };
 }
+
+/**
+ * Pemesanan kurir (Orders API): https://biteship.com/id/docs/api/orders/create
+ * Menghasilkan ID order Biteship dan nomor resi. "pickup" meminta kurir menjemput, "drop_off" berarti admin mengantar
+ * paket ke agen kurir.
+ */
+const ordersUrl = "https://api.biteship.com/v1/orders";
+
+export type CollectionMethod = "pickup" | "drop_off";
+export type Shipment = { id: string; status: string; waybillId: string | null; trackingUrl: string | null };
+export type ShipmentResult = ({ ok: true } & Shipment) | { ok: false; error: string };
+type OrderBody = { success?: boolean; error?: unknown; id?: string; status?: string; courier?: { waybill_id?: string | null; link?: string | null } } | null;
+
+async function biteship(url: string, init: RequestInit = {}): Promise<ShipmentResult> {
+  const apiKey = process.env.BITESHIP_API_KEY;
+  if (!apiKey) return { ok: false, error: "Biteship belum aktif (BITESHIP_API_KEY belum diisi)." };
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers: { Authorization: apiKey, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    return { ok: false, error: "Tidak bisa menghubungi Biteship. Coba lagi sebentar." };
+  }
+  const data: OrderBody = await response.json().catch(() => null);
+  if (!response.ok || !data?.success || !data.id) {
+    console.warn(`[biteship] ${init.method ?? "GET"} ${url} gagal (HTTP ${response.status}): ${String(data?.error ?? "")}`);
+    return { ok: false, error: String(data?.error ?? "Biteship menolak permintaan.") };
+  }
+  return {
+    ok: true,
+    id: data.id,
+    status: data.status ?? "",
+    waybillId: data.courier?.waybill_id || null,
+    trackingUrl: data.courier?.link || null,
+  };
+}
+
+export function createShipment(input: {
+  /** Unik per percobaan: Biteship menolak reference_id yang pernah dipakai, termasuk dari order yang dibatalkan. */
+  reference: string;
+  method: CollectionMethod;
+  courierCode: string;
+  serviceCode: string;
+  destination: { name: string; phone: string; address: string; postalCode: string; note?: string };
+  items: ShippingItem[];
+}) {
+  return biteship(ordersUrl, {
+    method: "POST",
+    body: JSON.stringify({
+      reference_id: input.reference,
+      origin_contact_name: "Sak Karepe",
+      origin_contact_phone: `0${contact.whatsapp.slice(2)}`,
+      origin_address: contact.address,
+      origin_postal_code: originPostalCode,
+      origin_collection_method: input.method,
+      destination_contact_name: input.destination.name,
+      destination_contact_phone: input.destination.phone,
+      destination_address: input.destination.address,
+      destination_postal_code: Number(input.destination.postalCode),
+      destination_note: input.destination.note,
+      courier_company: input.courierCode,
+      courier_type: input.serviceCode,
+      delivery_type: "now",
+      items: input.items.map((item) => ({
+        name: item.name.slice(0, 255),
+        category: "fashion",
+        value: item.price,
+        quantity: item.quantity,
+        weight: item.weight || defaultWeight,
+      })),
+    }),
+  });
+}
+
+/** Status terbaru langsung dari Biteship; isi webhook tidak dipakai untuk status. */
+export const getShipment = (id: string) => biteship(`${ordersUrl}/${encodeURIComponent(id)}`);
