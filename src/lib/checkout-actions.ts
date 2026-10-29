@@ -301,3 +301,17 @@ export async function cancelOrder(id: number): Promise<CancelOrderState> {
   revalidatePath("/admin", "layout");
   return cancelled ? {} : { error: notCancellable };
 }
+
+/** Pembeli mengonfirmasi paket sudah diterima, setelah kurir melaporkan paket sampai. */
+export async function confirmReceived(id: number): Promise<CancelOrderState> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const [done] = await db
+    .update(orders)
+    .set({ status: "selesai", updatedAt: new Date() })
+    .where(and(eq(orders.id, id), eq(orders.userId, userId), eq(orders.status, "sampai")))
+    .returning({ id: orders.id });
+  revalidatePath("/pesanan", "layout");
+  revalidatePath("/admin", "layout");
+  return done ? {} : { error: "Pesanan ini belum sampai atau sudah selesai. Muat ulang halaman untuk melihat statusnya." };
+}

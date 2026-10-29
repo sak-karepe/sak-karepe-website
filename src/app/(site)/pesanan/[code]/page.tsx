@@ -8,11 +8,18 @@ import { db } from "@/db";
 import { orders, type Order } from "@/db/schema";
 import { CancelOrder } from "@/components/cancel-order";
 import { LoginPrompt } from "@/components/login-prompt";
+import { ConfirmReceived } from "@/components/shipment-forms";
 import { Breadcrumb } from "@/components/page-intro";
-import { cancelOrder } from "@/lib/checkout-actions";
+import { cancelOrder, confirmReceived } from "@/lib/checkout-actions";
 import { whatsappUrl } from "@/lib/contact";
 import { formatDateTime, formatRupiah } from "@/lib/format";
-import { checkoutStatuses, orderStatusClass, orderStatusLabels } from "@/lib/order-status";
+import {
+  checkoutStatuses,
+  handedOverStatuses,
+  orderStatusClass,
+  orderStatusLabels,
+  shipmentStatusLabels,
+} from "@/lib/order-status";
 import { isActivePayment } from "@/lib/payments";
 export const metadata: Metadata = { title: "Detail pesanan · Sak Karepe", robots: { index: false } };
 
@@ -21,7 +28,8 @@ const statusHints: Record<Order["status"], string> = {
   menunggu_checkout: "Harga sudah disepakati. Isi alamat pengiriman untuk menghitung ongkos kirim, lalu bayar.",
   menunggu_pembayaran: "Selesaikan pembayaran lewat link di bawah.",
   dibayar: "Pembayaran diterima. Pesanan sedang disiapkan.",
-  dikirim: "Pesanan sedang dalam pengiriman.",
+  dikirim: "Pesanan sudah diserahkan ke kurir. Ikuti perjalanannya di kotak Pengiriman.",
+  sampai: "Kurir melaporkan pesanan sudah sampai. Konfirmasi bila sudah diterima; pesanan otomatis selesai 2 hari setelah sampai.",
   selesai: "Pesanan selesai. Terima kasih sudah berbelanja di Sak Karepe.",
   dibatalkan: "Pesanan ini dibatalkan.",
 };
@@ -51,6 +59,12 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
   const payable = order.status === "menunggu_pembayaran" && payment && isActivePayment(payment);
   // Checkout dibuka lagi bila link DOKU sebelumnya kedaluwarsa atau dibatalkan.
   const checkout = (order.status === "menunggu_checkout" || order.status === "menunggu_pembayaran") && !payable && !payment?.paidAt;
+  const handedOver = handedOverStatuses.includes(order.shipmentStatus ?? "");
+  // Setelah sampai atau dikonfirmasi pembeli, status Biteship terakhir (mis. "picked") tidak lagi relevan.
+  const shipmentLabel =
+    order.status === "sampai" || order.status === "selesai"
+      ? shipmentStatusLabels.delivered
+      : (shipmentStatusLabels[order.shipmentStatus ?? "confirmed"] ?? "Diproses kurir");
   const total = order.subtotal === null ? null : order.subtotal + (order.shippingCost ?? 0);
   return (
     <main id="utama" className="wrap pt-8 pb-20 md:pt-10">
@@ -157,6 +171,30 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
                 </>
               ) : (
                 <p className="text-sm text-muted">Link pembayaran kedaluwarsa.</p>
+              )}
+            </section>
+          )}
+          {order.shipmentId && (
+            <section aria-labelledby="status-pengiriman" className="rounded-md border border-line p-5">
+              <h2 id="status-pengiriman" className="text-sm font-medium">Pengiriman</h2>
+              <p className="mt-2 text-[17px]">{shipmentLabel}</p>
+              <p className="mt-3 text-sm text-muted">{order.courierName}</p>
+              <p className="text-sm text-muted">No. resi</p>
+              <p className="font-mono text-[15px]">{order.waybillId ?? "Menyusul"}</p>
+              {handedOver && order.trackingUrl && (
+                <a
+                  href={order.trackingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 text-[15px] text-accent hover:underline"
+                >
+                  Lacak pengiriman <ArrowSquareOutIcon size={16} aria-hidden="true" />
+                </a>
+              )}
+              {order.status === "sampai" && (
+                <div className="mt-4">
+                  <ConfirmReceived action={confirmReceived.bind(null, order.id)} />
+                </div>
               )}
             </section>
           )}
