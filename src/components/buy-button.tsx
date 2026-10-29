@@ -16,7 +16,6 @@ function addItem(items: CartItem[], product: CheckoutProduct) {
 export function AddToCartButton({ product, className }: { product: CheckoutProduct; className: string }) {
   const { updateCart } = useSite();
   const [added, setAdded] = useState(false);
-  if (product.stock === 0) return null;
   return (
     <button
       className={className}
@@ -33,7 +32,6 @@ export function AddToCartButton({ product, className }: { product: CheckoutProdu
 /** "Beli sekarang": masukkan ke keranjang (bila belum ada) lalu buka keranjang. */
 export function BuyButton({ product }: { product: CheckoutProduct }) {
   const { open, updateCart } = useSite();
-  if (product.stock === 0) return null;
   return (
     <button
       className="btn"

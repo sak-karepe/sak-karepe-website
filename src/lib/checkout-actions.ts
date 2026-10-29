@@ -208,12 +208,9 @@ export async function checkoutOrder(
     db.query.addresses.findFirst({ where: and(eq(addresses.id, addressId), eq(addresses.userId, userId)) }),
   ]);
   if (!order || order.payments.some((payment) => payment.paidAt)) return { error: notCheckoutable };
-  const active = order.payments.find((payment) => isActivePayment(payment));
-  if (order.status === "menunggu_pembayaran" && active) return { url: active.url };
   if (order.status !== "menunggu_checkout" && order.status !== "menunggu_pembayaran") return { error: notCheckoutable };
-  if (order.items.some((item) => item.price === null)) return { error: notCheckoutable };
-  if (!address) return { error: "Pilih alamat pengiriman." };
-  // Stok baru dikurangi saat lunas; dicek lagi di sini karena bisa habis dibeli orang lain sejak pesanan dibuat.
+  // Stok baru dikurangi saat lunas; dicek lagi di sini karena bisa habis dibeli orang lain sejak pesanan dibuat,
+  // termasuk sebelum link lama yang masih aktif dikembalikan.
   const short = order.items.find((item) => item.product?.stock != null && item.quantity > item.product.stock);
   if (short)
     return {
@@ -221,6 +218,10 @@ export async function checkoutOrder(
         ? `Stok ${short.productName} tersisa ${short.product!.stock}. Hubungi Sak Karepe lewat WhatsApp untuk mengubah pesanan.`
         : `Stok ${short.productName} sudah habis. Hubungi Sak Karepe lewat WhatsApp untuk mengubah pesanan.`,
     };
+  const active = order.payments.find((payment) => isActivePayment(payment));
+  if (order.status === "menunggu_pembayaran" && active) return { url: active.url };
+  if (order.items.some((item) => item.price === null)) return { error: notCheckoutable };
+  if (!address) return { error: "Pilih alamat pengiriman." };
 
   const quote = await quoteOrder(order, address.postalCode);
   if (!quote.ok) return { error: quote.error };
