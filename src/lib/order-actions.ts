@@ -80,8 +80,10 @@ export async function bookShipment(orderId: number, _state: ShipmentFormState, f
     return { error: "Pesanan ini belum punya alamat atau kurir pilihan pembeli." };
   const result = await bookCourier(order, method);
   // Bila balasan terputus, order bisa saja sudah terbuat di Biteship tanpa tercatat di sini.
-  if (!result.ok)
+  if (!result.ok) {
+    console.warn(`[biteship] Kurir pesanan ${order.code} gagal dipesan: ${result.error}`);
     return { error: `Kurir belum bisa dipesan. ${result.error} Bila order ini sudah muncul di dashboard Biteship, batalkan dulu di sana.` };
+  }
   const [saved] = await db
     .update(orders)
     .set({
@@ -128,8 +130,10 @@ export async function resendShipment(orderId: number, _state: ShipmentFormState,
   if (!order || order.status !== "gagal_kirim" || !order.shipmentId) return { error: "Kirim ulang hanya untuk pesanan yang gagal kirim." };
   if (!order.courierCode || !order.courierServiceCode) return { error: "Pesanan ini belum punya kurir pilihan pembeli." };
   const result = await bookCourier({ ...order, recipientName, phone, shippingAddress, postalCode }, method);
-  if (!result.ok)
+  if (!result.ok) {
+    console.warn(`[biteship] Kurir pesanan ${order.code} gagal dipesan: ${result.error}`);
     return { error: `Kurir belum bisa dipesan. ${result.error} Bila order ini sudah muncul di dashboard Biteship, batalkan dulu di sana.` };
+  }
   const saved = await saveResend(order, { recipientName, phone, shippingAddress, postalCode }, method, paidBy, result);
   if (!saved) {
     console.warn(`[biteship] Order ${result.id} ganda untuk pesanan ${order.code}; batalkan di dashboard Biteship`);

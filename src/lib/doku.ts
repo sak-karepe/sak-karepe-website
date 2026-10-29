@@ -79,7 +79,7 @@ async function send(target: string, payload?: unknown): Promise<DokuResponse> {
       signal: AbortSignal.timeout(20_000),
     });
   } catch {
-    return { ok: false, error: "Tidak bisa menghubungi DOKU. Coba lagi sebentar." };
+    return { ok: false, error: "Layanan pembayaran DOKU sedang gangguan. Coba lagi sebentar." };
   }
   const data: DokuBody = await response.json().catch(() => null);
   return { ok: true, status: response.status, success: response.ok, data, requestId };

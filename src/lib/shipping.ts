@@ -40,6 +40,7 @@ type RatesBody = { success?: boolean; error?: unknown; pricing?: Pricing[] } | n
 
 const cache = new Map<string, { expires: number; options: ShippingOption[] }>();
 const units: Record<string, string> = { days: "hari", hours: "jam" };
+const down = "Layanan cek ongkir sedang gangguan. Coba lagi sebentar.";
 
 /** Layanan paket (bukan kargo/trucking) dari kurir pilihan, termurah lebih dulu. */
 export async function quoteShipping(destinationPostalCode: string, items: ShippingItem[]): Promise<ShippingQuote> {
@@ -69,12 +70,15 @@ export async function quoteShipping(destinationPostalCode: string, items: Shippi
       signal: AbortSignal.timeout(20_000),
     });
   } catch {
-    return { ok: false, error: "Tidak bisa menghubungi layanan cek ongkir. Coba lagi sebentar." };
+    return { ok: false, error: down };
   }
   const data: RatesBody = await response.json().catch(() => null);
   if (!response.ok || !data?.success) {
-    console.warn(`[biteship] Rates gagal (HTTP ${response.status}): ${String(data?.error ?? "")}`);
-    return { ok: false, error: "Ongkos kirim ke alamat ini belum bisa dihitung. Periksa kode pos atau pilih alamat lain." };
+    console.warn(`[biteship] Rates ke ${destinationPostalCode} gagal (HTTP ${response.status}): ${String(data?.error ?? "")}`);
+    return {
+      ok: false,
+      error: response.status >= 500 ? down : "Ongkos kirim ke alamat ini belum bisa dihitung. Periksa kode pos atau pilih alamat lain.",
+    };
   }
   const options = (data.pricing ?? [])
     .filter((pricing) => !pricing.shipping_type || pricing.shipping_type === "parcel")
@@ -111,8 +115,8 @@ export type Shipment = { id: string; status: string; waybillId: string | null; t
 export type ShipmentResult = ({ ok: true } & Shipment) | { ok: false; error: string };
 type OrderBody = { success?: boolean; error?: unknown; id?: string; status?: string; courier?: { waybill_id?: string | null; link?: string | null; history?: { note?: string | null }[] } } | null;
 
-/** Galat jaringan (bukan penolakan Biteship); webhook membalas non-200 agar dikirim ulang. */
-export const unreachable = "Tidak bisa menghubungi Biteship. Coba lagi sebentar.";
+/** Galat jaringan atau HTTP 5xx (bukan penolakan Biteship); webhook membalas non-200 agar dikirim ulang. */
+export const unreachable = "Layanan kurir Biteship sedang gangguan. Coba lagi sebentar.";
 
 async function biteship(url: string, init: RequestInit = {}): Promise<ShipmentResult> {
   const apiKey = process.env.BITESHIP_API_KEY;
@@ -130,7 +134,7 @@ async function biteship(url: string, init: RequestInit = {}): Promise<ShipmentRe
   const data: OrderBody = await response.json().catch(() => null);
   if (!response.ok || !data?.success || !data.id) {
     console.warn(`[biteship] ${init.method ?? "GET"} ${url} gagal (HTTP ${response.status}): ${String(data?.error ?? "")}`);
-    return { ok: false, error: String(data?.error ?? "Biteship menolak permintaan.") };
+    return { ok: false, error: response.status >= 500 ? unreachable : String(data?.error ?? "Biteship menolak permintaan.") };
   }
   return {
     ok: true,

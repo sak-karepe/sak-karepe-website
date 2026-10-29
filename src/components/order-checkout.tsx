@@ -17,12 +17,15 @@ export function OrderCheckout({ orderId, subtotal }: { orderId: number; subtotal
   useEffect(() => {
     if (!selected) return;
     let active = true;
-    quoteOrderShipping(orderId, selected).then((result) => {
-      if (!active) return;
-      setQuote({ addressId: selected, result });
-      // Layanan termurah terpilih lebih dulu.
-      setService("options" in result ? `${result.options[0].courierCode}:${result.options[0].serviceCode}` : "");
-    });
+    quoteOrderShipping(orderId, selected)
+      // Tanpa ini kerangka ongkir terus berputar bila server action gagal (mis. koneksi putus).
+      .catch((): ShippingQuoteResult => ({ error: "Ongkos kirim belum bisa dihitung. Coba lagi sebentar." }))
+      .then((result) => {
+        if (!active) return;
+        setQuote({ addressId: selected, result });
+        // Layanan termurah terpilih lebih dulu.
+        setService("options" in result ? `${result.options[0].courierCode}:${result.options[0].serviceCode}` : "");
+      });
     return () => {
       active = false;
     };
