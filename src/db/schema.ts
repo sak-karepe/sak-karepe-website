@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /** Koleksi di etalase (busana, tas, ...). Slug dipakai di URL /koleksi/[slug]. */
 export const categories = sqliteTable("categories", {
@@ -116,48 +116,61 @@ export const orderStatuses = [
   "dibatalkan",
 ] as const;
 
-export const orders = sqliteTable("orders", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  /** Kode yang dikutip pembeli di WhatsApp, mis. SK-261023-7K2P. */
-  code: text("code").notNull().unique(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id),
-  status: text("status", { enum: orderStatuses }).notNull().default("menunggu_konfirmasi"),
-  // Salinan alamat saat pembeli checkout, agar pesanan tidak berubah bila alamat diedit/dihapus. Kosong sebelum checkout.
-  recipientName: text("recipient_name"),
-  phone: text("phone"),
-  shippingAddress: text("shipping_address"),
-  postalCode: text("postal_code"),
-  /** Jumlah harga katalog; kosong bila ada produk dengan harga konsultasi. */
-  subtotal: integer("subtotal"),
-  /** Dihitung saat pembeli checkout berdasarkan alamat dan layanan kurir pilihannya (lihat lib/shipping). */
-  shippingCost: integer("shipping_cost"),
-  /** Kode kurir dan layanan Biteship pilihan pembeli, mis. "jnt" + "ez"; dipakai saat booking pengiriman. */
-  courierCode: text("courier_code"),
-  courierServiceCode: text("courier_service_code"),
-  /** Nama untuk ditampilkan, mis. "J&T EZ". */
-  courierName: text("courier_name"),
-  /** ID order Biteship dari pemesanan kurir oleh admin; dipakai webhook untuk mencocokkan pesanan. */
-  shipmentId: text("shipment_id").unique(),
-  /** Status order Biteship apa adanya, mis. "confirmed", "picked", "dropping_off"; label di lib/order-status. */
-  shipmentStatus: text("shipment_status"),
-  /** Halaman lacak dari Biteship (courier.link). */
-  trackingUrl: text("tracking_url"),
-  /** Nomor resi; beberapa kurir baru memberinya setelah paket diambil (webhook order.waybill_id). */
-  waybillId: text("waybill_id"),
-  /** "pickup" (kurir menjemput) atau "drop_off" (admin mengantar ke agen kurir). */
-  collectionMethod: text("collection_method", { enum: ["pickup", "drop_off"] }),
-  /** Kapan kurir melaporkan paket sampai; 2 hari kemudian pesanan otomatis selesai. */
-  deliveredAt: integer("delivered_at", { mode: "timestamp" }),
-  /** Catatan kurir terakhir saat paket dikembalikan ("gagal_kirim"), mis. alamat tidak ditemukan. */
-  shipmentNote: text("shipment_note"),
-  /** Alasan pesanan ditandai "Perlu dicek" di dashboard admin, mis. nominal DOKU tidak cocok; dikosongkan admin. */
-  reviewNote: text("review_note"),
-  notes: text("notes").notNull().default(""),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
-});
+/** "online" dari website, "langsung" dicatat admin saat jualan offline, "historis" impor transaksi lama. */
+export const orderSources = ["online", "langsung", "historis"] as const;
+
+export const orders = sqliteTable(
+  "orders",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** Kode yang dikutip pembeli di WhatsApp, mis. SK-261023-7K2P. */
+    code: text("code").notNull().unique(),
+    source: text("source", { enum: orderSources }).notNull().default("online"),
+    /** Kosong untuk pembeli tanpa akun (transaksi langsung/historis); identitasnya di `customerName`/`customerPhone`. */
+    userId: integer("user_id").references(() => users.id),
+    customerName: text("customer_name"),
+    customerPhone: text("customer_phone"),
+    /** Admin yang mencatat transaksi langsung/historis. */
+    recordedBy: integer("recorded_by").references(() => users.id),
+    /** Nomor nota/referensi lama; unik per sumber agar import tidak ganda. */
+    externalRef: text("external_ref"),
+    status: text("status", { enum: orderStatuses }).notNull().default("menunggu_konfirmasi"),
+    // Salinan alamat saat pembeli checkout, agar pesanan tidak berubah bila alamat diedit/dihapus. Kosong sebelum checkout.
+    recipientName: text("recipient_name"),
+    phone: text("phone"),
+    shippingAddress: text("shipping_address"),
+    postalCode: text("postal_code"),
+    /** Jumlah harga katalog; kosong bila ada produk dengan harga konsultasi. */
+    subtotal: integer("subtotal"),
+    /** Dihitung saat pembeli checkout berdasarkan alamat dan layanan kurir pilihannya (lihat lib/shipping). */
+    shippingCost: integer("shipping_cost"),
+    /** Kode kurir dan layanan Biteship pilihan pembeli, mis. "jnt" + "ez"; dipakai saat booking pengiriman. */
+    courierCode: text("courier_code"),
+    courierServiceCode: text("courier_service_code"),
+    /** Nama untuk ditampilkan, mis. "J&T EZ". */
+    courierName: text("courier_name"),
+    /** ID order Biteship dari pemesanan kurir oleh admin; dipakai webhook untuk mencocokkan pesanan. */
+    shipmentId: text("shipment_id").unique(),
+    /** Status order Biteship apa adanya, mis. "confirmed", "picked", "dropping_off"; label di lib/order-status. */
+    shipmentStatus: text("shipment_status"),
+    /** Halaman lacak dari Biteship (courier.link). */
+    trackingUrl: text("tracking_url"),
+    /** Nomor resi; beberapa kurir baru memberinya setelah paket diambil (webhook order.waybill_id). */
+    waybillId: text("waybill_id"),
+    /** "pickup" (kurir menjemput) atau "drop_off" (admin mengantar ke agen kurir). */
+    collectionMethod: text("collection_method", { enum: ["pickup", "drop_off"] }),
+    /** Kapan kurir melaporkan paket sampai; 2 hari kemudian pesanan otomatis selesai. */
+    deliveredAt: integer("delivered_at", { mode: "timestamp" }),
+    /** Catatan kurir terakhir saat paket dikembalikan ("gagal_kirim"), mis. alamat tidak ditemukan. */
+    shipmentNote: text("shipment_note"),
+    /** Alasan pesanan ditandai "Perlu dicek" di dashboard admin, mis. nominal DOKU tidak cocok; dikosongkan admin. */
+    reviewNote: text("review_note"),
+    notes: text("notes").notNull().default(""),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => [uniqueIndex("orders_source_external_ref_unique").on(table.source, table.externalRef)],
+);
 
 export const orderItems = sqliteTable("order_items", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -171,17 +184,24 @@ export const orderItems = sqliteTable("order_items", {
   quantity: integer("quantity").notNull(),
 });
 
-/** Link pembayaran DOKU Checkout. Membuat ulang link menambah baris baru; yang terbaru yang berlaku. */
+export const paymentMethods = ["doku", "tunai", "transfer", "qris", "lainnya"] as const;
+
+/**
+ * Link pembayaran DOKU Checkout, atau pembayaran manual yang dicatat admin (method selain "doku", langsung berisi `paidAt`).
+ * Membuat ulang link DOKU menambah baris baru; yang terbaru yang berlaku.
+ */
 export const payments = sqliteTable("payments", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   orderId: integer("order_id")
     .notNull()
     .references(() => orders.id, { onDelete: "cascade" }),
-  /** order.invoice_number di DOKU, unik per permintaan: kode pesanan + nomor urut, mis. SK261023Y7D3P1. */
-  invoiceNumber: text("invoice_number").notNull().unique(),
+  method: text("method", { enum: paymentMethods }).notNull().default("doku"),
+  /** order.invoice_number di DOKU, unik per permintaan: kode pesanan + nomor urut, mis. SK261023Y7D3P1. Kosong untuk non-DOKU. */
+  invoiceNumber: text("invoice_number").unique(),
   amount: integer("amount").notNull(),
-  url: text("url").notNull(),
-  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  /** Link dan batas bayar DOKU; kosong untuk non-DOKU. */
+  url: text("url"),
+  expiresAt: integer("expires_at", { mode: "timestamp" }),
   /** Diisi dari HTTP Notification DOKU berstatus SUCCESS. */
   paidAt: integer("paid_at", { mode: "timestamp" }),
   /** channel.id dari DOKU, mis. QRIS_DOKU atau VIRTUAL_ACCOUNT_BCA. */
@@ -220,13 +240,15 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
 
 export const usersRelations = relations(users, ({ many }) => ({
   addresses: many(addresses),
-  orders: many(orders),
+  orders: many(orders, { relationName: "buyer" }),
+  recordedOrders: many(orders, { relationName: "recorder" }),
 }));
 export const addressesRelations = relations(addresses, ({ one }) => ({
   user: one(users, { fields: [addresses.userId], references: [users.id] }),
 }));
 export const ordersRelations = relations(orders, ({ one, many }) => ({
-  user: one(users, { fields: [orders.userId], references: [users.id] }),
+  user: one(users, { fields: [orders.userId], references: [users.id], relationName: "buyer" }),
+  recorder: one(users, { fields: [orders.recordedBy], references: [users.id], relationName: "recorder" }),
   items: many(orderItems),
   payments: many(payments),
   shipmentHistory: many(shipmentHistory),

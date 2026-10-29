@@ -104,7 +104,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
                     {orderStatusLabels[order.status]}
                   </span>
                   <div className="col-span-2 min-w-0 md:col-span-1">
-                    <p className="truncate">{order.user.name ?? order.user.email}</p>
+                    <p className="truncate">{order.user ? (order.user.name ?? order.user.email) : (order.customerName ?? "Pembeli langsung")}</p>
                     <p className="truncate text-sm text-muted">{summary}</p>
                   </div>
                   <p className="hidden text-[15px] md:block">

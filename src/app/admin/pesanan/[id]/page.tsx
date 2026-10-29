@@ -19,7 +19,15 @@ import {
   resendShipment,
   updateOrderStatus,
 } from "@/lib/order-actions";
-import { adminTransitions, checkoutStatuses, orderStatusClass, orderStatusLabels, shipmentStatusLabels } from "@/lib/order-status";
+import {
+  adminTransitions,
+  checkoutStatuses,
+  orderSourceLabels,
+  orderStatusClass,
+  orderStatusLabels,
+  paymentMethodLabels,
+  shipmentStatusLabels,
+} from "@/lib/order-status";
 import { isActivePayment } from "@/lib/payments";
 export const metadata: Metadata = { title: "Detail pesanan" };
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -132,23 +140,27 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   {payment.paidAt ? (
                     <p className="text-sm text-accent">
                       Lunas {formatDateTime(payment.paidAt)}
-                      {payment.channel && ` · ${payment.channel.replaceAll("_", " ")}`}
+                      {payment.method === "doku"
+                        ? payment.channel && ` · ${payment.channel.replaceAll("_", " ")}`
+                        : ` · ${paymentMethodLabels[payment.method]}`}
                     </p>
                   ) : payment.cancelledAt ? (
                     <p className="text-sm text-muted">Link dibatalkan {formatDateTime(payment.cancelledAt)}</p>
-                  ) : (
+                  ) : payment.expiresAt ? (
                     <p className="text-sm text-muted">
                       {payment.expiresAt < new Date() ? "Link kedaluwarsa" : "Link berlaku sampai"} {formatDateTime(payment.expiresAt)}
                     </p>
+                  ) : null}
+                  {payment.url && (
+                    <a
+                      href={payment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1.5 text-[15px] text-accent hover:underline"
+                    >
+                      Buka link DOKU <ArrowSquareOutIcon size={16} aria-hidden="true" />
+                    </a>
                   )}
-                  <a
-                    href={payment.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-1.5 text-[15px] text-accent hover:underline"
-                  >
-                    Buka link DOKU <ArrowSquareOutIcon size={16} aria-hidden="true" />
-                  </a>
                 </div>
               ) : (
                 <p className="mt-2 text-[15px] text-muted">
@@ -284,10 +296,20 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             )}
           </section>
           <section aria-labelledby="akun" className="border-t border-line pt-6">
-            <h2 id="akun" className="text-sm font-medium">Akun pembeli</h2>
-            <p className="mt-2">{order.user.name ?? "Tanpa nama"}</p>
-            <p className="truncate text-[15px] text-muted">{order.user.email}</p>
-            <p className="mt-1 text-sm text-muted">ID pembeli {order.user.id}</p>
+            <h2 id="akun" className="text-sm font-medium">{order.user ? "Akun pembeli" : "Pembeli"}</h2>
+            {order.user ? (
+              <>
+                <p className="mt-2">{order.user.name ?? "Tanpa nama"}</p>
+                <p className="truncate text-[15px] text-muted">{order.user.email}</p>
+                <p className="mt-1 text-sm text-muted">ID pembeli {order.user.id}</p>
+              </>
+            ) : (
+              <>
+                <p className="mt-2">{order.customerName ?? "Tanpa nama"}</p>
+                {order.customerPhone && <p className="text-[15px] text-muted">{order.customerPhone}</p>}
+                <p className="mt-1 text-sm text-muted">Tanpa akun · {orderSourceLabels[order.source]}</p>
+              </>
+            )}
           </section>
         </aside>
       </div>

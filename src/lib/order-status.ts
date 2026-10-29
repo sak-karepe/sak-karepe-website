@@ -1,4 +1,4 @@
-import { orderStatuses, type Order } from "@/db/schema";
+import { orderStatuses, type Order, type Payment } from "@/db/schema";
 
 export const orderStatusLabels: Record<Order["status"], string> = {
   menunggu_konfirmasi: "Menunggu konfirmasi",
@@ -12,6 +12,20 @@ export const orderStatusLabels: Record<Order["status"], string> = {
   selesai: "Selesai",
   refund: "Proses refund",
   dibatalkan: "Dibatalkan",
+};
+
+export const orderSourceLabels: Record<Order["source"], string> = {
+  online: "Online",
+  langsung: "Penjualan langsung",
+  historis: "Transaksi lama",
+};
+
+export const paymentMethodLabels: Record<Payment["method"], string> = {
+  doku: "DOKU",
+  tunai: "Tunai",
+  transfer: "Transfer",
+  qris: "QRIS",
+  lainnya: "Lainnya",
 };
 
 /** Status yang belum dibayar: pembeli masih bisa membatalkan dan admin masih bisa mengubah harga. */

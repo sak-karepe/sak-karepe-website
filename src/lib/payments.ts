@@ -1,13 +1,15 @@
-import { and, eq, gt, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { orders, payments, type Payment } from "@/db/schema";
 import { cancelCheckout, checkStatus, type PaymentStatus } from "@/lib/doku";
 import { formatRupiah } from "@/lib/format";
 import { checkoutStatuses } from "@/lib/order-status";
 
-/** Link yang belum dibayar, belum dibatalkan, dan belum kedaluwarsa. */
-export const isActivePayment = (payment: Payment, now = new Date()) =>
-  !payment.paidAt && !payment.cancelledAt && payment.expiresAt > now;
+type DokuLink = Payment & { invoiceNumber: string; url: string; expiresAt: Date };
+
+/** Link DOKU yang belum dibayar, belum dibatalkan, dan belum kedaluwarsa. Pembayaran manual selalu sudah lunas. */
+export const isActivePayment = (payment: Payment, now = new Date()): payment is DokuLink =>
+  !payment.paidAt && !payment.cancelledAt && !!payment.invoiceNumber && !!payment.url && !!payment.expiresAt && payment.expiresAt > now;
 
 /**
  * Membatalkan link DOKU yang masih berlaku lewat Cancel Order API. Mengembalikan pesan galat bila ada link yang
@@ -84,12 +86,13 @@ const recentlyExpiredMs = 24 * 60 * 60 * 1000;
  */
 export async function reconcilePayments(now = new Date()) {
   const pending = await db
-    .select({ invoiceNumber: payments.invoiceNumber })
+    .select({ invoiceNumber: sql<string>`${payments.invoiceNumber}` })
     .from(payments)
     .innerJoin(orders, eq(orders.id, payments.orderId))
     .where(
       and(
         eq(orders.status, "menunggu_pembayaran"),
+        isNotNull(payments.invoiceNumber),
         isNull(payments.paidAt),
         isNull(payments.cancelledAt),
         gt(payments.expiresAt, new Date(now.getTime() - recentlyExpiredMs)),

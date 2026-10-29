@@ -92,6 +92,13 @@
       "when": 1793272033821,
       "tag": "0012_review_note",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1793272917309,
+      "tag": "0013_offline_transactions",
+      "breakpoints": true
     }
   ]
 }
