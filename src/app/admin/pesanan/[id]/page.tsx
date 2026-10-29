@@ -5,13 +5,13 @@ import { eq } from "drizzle-orm";
 import { ArrowSquareOutIcon, WhatsappLogoIcon } from "@phosphor-icons/react/dist/ssr";
 import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
-import { orders, orderStatuses } from "@/db/schema";
+import { orders } from "@/db/schema";
 import { AdminBack } from "@/components/admin-back";
 import { CheckoutLinkDialog, CopyCheckoutLink } from "@/components/checkout-link-dialog";
-import { ShipmentForm } from "@/components/shipment-forms";
+import { ShipmentForm, StatusForm } from "@/components/shipment-forms";
 import { formatDateTime, formatRupiah } from "@/lib/format";
 import { bookShipment, createCheckoutLink, updateOrderStatus } from "@/lib/order-actions";
-import { checkoutStatuses, orderStatusClass, orderStatusLabels, shipmentStatusLabels } from "@/lib/order-status";
+import { adminTransitions, checkoutStatuses, orderStatusClass, orderStatusLabels, shipmentStatusLabels } from "@/lib/order-status";
 import { isActivePayment } from "@/lib/payments";
 export const metadata: Metadata = { title: "Detail pesanan" };
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -188,24 +188,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               )}
             </section>
           )}
-          <form action={updateOrderStatus.bind(null, order.id)} className="rounded-md border border-line p-5">
-            <label htmlFor="status" className="text-sm font-medium">Status pesanan</label>
-            <select
-              id="status"
-              name="status"
-              defaultValue={order.status}
-              className="mt-2 w-full rounded-md border border-line bg-page px-3 py-2.5 text-[15px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            >
-              {orderStatuses.map((value) => (
-                <option key={value} value={value}>
-                  {orderStatusLabels[value]}
-                </option>
-              ))}
-            </select>
-            <button className="mt-3 min-h-11 w-full rounded-md border border-line px-4 text-[15px] font-medium transition-colors hover:border-accent hover:text-accent">
-              Simpan status
-            </button>
-          </form>
+          {adminTransitions[order.status] && (
+            <StatusForm
+              action={updateOrderStatus.bind(null, order.id)}
+              options={adminTransitions[order.status]!.map((value) => ({ value, label: orderStatusLabels[value] }))}
+            />
+          )}
           <section aria-labelledby="pengiriman">
             <h2 id="pengiriman" className="text-sm font-medium">Kirim ke</h2>
             {buyerWhatsapp ? (

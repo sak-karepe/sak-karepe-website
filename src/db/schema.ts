@@ -100,8 +100,21 @@ export const addresses = sqliteTable("addresses", {
  * dan status menjadi "menunggu_pembayaran". Setelah dibayar admin memesan kurir (resi) dan status menjadi "dikirim"; detail
  * perjalanannya ada di `shipmentStatus`. Webhook Biteship mengubahnya menjadi "sampai", lalu "selesai" saat pembeli
  * mengonfirmasi atau 2 hari kemudian.
+ * Aturan perpindahan status ada di lib/order-status (`orderTransitions`).
  */
-export const orderStatuses = ["menunggu_konfirmasi", "menunggu_checkout", "menunggu_pembayaran", "dibayar", "dikirim", "sampai", "selesai", "dibatalkan"] as const;
+export const orderStatuses = [
+  "menunggu_konfirmasi",
+  "menunggu_checkout",
+  "menunggu_pembayaran",
+  "dibayar",
+  "dikirim",
+  "gagal_kirim",
+  "sampai",
+  "retur",
+  "selesai",
+  "refund",
+  "dibatalkan",
+] as const;
 
 export const orders = sqliteTable("orders", {
   id: integer("id").primaryKey({ autoIncrement: true }),

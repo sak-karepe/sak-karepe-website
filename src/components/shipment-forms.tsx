@@ -55,3 +55,37 @@ export function ConfirmReceived({ action }: { action: () => Promise<State> }) {
     </form>
   );
 }
+
+/** Dropdown status admin; hanya berisi perpindahan yang boleh dilakukan manual dari status sekarang. */
+export function StatusForm({
+  action,
+  options,
+}: {
+  action: (state: State, formData: FormData) => Promise<State>;
+  options: { value: string; label: string }[];
+}) {
+  const [state, formAction, pending] = useActionState(action, {});
+  return (
+    <form action={formAction} className="rounded-md border border-line p-5">
+      <label htmlFor="status" className="text-sm font-medium">Ubah status pesanan</label>
+      <select
+        id="status"
+        name="status"
+        className="mt-2 w-full rounded-md border border-line bg-page px-3 py-2.5 text-[15px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ErrorAlert error={state.error} />
+      <button
+        className="mt-3 min-h-11 w-full rounded-md border border-line px-4 text-[15px] font-medium transition-colors hover:border-accent hover:text-accent"
+        disabled={pending}
+      >
+        {pending ? "Menyimpan…" : "Simpan status"}
+      </button>
+    </form>
+  );
+}
