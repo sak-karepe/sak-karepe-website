@@ -45,7 +45,7 @@ export function PageIntro({
         <span className="hero-title-line">
           <span>{title}</span>
         </span>
-        <span className="hero-title-line text-accent">
+        <span className="hero-title-line">
           <span>{accent}</span>
         </span>
       </h1>

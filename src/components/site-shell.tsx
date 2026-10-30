@@ -47,17 +47,6 @@ export function useSite() {
 }
 const initialMessage =
   "Halo Sak Karepe, saya ingin berkonsultasi tentang produk ecoprint.";
-export function ConsultButton() {
-  const { open } = useSite();
-  return (
-    <button
-      className="btn"
-      onClick={() => open({ kind: "consult", message: initialMessage })}
-    >
-      Konsultasi pesanan <LinkIcon />
-    </button>
-  );
-}
 export function SiteShell({ children }: { children: React.ReactNode }) {
   const currentPath = usePathname();
   const pathname = basePath && currentPath.startsWith(`${basePath}/`)
@@ -203,7 +192,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       >
         Lewati ke konten
       </a>
-      <header className="sticky top-0 z-30 border-b border-line bg-page">
+      <header className="sticky top-0 z-30 bg-page">
         <nav
           className="wrap flex h-20 items-center justify-between gap-3"
           aria-label="Navigasi utama"
@@ -219,7 +208,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           </Link>
           <div
             id="nav-links"
-            className={`${menu ? "flex" : "hidden"} absolute top-20 inset-x-0 flex-col items-start gap-5 border-b border-line bg-page px-5 py-6 lg:static lg:flex lg:flex-row lg:items-center lg:gap-6 lg:border-0 lg:p-0 xl:gap-7`}
+            className={`${menu ? "flex" : "hidden"} absolute top-20 inset-x-0 flex-col items-start gap-5 bg-surface px-5 py-6 lg:static lg:flex lg:flex-row lg:items-center lg:gap-6 lg:bg-transparent lg:p-0 xl:gap-7`}
           >
             {navigation.map((link) => (
               <Link
@@ -254,7 +243,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             </button>
             <AccountMenu onLogin={() => open({ kind: "login" })} />
             <button
-              className="rounded-md border border-line px-3 py-2 text-sm lg:hidden"
+              className="rounded-md bg-surface px-3 py-2 text-sm lg:hidden"
               aria-expanded={menu}
               aria-controls="nav-links"
               onClick={() => setMenu(!menu)}
@@ -266,7 +255,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       </header>
       {children}
       <footer className="wrap mt-14">
-        <div className="flex flex-col items-start justify-between gap-6 border-t border-line pt-9 pb-7 xl:flex-row xl:items-center">
+        <div className="flex flex-col items-start justify-between gap-6 pt-9 pb-7 xl:flex-row xl:items-center">
           <div className="flex items-center gap-5">
             <Link href="/" aria-label="Kembali ke beranda">
               <Image
@@ -279,7 +268,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             </Link>
             <p className="text-[13px] text-muted">Ecoprint · Surabaya</p>
           </div>
-          <div className="flex flex-wrap gap-5 text-sm">
+          <div className="flex flex-wrap gap-5 text-[15px]">
             <button aria-pressed={dark} onClick={() => setDark(!dark)}>
               {dark ? "Tema terang" : "Tema gelap"}
             </button>
@@ -294,7 +283,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             ))}
           </div>
         </div>
-        <p className="pb-6 text-xs text-muted">Sak Karepe · Pewarnaan Alami</p>
+        <p className="pb-6 text-[13px] text-muted">Sak Karepe · Pewarnaan Alami</p>
       </footer>
       <a
         href={whatsappUrl()}
@@ -356,8 +345,8 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                 : modal?.kind === "login"
                   ? "flex flex-col items-center px-8 pt-11 text-center"
                   : modal?.kind === "checkout"
-                    ? "sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-line bg-page px-5 py-4 md:px-7"
-                    : "flex items-center justify-between gap-4 border-b border-line p-5 md:px-7"
+                    ? "sticky top-0 z-10 flex items-center justify-between gap-4 bg-surface px-5 py-4 md:px-7"
+                    : "flex items-center justify-between gap-4 bg-surface p-5 md:px-7"
           }
         >
           {modal?.kind === "login" && (

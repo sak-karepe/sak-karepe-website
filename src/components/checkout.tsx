@@ -162,7 +162,7 @@ export function Checkout({ onLogin }: { onLogin: () => void }) {
           onChange={(event) => setNotes(event.target.value)}
         />
       </details>
-      <div className={`sticky bottom-0 mt-8 border-t border-line bg-page pt-4 pb-5 ${bleed}`}>
+      <div className={`sticky bottom-0 mt-8 bg-surface pt-4 pb-5 ${bleed}`}>
         {error && (
           <p role="alert" className="mb-3 text-sm text-ink">
             {error}

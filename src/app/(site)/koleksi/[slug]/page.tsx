@@ -46,17 +46,16 @@ export default async function CategoryPage({
         ]}
       />
       <section
-        className="mt-8 grid gap-6 border-b border-line pb-10 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-end md:gap-16"
+        className="mt-8 grid gap-6 pb-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-end lg:gap-16"
         aria-labelledby="category-title"
       >
-        <div>
-          <p className="text-sm text-accent">Koleksi ecoprint</p>
-          <h1 id="category-title" className="page-title mt-4">
+        <div className="stagger">
+          <h1 id="category-title" className="page-title">
             {category.title}
-            <span className="block text-accent">Sak Karepe.</span>
+            <span className="block">ecoprint.</span>
           </h1>
         </div>
-        <div className="max-w-[540px]">
+        <div className="stagger max-w-[540px]">
           <p className="text-xl">{category.intro}</p>
           <p className="mt-4 text-muted">{category.character}</p>
           <a
@@ -74,17 +73,38 @@ export default async function CategoryPage({
       <section className="mt-8" aria-label={`Produk ${category.title.toLowerCase()}`}>
         <p className="mb-7 text-[13px] text-muted">{products.length} produk</p>
         {products.length ? (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-x-5 md:gap-y-10 xl:gap-x-6">
+          <div className="stagger grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-x-5 md:gap-y-10 xl:gap-x-6">
             {products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
+            {products.length % 4 > 0 && (
+              <div
+                className={`col-span-2 mt-8 flex flex-col justify-end rounded-md bg-surface p-7 md:mt-0 md:p-9 ${["", "md:col-span-3", "md:col-span-2", "md:col-span-1"][products.length % 4]}`}
+              >
+                <h2 className="text-[32px]">Ingin motif sendiri?</h2>
+                <p className="mt-3 max-w-[420px]">
+                  Ceritakan daun, warna, dan bentuk yang kamu bayangkan.
+                  Kami bicarakan pesanan khususnya bersama.
+                </p>
+                <a
+                  href={whatsappUrl(
+                    `Halo Sak Karepe, saya ingin memesan ${category.title.toLowerCase()} ecoprint dengan motif khusus.`,
+                  )}
+                  className="text-link mt-5"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Diskusikan pesanan khusus <LinkIcon />
+                </a>
+              </div>
+            )}
           </div>
         ) : (
           <p className="py-12 text-muted">Belum ada produk yang ditampilkan di koleksi ini.</p>
         )}
       </section>
       <Reveal>
-        <section className="mt-16 border-t border-line pt-10 md:mt-24">
+        <section className="mt-28 md:mt-32">
           <h2 className="mb-8">Koleksi lainnya.</h2>
           <div className="grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-5 xl:gap-6">
             {categories

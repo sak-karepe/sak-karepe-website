@@ -16,9 +16,9 @@ export function CollectionFilter({
   const visible = limit ? matching.slice(0, limit) : matching;
   return (
     <>
-      <div className="mt-8 mb-7 flex items-center justify-between gap-5 border-b border-line">
+      <div className="mt-8 mb-7 flex items-center justify-between gap-5">
         <div
-          className="flex min-w-0 gap-6 overflow-x-auto overflow-y-hidden [scrollbar-width:none]"
+          className="flex min-w-0 flex-wrap gap-2"
           role="group"
           aria-label="Filter koleksi"
         >
@@ -27,7 +27,7 @@ export function CollectionFilter({
               key={category.slug}
               aria-pressed={filter === category.slug}
               onClick={() => setFilter(category.slug)}
-              className={`min-h-12 shrink-0 border-b-2 px-1 py-3 text-base ${filter === category.slug ? "border-accent font-medium text-ink" : "border-transparent text-muted"}`}
+              className={`min-h-12 shrink-0 rounded-md px-3 py-3 text-[15px] transition-colors hover:text-accent ${filter === category.slug ? "bg-surface font-medium text-ink" : "text-muted"}`}
             >
               {category.title}
             </button>
@@ -42,7 +42,7 @@ export function CollectionFilter({
       </div>
       <div
         key={filter}
-        className="switch-enter grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-x-5 md:gap-y-10 xl:gap-x-6"
+        className="stagger grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-x-5 md:gap-y-10 xl:gap-x-6"
       >
         {visible.map((product) => (
           <ProductCard key={product.id} product={product} />

@@ -42,7 +42,7 @@ export default async function MyOrdersPage() {
           <p className="mt-3 max-w-xl text-muted">
             {rows.length} pesanan. Harga dikonfirmasi Sak Karepe lewat WhatsApp; alamat dan ongkos kirim diisi saat checkout.
           </p>
-          <ul className="mt-10 divide-y divide-line border-y border-line">
+          <ul className="mt-10 grid gap-2">
             {rows.map((order) => {
               const [first, ...rest] = order.items;
               const summary = first
@@ -53,10 +53,10 @@ export default async function MyOrdersPage() {
                 <li key={order.id}>
                   <Link
                     href={`/pesanan/${order.code}`}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-5 transition-colors hover:bg-surface/60 md:grid-cols-[190px_minmax(0,1fr)_150px_190px] md:px-3"
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 rounded-md bg-surface px-4 py-5 transition-colors hover:bg-line/60 md:grid-cols-[190px_minmax(0,1fr)_150px_190px] md:px-5"
                   >
                     <div className="min-w-0">
-                      <p className="font-mono text-[15px] font-medium">{order.code}</p>
+                      <p className="text-[15px] font-medium tabular-nums">{order.code}</p>
                       <p className="text-sm text-muted">{formatDateTime(order.createdAt)}</p>
                     </div>
                     <span

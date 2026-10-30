@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Check } from "@phosphor-icons/react/dist/ssr";
 import { maxQuantity, type CartItem, type CheckoutProduct } from "@/components/checkout";
 import { useSite } from "@/components/site-shell";
 
@@ -24,7 +25,15 @@ export function AddToCartButton({ product, className }: { product: CheckoutProdu
         setAdded(true);
       }}
     >
-      <span aria-live="polite">{added ? "Ditambahkan ✓" : "Tambah ke keranjang"}</span>
+      <span aria-live="polite" className="inline-flex items-center gap-2">
+        {added ? (
+          <>
+            Ditambahkan <Check size={18} weight="bold" aria-hidden="true" />
+          </>
+        ) : (
+          "Tambah ke keranjang"
+        )}
+      </span>
     </button>
   );
 }

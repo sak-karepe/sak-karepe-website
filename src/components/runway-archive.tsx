@@ -23,8 +23,8 @@ export function RunwayArchive() {
               className="object-cover"
             />
           </div>
-          <span className="mt-3 flex justify-between text-xs text-muted md:text-sm">
-            Lihat tampilan <LinkIcon />
+          <span className="mt-3 flex justify-between text-[13px] text-muted md:text-sm">
+            {photo.alt} <LinkIcon />
           </span>
         </button>
       ))}

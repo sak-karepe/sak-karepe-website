@@ -44,7 +44,7 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
     return (
       <main id="utama" className="wrap pt-8 pb-20 md:pt-10">
         <Breadcrumb items={[{ label: "Pesanan saya", href: "/pesanan" }, { label: code }]} />
-        <h1 className="mt-8 font-mono text-[32px] tracking-[-.04em] md:text-[44px]">{code}</h1>
+        <h1 className="mt-8 text-[32px] tracking-[-.04em] tabular-nums md:text-[44px]">{code}</h1>
         <p className="mt-4 max-w-md text-muted">Masuk dengan akun Google yang dipakai saat memesan untuk melihat pesanan ini.</p>
         <div className="mt-6">
           <LoginPrompt notice="Masuk untuk melihat pesananmu." redirectTo={`/pesanan/${code}`} />
@@ -74,7 +74,7 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
       <Breadcrumb items={[{ label: "Pesanan saya", href: "/pesanan" }, { label: order.code }]} />
       <div className="mt-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-mono text-[32px] tracking-[-.04em] md:text-[44px]">{order.code}</h1>
+          <h1 className="text-[32px] tracking-[-.04em] tabular-nums md:text-[44px]">{order.code}</h1>
           <p className="mt-2 text-sm text-muted">
             ID pesanan {order.id} · dipesan {formatDateTime(order.createdAt)}
           </p>
@@ -88,9 +88,9 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
         <div className="grid content-start gap-10">
           <section aria-labelledby="produk">
             <h2 id="produk" className="text-[24px] tracking-[-.03em]">Produk</h2>
-            <ul className="mt-3 divide-y divide-line border-y border-line">
+            <ul className="mt-3 grid gap-2">
               {order.items.map((item) => (
-                <li key={item.id} className="flex items-baseline justify-between gap-4 py-3.5">
+                <li key={item.id} className="flex items-baseline justify-between gap-4 rounded-md bg-surface px-4 py-3.5">
                   <div className="min-w-0">
                     <p>{item.productName}</p>
                     <p className="text-sm text-muted">
@@ -118,7 +118,7 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
                   <span className="tabular-nums">{formatRupiah(order.shippingCost)}</span>
                 </p>
                 {total !== null && (
-                  <p className="mt-3 flex justify-between gap-4 border-t border-line pt-3 font-medium">
+                  <p className="mt-4 flex justify-between gap-4 px-4 text-lg font-medium">
                     Total <span className="tabular-nums">{formatRupiah(total)}</span>
                   </p>
                 )}
@@ -183,7 +183,7 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
               <p className="mt-2 text-[17px]">{shipmentLabel}</p>
               <p className="mt-3 text-sm text-muted">{order.courierName}</p>
               <p className="text-sm text-muted">No. resi</p>
-              <p className="font-mono text-[15px]">{order.waybillId ?? "Menyusul"}</p>
+              <p className="text-[15px] tabular-nums">{order.waybillId ?? "Menyusul"}</p>
               {handedOver && order.trackingUrl && (
                 <a
                   href={order.trackingUrl}
