@@ -77,6 +77,27 @@ export default async function CategoryPage({
             {products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
+            {products.length % 4 > 0 && (
+              <div
+                className={`col-span-2 mt-8 flex flex-col justify-end rounded-md bg-surface p-7 md:mt-0 md:p-9 ${["", "md:col-span-3", "md:col-span-2", "md:col-span-1"][products.length % 4]}`}
+              >
+                <h2 className="text-[32px]">Ingin motif sendiri?</h2>
+                <p className="mt-3 max-w-[420px]">
+                  Ceritakan daun, warna, dan bentuk yang kamu bayangkan.
+                  Kami bicarakan pesanan khususnya bersama.
+                </p>
+                <a
+                  href={whatsappUrl(
+                    `Halo Sak Karepe, saya ingin memesan ${category.title.toLowerCase()} ecoprint dengan motif khusus.`,
+                  )}
+                  className="text-link mt-5"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Diskusikan pesanan khusus <LinkIcon />
+                </a>
+              </div>
+            )}
           </div>
         ) : (
           <p className="py-12 text-muted">Belum ada produk yang ditampilkan di koleksi ini.</p>
