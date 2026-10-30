@@ -194,12 +194,12 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       </a>
       <header className="sticky top-0 z-30 bg-page">
         <nav
-          className="wrap flex h-20 items-center justify-between gap-3"
+          className="wrap flex h-16 lg:h-20 items-center justify-between gap-3"
           aria-label="Navigasi utama"
         >
           <Link href="/" aria-label="Sak Karepe, beranda">
             <Image
-              className="brand-logo h-16 w-[126px] xl:w-[140px] max-[380px]:w-[100px]"
+              className="brand-logo h-12 w-[100px] lg:h-16 lg:w-[126px] xl:w-[140px]"
               src="/brand/logo.svg"
               width={150}
               height={72}
@@ -208,7 +208,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           </Link>
           <div
             id="nav-links"
-            className={`${menu ? "flex" : "hidden"} absolute top-20 inset-x-0 flex-col items-start gap-5 bg-surface px-5 py-6 lg:static lg:flex lg:flex-row lg:items-center lg:gap-6 lg:bg-transparent lg:p-0 xl:gap-7`}
+            className={`${menu ? "flex" : "hidden"} absolute top-16 lg:top-20 inset-x-0 flex-col items-start gap-5 bg-surface px-5 py-6 lg:static lg:flex lg:flex-row lg:items-center lg:gap-6 lg:bg-transparent lg:p-0 xl:gap-7`}
           >
             {navigation.map((link) => (
               <Link
