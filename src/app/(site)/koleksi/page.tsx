@@ -17,17 +17,16 @@ export default function CollectionPage() {
       <div className="wrap pt-8 md:pt-10">
         <Breadcrumb items={[{ label: "Koleksi" }]} />
         <section className="collection-banner mt-6" aria-labelledby="collection-title">
-          <div className="relative z-10 px-6 py-9 md:px-10 md:py-12">
-            <p className="text-xs uppercase tracking-[.16em] text-accent">Sak Karepe / Ecoprint</p>
-            <h1 id="collection-title" className="mt-5 text-[38px] leading-[1.08] tracking-[-.055em] md:text-[48px]">
-              Jejak daun.<br /><span className="text-accent">Ragam karya.</span>
+          <div className="stagger relative z-10 px-6 py-9 md:px-10 md:py-12">
+            <h1 id="collection-title" className="page-title">
+              Jejak daun.<br />Ragam karya.
             </h1>
-            <p className="mt-5 max-w-[310px] text-sm text-muted">
+            <p className="mt-5 max-w-[360px]">
               Busana, tas, kain, dan benda keseharian dengan warna dan motif dari alam.
             </p>
             <Link href="#ragam-koleksi" className="text-link mt-6">Jelajahi koleksi <LinkIcon /></Link>
           </div>
-          <div className="collection-banner-photos" aria-hidden="true">
+          <div className="collection-banner-photos hero-images" aria-hidden="true">
             <div className="relative overflow-hidden rounded-md">
               <Image src={productImage("7e60ced3-8a64-4f26-9237-4cfc0aff6a41")}
                 alt="" fill preload sizes="(max-width: 768px) 45vw, 28vw" className="object-cover object-[center_40%]" />
@@ -43,7 +42,7 @@ export default function CollectionPage() {
         </div>
       </div>
       <Reveal className="wrap mt-16 md:mt-24">
-        <section className="grid gap-6 border-t border-line pt-10 md:grid-cols-[1.1fr_1fr] md:gap-20">
+        <section className="grid gap-6 pt-10 lg:grid-cols-[1.1fr_1fr] lg:gap-20">
           <h2>
             Motif alami,
             <br />
