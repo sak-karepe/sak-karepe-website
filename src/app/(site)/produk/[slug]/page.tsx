@@ -68,7 +68,7 @@ export default async function ProductPage({
       </div>
 
       <section
-        className="mt-0 grid items-start gap-0 md:mt-8 md:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)] md:gap-12 xl:gap-20"
+        className="mt-0 grid items-start gap-0 md:mt-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)] lg:gap-12 xl:gap-20"
         aria-labelledby="product-title"
       >
         {/* Foto produk */}
@@ -82,17 +82,10 @@ export default async function ProductPage({
         </div>
 
         {/* Informasi produk */}
-        <div className="min-w-0 px-5 pb-32 pt-5 md:sticky md:top-28 md:px-0 md:pb-0 md:pt-9">
-          <Link
-            href={`/koleksi/${product.categorySlug}`}
-            className="text-sm text-accent hover:underline"
-          >
-            Koleksi {product.categoryTitle.toLowerCase()}
-          </Link>
-
+        <div className="stagger min-w-0 px-5 pb-32 pt-5 md:px-0 md:pb-0 md:pt-9 lg:sticky lg:top-28">
           <h1
             id="product-title"
-            className="mt-4 text-[34px] font-semibold leading-[1.1] tracking-[-.05em] md:text-[44px]"
+            className="text-[28px] font-semibold leading-[1.1] tracking-[-.05em] md:text-[44px] lg:text-[clamp(34px,3vw,44px)]"
           >
             {product.name}
           </h1>
@@ -102,6 +95,12 @@ export default async function ProductPage({
               ? "Harga melalui konsultasi"
               : formatRupiah(product.price)}
           </p>
+          <Link
+            href={`/koleksi/${product.categorySlug}`}
+            className="mt-1 inline-block text-sm text-accent hover:underline"
+          >
+            Koleksi {product.categoryTitle.toLowerCase()}
+          </Link>
 
           {product.stock !== null && (
             <p className="mt-1 text-sm text-muted">Stok {product.stock}</p>
@@ -113,7 +112,7 @@ export default async function ProductPage({
 
           {category && <p className="mt-5 text-muted">{category.character}</p>}
 
-          <div className="mt-8 border-t border-line pt-6">
+          <div className="mt-8">
             <p className="text-sm leading-6 text-muted">
               Ukuran, pilihan material, dan ketersediaan dibicarakan bersama
               sebelum memesan. Motif ecoprint dapat sedikit berbeda di setiap
@@ -143,7 +142,7 @@ export default async function ProductPage({
       {/* Produk terkait */}
       {related.length > 0 && (
         <Reveal>
-          <section className="mt-10 border-t border-line pt-10 md:mt-24">
+          <section className="mt-16 md:mt-32">
             <h2 className="mb-8">Pilihan lainnya.</h2>
             <div className="grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-5 xl:gap-6">
               {related.map((p) => (

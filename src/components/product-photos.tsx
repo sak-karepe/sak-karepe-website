@@ -30,7 +30,7 @@ export function ProductPhotos({
   return (
     <div className="min-w-0 w-full max-w-full">
       <button
-        className="group photo relative block h-[450px] w-full md:h-[620px]"
+        className="group photo relative block h-[380px] w-full md:h-[620px]"
         aria-label={`Perbesar foto ${title.toLowerCase()}`}
         onClick={() =>
           open({
@@ -48,13 +48,13 @@ export function ProductPhotos({
           sizes="(max-width: 768px) 90vw, 55vw"
           className="switch-enter object-contain"
         />
-        <span className="absolute right-4 bottom-4 inline-flex items-center gap-2 rounded-md bg-page px-3 py-2 text-sm opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+        <span className="switch-enter absolute right-4 bottom-4 hidden items-center gap-2 rounded-md bg-page px-3 py-2 text-sm group-hover:inline-flex group-focus-visible:inline-flex">
           Perbesar <ExpandIcon />
         </span>
       </button>
       {photos.length > 1 && (
         <div
-          className="mt-4 flex w-full max-w-full min-w-0 gap-3 overflow-x-auto pb-2"
+          className="mt-4 flex w-full max-w-full min-w-0 gap-3 overflow-x-auto px-5 pb-2 md:px-0"
           role="group"
           aria-label="Pilih foto koleksi"
         >
