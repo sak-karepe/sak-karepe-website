@@ -203,7 +203,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       >
         Lewati ke konten
       </a>
-      <header className="sticky top-0 z-30 border-b border-line bg-page">
+      <header className="sticky top-0 z-30 bg-page">
         <nav
           className="wrap flex h-20 items-center justify-between gap-3"
           aria-label="Navigasi utama"
@@ -266,7 +266,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       </header>
       {children}
       <footer className="wrap mt-14">
-        <div className="flex flex-col items-start justify-between gap-6 border-t border-line pt-9 pb-7 xl:flex-row xl:items-center">
+        <div className="flex flex-col items-start justify-between gap-6 pt-9 pb-7 xl:flex-row xl:items-center">
           <div className="flex items-center gap-5">
             <Link href="/" aria-label="Kembali ke beranda">
               <Image
@@ -294,7 +294,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             ))}
           </div>
         </div>
-        <p className="pb-6 text-xs text-muted">Sak Karepe · Pewarnaan Alami</p>
+        <p className="pb-6 text-[13px] text-muted">Sak Karepe · Pewarnaan Alami</p>
       </footer>
       <a
         href={whatsappUrl()}

@@ -65,7 +65,7 @@ export function RunwayGallery() {
     <div ref={region}>
       <div
         key={page}
-        className="switch-enter mt-9 grid grid-cols-2 items-start gap-x-4 gap-y-6 md:grid-cols-4 md:gap-6"
+        className="stagger mt-9 grid grid-cols-2 items-start gap-x-4 gap-y-6 md:grid-cols-4 md:gap-6"
         aria-label="Dokumentasi fashion show"
       >
         {runwayPhotos.slice(start, start + 4).map((photo, offset) => (
@@ -84,7 +84,7 @@ export function RunwayGallery() {
                 sizes="(max-width: 768px) 45vw, 25vw"
               />
             </div>
-            <span className="mt-3 flex justify-between gap-2 text-xs md:text-sm">
+            <span className="mt-3 flex justify-between gap-2 text-[13px] md:text-sm">
               Lihat tampilan <LinkIcon />
             </span>
           </button>
