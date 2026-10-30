@@ -5,7 +5,7 @@ import Image from "@/components/site-image";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
-import { productImage } from "@/lib/assets";
+import { productImage, runwayImage } from "@/lib/assets";
 export const metadata: Metadata = {
   title: "Cerita kami · Sak Karepe",
   description:
@@ -16,13 +16,13 @@ export default function StoryPage() {
     <main id="utama">
       <section className="wrap pt-8 md:pt-10">
         <Breadcrumb items={[{ label: "Cerita kami" }]} />
-        <div className="mt-9 grid items-center gap-9 md:grid-cols-[1.1fr_1fr] md:gap-16">
+        <div className="mt-9 grid items-center gap-9 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
           <div>
             <h1 className="page-title">
               <span className="hero-title-line">
                 <span>Dari sekolah.</span>
               </span>
-              <span className="hero-title-line text-accent">
+              <span className="hero-title-line">
                 <span>Menuju dunia.</span>
               </span>
             </h1>
@@ -44,7 +44,7 @@ export default function StoryPage() {
         </div>
       </section>
       <Reveal className="wrap my-16 md:my-24">
-        <section className="grid gap-8 border-t border-line pt-10 md:grid-cols-[.7fr_1.3fr] md:gap-20">
+        <section className="grid gap-8 lg:grid-cols-[.7fr_1.3fr] lg:gap-20">
           <div>
             <p className="text-6xl font-heading tracking-[-.06em] text-accent md:text-8xl">
               2004
@@ -73,7 +73,7 @@ export default function StoryPage() {
         </section>
       </Reveal>
       <section className="bg-surface py-12 md:py-20">
-        <Reveal className="wrap grid gap-9 md:grid-cols-[1.2fr_.8fr] md:gap-16">
+        <Reveal className="wrap grid gap-9 lg:grid-cols-[1.2fr_.8fr] lg:gap-16">
           <div className="photo aspect-[4/3]">
             <Image
               src={productImage("8804e501-4559-4aa9-9848-df5476f1c64d")}
@@ -102,7 +102,8 @@ export default function StoryPage() {
         </Reveal>
       </section>
       <Reveal className="wrap py-14 md:py-24">
-        <section className="max-w-[860px]">
+        <section className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+          <div>
           <h2>Ruang untuk tumbuh.</h2>
           <p className="mt-7 max-w-[700px] text-xl leading-relaxed text-muted">
             Sak Karepe lahir dari perjalanan pendidikan vokasi. Setiap karya
@@ -117,8 +118,29 @@ export default function StoryPage() {
           <Link href="/fashion-show" className="text-link mt-7">
             Lihat karya di panggung <LinkIcon />
           </Link>
+          </div>
+          <div className="grid grid-cols-2 items-start gap-3 xl:gap-4">
+            <div className="photo aspect-[2/3]">
+              <Image
+                src={runwayImage("76e7b072-10ac-49da-9a8c-47ceb7187ad1")}
+                alt="Dress panjang bermotif daun di panggung dengan latar tanaman"
+                fill
+                sizes="(max-width: 1024px) 45vw, 25vw"
+                className="object-cover"
+              />
+            </div>
+            <div className="photo mt-10 aspect-[2/3]">
+              <Image
+                src={productImage("3ff6a2dc-af7f-47d0-8014-986368cfbe6c")}
+                alt="Kain bermotif daun dengan kombinasi tepi bergaris"
+                fill
+                sizes="(max-width: 1024px) 45vw, 25vw"
+                className="object-cover"
+              />
+            </div>
+          </div>
         </section>
-        <div className="mt-12 border-t border-line pt-6">
+        <div className="mt-12">
           <a
             href={assetPath("/documents/katalog-2026.pdf")}
             target="_blank"
