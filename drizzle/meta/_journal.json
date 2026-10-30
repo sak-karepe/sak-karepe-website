@@ -99,6 +99,13 @@
       "when": 1793272917309,
       "tag": "0013_offline_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1793322860378,
+      "tag": "0014_user_role",
+      "breakpoints": true
     }
   ]
 }
