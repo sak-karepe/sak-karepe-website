@@ -9,7 +9,7 @@ import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } 
 import { checkStatus } from "@/lib/doku";
 import { applyPayment, cancelActivePayments } from "@/lib/payments";
 import { refreshShipment, saveResend } from "@/lib/shipments";
-import { createShipment } from "@/lib/shipping";
+import { createShipment, lowBalance, quotaReached, unreachable } from "@/lib/shipping";
 
 export type StatusFormState = { error?: string };
 
@@ -47,7 +47,13 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
   return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
 }
 
-export type ShipmentFormState = { error?: string };
+export type ShipmentFormState = { error?: string; dashboard?: boolean };
+
+/** Hanya gangguan yang bisa menyisakan order di Biteship; penolakan (mis. saldo kurang, kuota habis) tidak membuat order. */
+const bookingError = (error: string): ShipmentFormState => ({
+  error: `Kurir belum bisa dipesan. ${error}${error === unreachable ? " Bila order ini sudah muncul di dashboard Biteship, batalkan dulu di sana." : ""}`,
+  dashboard: error === lowBalance || error === quotaReached,
+});
 
 /** Booking kurir pilihan pembeli di Biteship ke alamat pesanan; dipakai untuk resi pertama dan kirim ulang. */
 const bookCourier = (
@@ -84,10 +90,9 @@ export async function bookShipment(orderId: number, _state: ShipmentFormState, f
   if (!order.courierCode || !order.courierServiceCode || !order.shippingAddress || !order.postalCode)
     return { error: "Pesanan ini belum punya alamat atau kurir pilihan pembeli." };
   const result = await bookCourier(order, method);
-  // Bila balasan terputus, order bisa saja sudah terbuat di Biteship tanpa tercatat di sini.
   if (!result.ok) {
     console.warn(`[biteship] Kurir pesanan ${order.code} gagal dipesan: ${result.error}`);
-    return { error: `Kurir belum bisa dipesan. ${result.error} Bila order ini sudah muncul di dashboard Biteship, batalkan dulu di sana.` };
+    return bookingError(result.error);
   }
   const saved = await db.transaction(async (tx) => {
     const [saved] = await tx
@@ -142,7 +147,7 @@ export async function resendShipment(orderId: number, _state: ShipmentFormState,
   const result = await bookCourier({ ...order, recipientName, phone, shippingAddress, postalCode }, method);
   if (!result.ok) {
     console.warn(`[biteship] Kurir pesanan ${order.code} gagal dipesan: ${result.error}`);
-    return { error: `Kurir belum bisa dipesan. ${result.error} Bila order ini sudah muncul di dashboard Biteship, batalkan dulu di sana.` };
+    return bookingError(result.error);
   }
   const saved = await saveResend(order, { recipientName, phone, shippingAddress, postalCode }, method, paidBy, result, Number(admin.id));
   if (!saved) {

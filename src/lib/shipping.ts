@@ -41,6 +41,11 @@ type RatesBody = { success?: boolean; error?: unknown; pricing?: Pricing[] } | n
 const cache = new Map<string, { expires: number; options: ShippingOption[] }>();
 const units: Record<string, string> = { days: "hari", hours: "jam" };
 const down = "Layanan cek ongkir sedang gangguan. Coba lagi sebentar.";
+/**
+ * Pesan saldo kurang menurut support Biteship (Okt 2026): Orders API "Bite points tidak cukup", Rates API "No sufficient
+ * balance to call rates API. Please top up your balance" (HTTP 400). Tidak ada kode error khusus maupun API saldo.
+ */
+const lowBalancePattern = /bite ?points|balance|saldo/i;
 
 /** Layanan paket (bukan kargo/trucking) dari kurir pilihan, termurah lebih dulu. */
 export async function quoteShipping(destinationPostalCode: string, items: ShippingItem[]): Promise<ShippingQuote> {
@@ -75,9 +80,13 @@ export async function quoteShipping(destinationPostalCode: string, items: Shippi
   const data: RatesBody = await response.json().catch(() => null);
   if (!response.ok || !data?.success) {
     console.warn(`[biteship] Rates ke ${destinationPostalCode} gagal (HTTP ${response.status}): ${String(data?.error ?? "")}`);
+    // Saldo habis juga dianggap gangguan: pembeli tidak perlu tahu soal saldo, dan kode posnya tidak salah.
     return {
       ok: false,
-      error: response.status >= 500 ? down : "Ongkos kirim ke alamat ini belum bisa dihitung. Periksa kode pos atau pilih alamat lain.",
+      error:
+        response.status >= 500 || lowBalancePattern.test(String(data?.error ?? ""))
+          ? down
+          : "Ongkos kirim ke alamat ini belum bisa dihitung. Periksa kode pos atau pilih alamat lain.",
     };
   }
   const options = (data.pricing ?? [])
@@ -113,10 +122,13 @@ export type CollectionMethod = "pickup" | "drop_off";
 /** `note`: catatan riwayat kurir terbaru, mis. alasan paket dikembalikan. */
 export type Shipment = { id: string; status: string; waybillId: string | null; trackingUrl: string | null; note: string | null };
 export type ShipmentResult = ({ ok: true } & Shipment) | { ok: false; error: string };
-type OrderBody = { success?: boolean; error?: unknown; id?: string; status?: string; courier?: { waybill_id?: string | null; link?: string | null; history?: { note?: string | null }[] } } | null;
+type OrderBody = { success?: boolean; error?: unknown; code?: number; id?: string; status?: string; courier?: { waybill_id?: string | null; link?: string | null; history?: { note?: string | null }[] } } | null;
 
-/** Galat jaringan atau HTTP 5xx (bukan penolakan Biteship); webhook membalas non-200 agar dikirim ulang. */
+/** Galat jaringan, HTTP 5xx, atau balasan tak terbaca (bukan penolakan Biteship); webhook membalas non-200 agar dikirim ulang. */
 export const unreachable = "Layanan kurir Biteship sedang gangguan. Coba lagi sebentar.";
+export const lowBalance = "Saldo Biteship tidak cukup. Top up di dashboard Biteship lalu coba lagi.";
+/** Biteship membalas "You have reached your monthly Orders API limit"; order di mode testing tidak mengurangi kuota. */
+export const quotaReached = "Kuota pengiriman Biteship bulan ini habis. Naikkan paket di dashboard Biteship atau tunggu bulan depan.";
 
 async function biteship(url: string, init: RequestInit = {}): Promise<ShipmentResult> {
   const apiKey = process.env.BITESHIP_API_KEY;
@@ -133,8 +145,11 @@ async function biteship(url: string, init: RequestInit = {}): Promise<ShipmentRe
   }
   const data: OrderBody = await response.json().catch(() => null);
   if (!response.ok || !data?.success || !data.id) {
-    console.warn(`[biteship] ${init.method ?? "GET"} ${url} gagal (HTTP ${response.status}): ${String(data?.error ?? "")}`);
-    return { ok: false, error: response.status >= 500 ? unreachable : String(data?.error ?? "Biteship menolak permintaan.") };
+    console.warn(`[biteship] ${init.method ?? "GET"} ${url} gagal (HTTP ${response.status}, kode ${data?.code ?? "-"}): ${String(data?.error ?? "")}`);
+    // Balasan yang tidak terbaca (terputus/timeout) bisa berarti order sudah terbuat, jadi diperlakukan seperti gangguan.
+    if (response.status >= 500 || !data) return { ok: false, error: unreachable };
+    const message = String(data.error ?? "Biteship menolak permintaan.");
+    return { ok: false, error: lowBalancePattern.test(message) ? lowBalance : /monthly .*limit/i.test(message) ? quotaReached : message };
   }
   return {
     ok: true,
