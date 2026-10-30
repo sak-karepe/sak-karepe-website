@@ -115,7 +115,7 @@ export type Shipment = { id: string; status: string; waybillId: string | null; t
 export type ShipmentResult = ({ ok: true } & Shipment) | { ok: false; error: string };
 type OrderBody = { success?: boolean; error?: unknown; code?: number; id?: string; status?: string; courier?: { waybill_id?: string | null; link?: string | null; history?: { note?: string | null }[] } } | null;
 
-/** Galat jaringan atau HTTP 5xx (bukan penolakan Biteship); webhook membalas non-200 agar dikirim ulang. */
+/** Galat jaringan, HTTP 5xx, atau balasan tak terbaca (bukan penolakan Biteship); webhook membalas non-200 agar dikirim ulang. */
 export const unreachable = "Layanan kurir Biteship sedang gangguan. Coba lagi sebentar.";
 /**
  * Biteship tidak mendokumentasikan kode khusus saldo kurang; yang paling dekat HTTP 402 dan 40002039 ("something wrong
@@ -141,7 +141,8 @@ async function biteship(url: string, init: RequestInit = {}): Promise<ShipmentRe
   const data: OrderBody = await response.json().catch(() => null);
   if (!response.ok || !data?.success || !data.id) {
     console.warn(`[biteship] ${init.method ?? "GET"} ${url} gagal (HTTP ${response.status}, kode ${data?.code ?? "-"}): ${String(data?.error ?? "")}`);
-    if (response.status >= 500) return { ok: false, error: unreachable };
+    // Balasan yang tidak terbaca (terputus/timeout) bisa berarti order sudah terbuat, jadi diperlakukan seperti gangguan.
+    if (response.status >= 500 || !data) return { ok: false, error: unreachable };
     return { ok: false, error: isLowBalance(response.status, data) ? lowBalance : String(data?.error ?? "Biteship menolak permintaan.") };
   }
   return {

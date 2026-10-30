@@ -9,12 +9,14 @@ const reply = (status: number, body: unknown) => {
   globalThis.fetch = async () => new Response(JSON.stringify(body), { status });
 };
 
-test("HTTP 5xx dan galat jaringan dianggap gangguan", async () => {
+test("HTTP 5xx, galat jaringan, dan balasan terputus dianggap gangguan", async () => {
   reply(503, { success: false, error: "Service Unavailable" });
   assert.deepStrictEqual(await getShipment("abc"), { ok: false, error: unreachable });
   globalThis.fetch = async () => {
     throw new TypeError("fetch failed");
   };
+  assert.deepStrictEqual(await getShipment("abc"), { ok: false, error: unreachable });
+  globalThis.fetch = async () => new Response("{\"success\":tr", { status: 200 });
   assert.deepStrictEqual(await getShipment("abc"), { ok: false, error: unreachable });
 });
 
