@@ -185,6 +185,25 @@ export function StatusForm({
   );
 }
 
+/** Catatan internal admin di riwayat pesanan; form dikosongkan React setelah tersimpan. */
+export function NoteForm({ action }: { action: (state: State, formData: FormData) => Promise<State> }) {
+  const [state, formAction, pending] = useActionState(action, {});
+  return (
+    <form action={formAction} className="mt-4">
+      <label htmlFor="note" className="text-sm font-medium">Catatan internal</label>
+      <textarea id="note" name="note" required maxLength={2000} rows={3} className={inputClass} />
+      <p className="mt-1 text-sm text-muted">Hanya terlihat oleh admin.</p>
+      <ErrorAlert error={state.error} />
+      <button
+        className="mt-3 min-h-11 rounded-md border border-line px-4 text-[15px] font-medium transition-colors hover:border-accent hover:text-accent"
+        disabled={pending}
+      >
+        {pending ? "Menyimpan…" : "Simpan catatan"}
+      </button>
+    </form>
+  );
+}
+
 /** Tombol satu aksi tanpa isian, mis. cek ulang status atau menandai sudah dicek. */
 export function ActionButton({ action, label, pendingLabel }: { action: () => Promise<State>; label: string; pendingLabel: string }) {
   const [state, formAction, pending] = useActionState(action, {});

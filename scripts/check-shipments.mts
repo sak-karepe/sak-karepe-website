@@ -8,7 +8,7 @@ process.env.DATABASE_URL = `file:${join(mkdtempSync(join(tmpdir(), "sakkarepe-")
 const { eq } = await import("drizzle-orm");
 const { migrate } = await import("drizzle-orm/libsql/migrator");
 const { db } = await import("@/db");
-const { categories, orderItems, orders, payments, products, shipmentHistory, users } = await import("@/db/schema");
+const { categories, orderEvents, orderItems, orders, payments, products, shipmentHistory, users } = await import("@/db/schema");
 const { applyPayment } = await import("@/lib/payments");
 const { returnStock } = await import("@/lib/stock");
 const { applyShipment, completeDeliveredOrders, autoCompleteMs, onHoldMs, saveResend, stuckOnHoldOrders } = await import("@/lib/shipments");
@@ -18,6 +18,8 @@ const [user] = await db.insert(users).values({ email: "cek@example.com" }).retur
 const insert = async (code: string, shipmentId: string) =>
   (await db.insert(orders).values({ code, userId: user.id, status: "dikirim", shipmentId }).returning())[0].id;
 const read = async (id: number) => (await db.query.orders.findFirst({ where: eq(orders.id, id) }))!;
+const events = async (id: number) =>
+  (await db.query.orderEvents.findMany({ where: eq(orderEvents.orderId, id), orderBy: orderEvents.id })).map((e) => `${e.fromStatus}>${e.toStatus}:${e.source}`);
 const shipment = (id: string, status: string, waybillId: string | null = null, note: string | null = null) => ({
   id,
   status,
@@ -41,6 +43,7 @@ assert.deepEqual([(await read(id)).status, (await read(id)).shipmentStatus, (awa
 assert.equal((await completeDeliveredOrders()).length, 0);
 assert.equal((await completeDeliveredOrders(new Date(Date.now() + autoCompleteMs + 1000))).length, 1);
 assert.equal((await read(id)).status, "selesai");
+assert.deepEqual(await events(id), ["dikirim>sampai:biteship", "sampai>selesai:sistem"]);
 
 // Kurir tidak ditemukan sebelum dijemput: kembali "dibayar" dan resi dilepas agar admin bisa memesan ulang.
 const failed = await insert("SK-2", "bs2");
@@ -60,8 +63,10 @@ assert.equal((await read(returned)).status, "gagal_kirim");
 
 // Kirim ulang: resi baru di pesanan, resi lama tersimpan di riwayat; kirim ulang kedua dari tab lain ditolak.
 const address = { recipientName: "Budi", phone: "081234567890", shippingAddress: "Jl. Baru 1", postalCode: "60111" };
-assert.ok(await saveResend(back, address, "pickup", "pembeli", shipment("bs3b", "confirmed")));
-assert.equal(await saveResend(back, address, "pickup", "pembeli", shipment("bs3c", "confirmed")), undefined);
+assert.ok(await saveResend(back, address, "pickup", "pembeli", shipment("bs3b", "confirmed"), user.id));
+assert.equal(await saveResend(back, address, "pickup", "pembeli", shipment("bs3c", "confirmed"), user.id), undefined);
+// "returned" setelah "return_in_transit" bukan perubahan status, jadi tidak dicatat dua kali.
+assert.deepEqual(await events(returned), ["dikirim>gagal_kirim:biteship", "gagal_kirim>dikirim:admin"]);
 const resent = await read(returned);
 assert.deepEqual([resent.status, resent.shipmentId, resent.shippingAddress, resent.shipmentNote], ["dikirim", "bs3b", "Jl. Baru 1", null]);
 const history = await db.query.shipmentHistory.findMany({ where: eq(shipmentHistory.orderId, returned) });
@@ -88,6 +93,7 @@ await db.update(orders).set({ reviewNote: null }).where(eq(orders.id, unpaid));
 await paid("150000.00");
 await paid(150000);
 assert.deepEqual([(await read(unpaid)).status, (await read(unpaid)).reviewNote], ["dibayar", null]);
+assert.deepEqual(await events(unpaid), ["menunggu_pembayaran>dibayar:doku"]);
 await paid(150000, "SK261029AB1PP9");
 assert.ok((await read(unpaid)).reviewNote?.includes("tidak dikenal"));
 // Uang masuk untuk pesanan yang sudah dibatalkan: status tetap, pesanan ditandai untuk refund manual.

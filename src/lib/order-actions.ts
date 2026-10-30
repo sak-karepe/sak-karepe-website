@@ -3,7 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
-import { orderItems, orders, type Order, type OrderItem } from "@/db/schema";
+import { orderEvents, orderItems, orders, type Order, type OrderItem } from "@/db/schema";
 import { parseAmount } from "@/lib/format";
 import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } from "@/lib/order-status";
 import { checkStatus } from "@/lib/doku";
@@ -18,7 +18,7 @@ export type StatusFormState = { error?: string };
  * agar tidak menimpa perubahan dari webhook atau pembeli yang masuk bersamaan.
  */
 export async function updateOrderStatus(id: number, _state: StatusFormState, formData: FormData): Promise<StatusFormState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const status = formData.get("status");
   const order = await db.query.orders.findFirst({ where: eq(orders.id, id), with: { payments: true } });
   if (!order) return { error: "Pesanan tidak ditemukan." };
@@ -37,6 +37,8 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
     .set({ status, updatedAt: new Date(), ...(status === "sampai" && { deliveredAt: new Date() }) })
     .where(and(eq(orders.id, id), eq(orders.status, order.status)))
     .returning({ id: orders.id });
+  if (saved)
+    await db.insert(orderEvents).values({ orderId: id, fromStatus: order.status, toStatus: status, source: "admin", userId: Number(admin.id) });
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
   return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
@@ -68,7 +70,7 @@ const bookCourier = (
  * menjadi "dikirim". Perjalanan paket berikutnya diikuti dari webhook Biteship (lib/shipments).
  */
 export async function bookShipment(orderId: number, _state: ShipmentFormState, formData: FormData): Promise<ShipmentFormState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const method = formData.get("method");
   if (method !== "pickup" && method !== "drop_off") return { error: "Pilih cara penyerahan paket ke kurir." };
   const order = await db.query.orders.findFirst({
@@ -101,6 +103,7 @@ export async function bookShipment(orderId: number, _state: ShipmentFormState, f
     console.warn(`[biteship] Order ${result.id} ganda untuk pesanan ${order.code}; batalkan di dashboard Biteship`);
     return { error: `Pesanan berubah atau resi sudah dibuat dari tab lain. Batalkan order ${result.id} di dashboard Biteship karena ganda.` };
   }
+  await db.insert(orderEvents).values({ orderId, fromStatus: "dibayar", toStatus: "dikirim", source: "admin", userId: Number(admin.id) });
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
   return {};
@@ -111,7 +114,7 @@ export async function bookShipment(orderId: number, _state: ShipmentFormState, f
  * dipindah ke `shipmentHistory` beserta siapa yang menanggung ongkir kedua.
  */
 export async function resendShipment(orderId: number, _state: ShipmentFormState, formData: FormData): Promise<ShipmentFormState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const method = formData.get("method");
   const paidBy = formData.get("paidBy");
   const [recipientName, rawPhone, shippingAddress, postalCode] = ["recipientName", "phone", "shippingAddress", "postalCode"].map((key) =>
@@ -134,7 +137,7 @@ export async function resendShipment(orderId: number, _state: ShipmentFormState,
     console.warn(`[biteship] Kurir pesanan ${order.code} gagal dipesan: ${result.error}`);
     return { error: `Kurir belum bisa dipesan. ${result.error} Bila order ini sudah muncul di dashboard Biteship, batalkan dulu di sana.` };
   }
-  const saved = await saveResend(order, { recipientName, phone, shippingAddress, postalCode }, method, paidBy, result);
+  const saved = await saveResend(order, { recipientName, phone, shippingAddress, postalCode }, method, paidBy, result, Number(admin.id));
   if (!saved) {
     console.warn(`[biteship] Order ${result.id} ganda untuk pesanan ${order.code}; batalkan di dashboard Biteship`);
     return { error: `Pesanan berubah atau sudah dikirim ulang dari tab lain. Batalkan order ${result.id} di dashboard Biteship karena ganda.` };
@@ -146,12 +149,14 @@ export async function resendShipment(orderId: number, _state: ShipmentFormState,
 
 /** Pesanan gagal kirim yang tidak dikirim ulang dibatalkan dan masuk alur refund. */
 export async function refundFailedShipment(orderId: number): Promise<ShipmentFormState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const [saved] = await db
     .update(orders)
     .set({ status: "refund", updatedAt: new Date() })
     .where(and(eq(orders.id, orderId), eq(orders.status, "gagal_kirim")))
     .returning({ id: orders.id });
+  if (saved)
+    await db.insert(orderEvents).values({ orderId, fromStatus: "gagal_kirim", toStatus: "refund", source: "admin", userId: Number(admin.id) });
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
   return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
@@ -181,6 +186,19 @@ export async function recheckOrder(orderId: number): Promise<StatusFormState> {
   return errors.length ? { error: `Sebagian status belum bisa dicek. ${errors.join(" · ")}` } : {};
 }
 
+export type NoteFormState = { error?: string };
+
+/** Catatan internal admin di riwayat pesanan; tidak pernah ditampilkan ke pembeli. */
+export async function addOrderNote(orderId: number, _state: NoteFormState, formData: FormData): Promise<NoteFormState> {
+  const admin = await requireAdmin();
+  const note = String(formData.get("note") ?? "").trim();
+  if (!note) return { error: "Tulis catatannya dulu." };
+  if (note.length > 2000) return { error: "Catatan maksimal 2000 karakter." };
+  await db.insert(orderEvents).values({ orderId, source: "admin", userId: Number(admin.id), note });
+  revalidatePath(`/admin/pesanan/${orderId}`);
+  return {};
+}
+
 /** Admin selesai menangani pesanan yang ditandai "Perlu dicek". */
 export async function markReviewed(orderId: number): Promise<StatusFormState> {
   await requireAdmin();
@@ -202,7 +220,7 @@ export async function createCheckoutLink(
   _state: CheckoutLinkFormState,
   formData: FormData,
 ): Promise<CheckoutLinkFormState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { items: true, payments: true } });
   if (!order) return { error: "Pesanan tidak ditemukan." };
   if (!checkoutStatuses.includes(order.status) || order.payments.some((payment) => payment.paidAt))
@@ -220,6 +238,10 @@ export async function createCheckoutLink(
       .update(orders)
       .set({ subtotal, shippingCost: null, status: "menunggu_checkout", updatedAt: new Date() })
       .where(eq(orders.id, orderId));
+    if (order.status !== "menunggu_checkout")
+      await tx
+        .insert(orderEvents)
+        .values({ orderId, fromStatus: order.status, toStatus: "menunggu_checkout", source: "admin", userId: Number(admin.id) });
   });
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");

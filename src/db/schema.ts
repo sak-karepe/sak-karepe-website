@@ -234,6 +234,30 @@ export const shipmentHistory = sqliteTable("shipment_history", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
+export const orderEventSources = ["admin", "pembeli", "doku", "biteship", "sistem"] as const;
+
+/**
+ * Jejak perubahan status pesanan beserta sumbernya, untuk menelusuri komplain. Baris tanpa `fromStatus`/`toStatus` adalah
+ * catatan internal admin; hanya tampil di /admin, tidak di halaman pembeli.
+ */
+export const orderEvents = sqliteTable(
+  "order_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    fromStatus: text("from_status", { enum: orderStatuses }),
+    toStatus: text("to_status", { enum: orderStatuses }),
+    source: text("source", { enum: orderEventSources }).notNull(),
+    /** Admin atau pembeli yang mengubah; kosong untuk webhook dan job. */
+    userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+    note: text("note"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => [index("order_events_order_idx").on(table.orderId)],
+);
+
 export const productsRelations = relations(products, ({ many, one }) => ({
   images: many(productImages),
   category: one(categories, { fields: [products.categorySlug], references: [categories.slug] }),
@@ -254,6 +278,11 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   items: many(orderItems),
   payments: many(payments),
   shipmentHistory: many(shipmentHistory),
+  events: many(orderEvents),
+}));
+export const orderEventsRelations = relations(orderEvents, ({ one }) => ({
+  order: one(orders, { fields: [orderEvents.orderId], references: [orders.id] }),
+  user: one(users, { fields: [orderEvents.userId], references: [users.id] }),
 }));
 export const shipmentHistoryRelations = relations(shipmentHistory, ({ one }) => ({
   order: one(orders, { fields: [shipmentHistory.orderId], references: [orders.id] }),
@@ -276,3 +305,4 @@ export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type ShipmentHistory = typeof shipmentHistory.$inferSelect;
+export type OrderEvent = typeof orderEvents.$inferSelect;

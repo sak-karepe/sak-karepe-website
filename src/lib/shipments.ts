@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { orders, shipmentHistory, type Order, type ShipmentHistory } from "@/db/schema";
+import { orderEvents, orders, shipmentHistory, type Order, type ShipmentHistory } from "@/db/schema";
 import { getShipment, type CollectionMethod, type Shipment } from "@/lib/shipping";
 
 /** Pemesanan kurir gagal sebelum paket diambil; resi dilepas agar admin bisa memesan kurir lagi. */
@@ -26,23 +26,43 @@ export async function applyShipment(shipment: Shipment) {
     returned ? inArray(orders.status, ["dikirim", "gagal_kirim"]) : eq(orders.status, "dikirim"),
   );
   const now = new Date();
-  if (failedStatuses.includes(shipment.status))
-    await db
-      .update(orders)
-      .set({ status: "dibayar", shipmentId: null, shipmentStatus: null, waybillId: null, trackingUrl: null, collectionMethod: null, updatedAt: now })
-      .where(where);
-  else
-    await db
-      .update(orders)
-      .set({
-        shipmentStatus: shipment.status,
-        ...(shipment.waybillId && { waybillId: shipment.waybillId }),
-        ...(shipment.trackingUrl && { trackingUrl: shipment.trackingUrl }),
-        ...(shipment.status === "delivered" && { status: "sampai", deliveredAt: now }),
-        ...(returned && { status: "gagal_kirim", ...(shipment.note && { shipmentNote: shipment.note }) }),
-        updatedAt: now,
-      })
-      .where(where);
+  const toStatus = failedStatuses.includes(shipment.status)
+    ? "dibayar"
+    : shipment.status === "delivered"
+      ? "sampai"
+      : returned
+        ? "gagal_kirim"
+        : null;
+  await db.transaction(async (tx) => {
+    // Status lama dibaca untuk riwayat; "gagal_kirim" yang menerima "returned" tidak dicatat sebagai perubahan.
+    const before = await tx.query.orders.findFirst({ columns: { id: true, status: true }, where });
+    if (!before) return;
+    if (toStatus === "dibayar")
+      await tx
+        .update(orders)
+        .set({ status: "dibayar", shipmentId: null, shipmentStatus: null, waybillId: null, trackingUrl: null, collectionMethod: null, updatedAt: now })
+        .where(where);
+    else
+      await tx
+        .update(orders)
+        .set({
+          shipmentStatus: shipment.status,
+          ...(shipment.waybillId && { waybillId: shipment.waybillId }),
+          ...(shipment.trackingUrl && { trackingUrl: shipment.trackingUrl }),
+          ...(toStatus === "sampai" && { status: "sampai", deliveredAt: now }),
+          ...(returned && { status: "gagal_kirim", ...(shipment.note && { shipmentNote: shipment.note }) }),
+          updatedAt: now,
+        })
+        .where(where);
+    if (toStatus && toStatus !== before.status)
+      await tx.insert(orderEvents).values({
+        orderId: before.id,
+        fromStatus: before.status,
+        toStatus,
+        source: "biteship",
+        note: [shipment.status, shipment.note].filter(Boolean).join(" · "),
+      });
+  });
 }
 
 /**
@@ -55,6 +75,7 @@ export const saveResend = (
   method: CollectionMethod,
   paidBy: ShipmentHistory["resendPaidBy"],
   shipment: Shipment,
+  userId: number,
 ) =>
   db.transaction(async (tx) => {
     const [updated] = await tx
@@ -72,7 +93,8 @@ export const saveResend = (
       })
       .where(and(eq(orders.id, order.id), eq(orders.status, "gagal_kirim"), eq(orders.shipmentId, order.shipmentId!)))
       .returning({ id: orders.id });
-    if (updated)
+    if (updated) {
+      await tx.insert(orderEvents).values({ orderId: order.id, fromStatus: "gagal_kirim", toStatus: "dikirim", source: "admin", userId, note: "Kirim ulang" });
       await tx.insert(shipmentHistory).values({
         orderId: order.id,
         shipmentId: order.shipmentId!,
@@ -82,15 +104,23 @@ export const saveResend = (
         note: order.shipmentNote,
         resendPaidBy: paidBy,
       });
+    }
     return updated;
   });
 
 export const completeDeliveredOrders = (now = new Date()) =>
-  db
-    .update(orders)
-    .set({ status: "selesai", updatedAt: now })
-    .where(and(eq(orders.status, "sampai"), lte(orders.deliveredAt, new Date(now.getTime() - autoCompleteMs))))
-    .returning({ id: orders.id });
+  db.transaction(async (tx) => {
+    const done = await tx
+      .update(orders)
+      .set({ status: "selesai", updatedAt: now })
+      .where(and(eq(orders.status, "sampai"), lte(orders.deliveredAt, new Date(now.getTime() - autoCompleteMs))))
+      .returning({ id: orders.id });
+    if (done.length)
+      await tx.insert(orderEvents).values(
+        done.map(({ id }) => ({ orderId: id, fromStatus: "sampai" as const, toStatus: "selesai" as const, source: "sistem" as const, note: "Otomatis 2 hari setelah sampai" })),
+      );
+    return done;
+  });
 
 /**
  * Pesanan yang paketnya tertahan kurir terlalu lama.

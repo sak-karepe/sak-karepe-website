@@ -1,6 +1,6 @@
 import { and, eq, gt, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { orders, payments, type Payment } from "@/db/schema";
+import { orderEvents, orders, payments, type Payment } from "@/db/schema";
 import { cancelCheckout, checkStatus, type PaymentStatus } from "@/lib/doku";
 import { formatRupiah } from "@/lib/format";
 import { checkoutStatuses } from "@/lib/order-status";
@@ -65,12 +65,17 @@ export async function applyPayment(data: PaymentStatus) {
       .returning({ id: payments.id });
     // Sudah dicatat notifikasi, job, atau cek ulang yang berjalan bersamaan.
     if (!recorded) return { paid: true, short: [] };
+    const order = await tx.query.orders.findFirst({ columns: { status: true }, where: eq(orders.id, payment.orderId) });
     // Status yang sudah diubah admin (dikirim, selesai, dibatalkan) tidak ditimpa.
     const [updated] = await tx
       .update(orders)
       .set({ status: "dibayar", updatedAt: new Date() })
       .where(and(eq(orders.id, payment.orderId), inArray(orders.status, checkoutStatuses)))
       .returning({ id: orders.id });
+    if (updated)
+      await tx
+        .insert(orderEvents)
+        .values({ orderId: payment.orderId, fromStatus: order!.status, toStatus: "dibayar", source: "doku", note: `Invoice ${invoiceNumber}` });
     // Stok diambil hanya saat status benar-benar berpindah ke "dibayar", jadi notifikasi ulang tidak mengurangi lagi.
     return { paid: !!updated, short: updated ? await takeStock(tx, payment.orderId) : [] };
   });
