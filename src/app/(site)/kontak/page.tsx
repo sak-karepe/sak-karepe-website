@@ -1,6 +1,8 @@
 import { LinkIcon } from "@/components/icons";
 import type { Metadata } from "next";
+import Image from "@/components/site-image";
 import Link from "next/link";
+import { runwayPhotos } from "@/lib/content";
 import { PageIntro } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
 import { contact, whatsappUrl } from "@/lib/contact";
@@ -19,8 +21,8 @@ export default function ContactPage() {
         copy="Bicarakan pilihan produk, sampaikan ide pesanan, atau rencanakan kunjungan untuk melihat karya lebih dekat."
       />
       <section className="wrap grid items-start gap-10 md:grid-cols-[.8fr_1.2fr] md:gap-16">
-        <div className="space-y-9">
-          <div className="border-t border-line pt-6">
+        <div className="stagger space-y-9">
+          <div>
             <h2 className="text-[28px]">Hubungi kami.</h2>
             <p className="mt-4 text-muted">
               Untuk pertanyaan koleksi dan pesanan khusus.
@@ -42,7 +44,7 @@ export default function ContactPage() {
               Chat di WhatsApp <LinkIcon />
             </a>
           </div>
-          <div className="border-t border-line pt-6">
+          <div>
             <h2 className="text-[28px]">Temukan kami.</h2>
             <address className="mt-4 not-italic">
               <p className="font-medium">{contact.location}</p>
@@ -82,6 +84,19 @@ export default function ContactPage() {
           <Link href="/koleksi" className="text-link mt-6">
             Kembali melihat koleksi <LinkIcon />
           </Link>
+          <div className="mt-9 grid grid-cols-2 gap-3 md:grid-cols-4 xl:gap-4">
+            {runwayPhotos.slice(8, 12).map((photo) => (
+              <div key={photo.src} className="photo aspect-[2/3]">
+                <Image
+                  src={photo.src}
+                  alt={photo.alt}
+                  fill
+                  sizes="(max-width: 768px) 45vw, 22vw"
+                  className="object-cover"
+                />
+              </div>
+            ))}
+          </div>
         </section>
       </Reveal>
     </main>
