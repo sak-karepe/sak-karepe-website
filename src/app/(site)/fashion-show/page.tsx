@@ -24,7 +24,7 @@ export default function FashionPage() {
         </div>
       </section>
       <Reveal className="wrap my-14 md:my-20">
-        <section className="grid gap-7 md:grid-cols-[.8fr_1.2fr] md:gap-20">
+        <section className="grid gap-7 lg:grid-cols-[.8fr_1.2fr] lg:gap-20">
           <h2>
             Dari ruang belajar,
             <br />
@@ -46,7 +46,7 @@ export default function FashionPage() {
         </Reveal>
       </section>
       <Reveal className="wrap mt-16 md:mt-24">
-        <div className="flex flex-col items-start gap-6 border-t border-line pt-10 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col items-start gap-6 pt-10 md:flex-row md:items-center md:justify-between">
           <h2 className="text-[32px] md:text-[40px]">
             Temukan bentuk
             <br />
