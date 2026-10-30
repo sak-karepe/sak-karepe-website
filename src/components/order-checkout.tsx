@@ -86,7 +86,7 @@ export function OrderCheckout({ orderId, subtotal }: { orderId: number; subtotal
           </fieldset>
         )}
       </section>
-      <section aria-labelledby="ringkasan" className="mt-10 border-t border-line pt-6">
+      <section aria-labelledby="ringkasan" className="mt-10 rounded-md bg-surface p-5">
         <h2 id="ringkasan" className="sr-only">Ringkasan pembayaran</h2>
         <p className="flex justify-between gap-4">
           Subtotal <span className="tabular-nums">{formatRupiah(subtotal)}</span>
@@ -94,7 +94,7 @@ export function OrderCheckout({ orderId, subtotal }: { orderId: number; subtotal
         <p className="mt-1 flex justify-between gap-4 text-muted">
           Ongkos kirim <span className="tabular-nums">{option ? formatRupiah(option.price) : "—"}</span>
         </p>
-        <p className="mt-3 flex justify-between gap-4 border-t border-line pt-3 text-lg font-medium">
+        <p className="mt-4 flex justify-between gap-4 text-lg font-medium">
           Total <span className="tabular-nums">{option ? formatRupiah(subtotal + option.price) : "—"}</span>
         </p>
         {error && (

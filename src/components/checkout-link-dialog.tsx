@@ -64,7 +64,7 @@ export function CheckoutLinkDialog(props: Props) {
           if (event.target === event.currentTarget) dialog.current?.close();
         }}
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-line bg-page px-5 py-4 md:px-7">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-4 bg-surface px-5 py-4 md:px-7">
           <h2 id="checkout-link-title" className="text-[22px] tracking-[-.03em]">Buat link checkout</h2>
           <button type="button" className="square -mr-2 size-10 text-muted" aria-label="Tutup dialog" onClick={() => dialog.current?.close()}>
             <CloseIcon />
@@ -92,9 +92,9 @@ function CheckoutLinkForm({ action, items, code }: Props) {
           Subtotal Rp{rupiah.format(subtotal)}. Status pesanan menjadi Menunggu checkout. Kirim link ini ke pembeli lewat
           WhatsApp; link pembayaran DOKU dibuat setelah pembeli mengisi alamat.
         </p>
-        <div className="mt-6 flex items-center gap-2 rounded-md border border-line bg-surface/50 py-1.5 pr-1.5 pl-3.5">
-          <p className="min-w-0 flex-1 truncate font-mono text-sm">{url}</p>
-          <CopyButton text={() => url} label="Salin" className="shrink-0 rounded-md px-3 py-2 text-sm hover:bg-surface" />
+        <div className="mt-6 flex items-center gap-2 rounded-md bg-surface py-1.5 pr-1.5 pl-3.5">
+          <p className="min-w-0 flex-1 truncate text-sm">{url}</p>
+          <CopyButton text={() => url} label="Salin" className="shrink-0 rounded-md px-3 py-2 text-sm hover:bg-page" />
         </div>
         <CopyButton text={() => message} label="Salin pesan untuk pembeli" className="btn mt-4 w-full" />
       </div>
@@ -107,9 +107,9 @@ function CheckoutLinkForm({ action, items, code }: Props) {
         Harga terisi dari katalog. Ubah sesuai hasil kesepakatan dengan pembeli. Ongkos kirim dihitung otomatis saat pembeli
         mengisi alamat di halaman checkout.
       </p>
-      <ul className="mt-5 divide-y divide-line border-y border-line">
+      <ul className="mt-5 grid gap-2">
         {items.map((item, index) => (
-          <li key={item.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center sm:gap-4">
+          <li key={item.id} className="grid gap-2 rounded-md bg-surface px-4 py-4 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center sm:gap-4">
             <label htmlFor={`price-${item.id}`} className="min-w-0">
               <span className="line-clamp-2">{item.name}</span>
               <span className="block text-sm text-muted">
@@ -138,7 +138,7 @@ function CheckoutLinkForm({ action, items, code }: Props) {
           {state.error}
         </p>
       )}
-      <div className="sticky bottom-0 -mx-5 mt-6 flex items-center justify-between gap-4 border-t border-line bg-page px-5 py-4 md:-mx-7 md:px-7">
+      <div className="sticky bottom-0 -mx-5 mt-6 flex items-center justify-between gap-4 bg-surface px-5 py-4 md:-mx-7 md:px-7">
         <div>
           <p className="text-sm text-muted">Subtotal</p>
           <p className="text-lg font-medium tabular-nums">Rp{rupiah.format(subtotal)}</p>
