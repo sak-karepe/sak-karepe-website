@@ -44,12 +44,16 @@ export const productImages = sqliteTable("product_images", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+/** Email di ADMIN_EMAILS (admin utama) selalu admin apa pun role-nya di sini; lihat src/auth.ts. */
+export const userRoles = ["pembeli", "admin"] as const;
+
 /** Akun pembeli/admin dari login Google. `id` inilah "ID pembeli" yang dikirim ke WhatsApp. */
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   email: text("email").notNull().unique(),
   name: text("name"),
   image: text("image"),
+  role: text("role", { enum: userRoles }).notNull().default("pembeli"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
