@@ -33,6 +33,7 @@ export async function applyShipment(shipment: Shipment) {
       : returned
         ? "gagal_kirim"
         : null;
+  // "immediate": kunci tulis diambil di awal karena webhook dan job rekonsiliasi bisa membaca lalu menulis bersamaan.
   await db.transaction(async (tx) => {
     // Status lama dibaca untuk riwayat; "gagal_kirim" yang menerima "returned" tidak dicatat sebagai perubahan.
     const before = await tx.query.orders.findFirst({ columns: { id: true, status: true }, where });
@@ -62,7 +63,7 @@ export async function applyShipment(shipment: Shipment) {
         source: "biteship",
         note: [shipment.status, shipment.note].filter(Boolean).join(" · "),
       });
-  });
+  }, { behavior: "immediate" });
 }
 
 /**
@@ -117,7 +118,7 @@ export const completeDeliveredOrders = (now = new Date()) =>
       .returning({ id: orders.id });
     if (done.length)
       await tx.insert(orderEvents).values(
-        done.map(({ id }) => ({ orderId: id, fromStatus: "sampai" as const, toStatus: "selesai" as const, source: "sistem" as const, note: "Otomatis 2 hari setelah sampai" })),
+        done.map(({ id }): typeof orderEvents.$inferInsert => ({ orderId: id, fromStatus: "sampai", toStatus: "selesai", source: "sistem", note: "Otomatis 2 hari setelah sampai" })),
       );
     return done;
   });

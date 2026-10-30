@@ -319,14 +319,17 @@ export async function cancelOrder(id: number): Promise<CancelOrderState> {
   if (!order || !checkoutStatuses.includes(order.status) || order.payments.some((p) => p.paidAt)) return { error: notCancellable };
   const cancelError = await cancelActivePayments(order.payments, `Dibatalkan pembeli (${order.code})`);
   if (cancelError) return { error: `Pesanan tidak dibatalkan. ${cancelError} Hubungi Sak Karepe lewat WhatsApp.` };
-  // Status ikut dicek di WHERE agar pembayaran yang baru masuk tidak ikut terbatalkan.
-  const [cancelled] = await db
-    .update(orders)
-    .set({ status: "dibatalkan", updatedAt: new Date() })
-    .where(and(eq(orders.id, id), eq(orders.userId, userId), inArray(orders.status, checkoutStatuses)))
-    .returning({ id: orders.id });
-  if (cancelled)
-    await db.insert(orderEvents).values({ orderId: id, fromStatus: order.status, toStatus: "dibatalkan", source: "pembeli", userId });
+  // Status ikut dicek di WHERE agar pembayaran yang baru masuk tidak ikut terbatalkan dan riwayat mencatat status asal yang benar.
+  const cancelled = await db.transaction(async (tx) => {
+    const [cancelled] = await tx
+      .update(orders)
+      .set({ status: "dibatalkan", updatedAt: new Date() })
+      .where(and(eq(orders.id, id), eq(orders.userId, userId), eq(orders.status, order.status)))
+      .returning({ id: orders.id });
+    if (cancelled)
+      await tx.insert(orderEvents).values({ orderId: id, fromStatus: order.status, toStatus: "dibatalkan", source: "pembeli", userId });
+    return cancelled;
+  });
   revalidatePath("/pesanan", "layout");
   revalidatePath("/admin", "layout");
   return cancelled ? {} : { error: notCancellable };
@@ -336,12 +339,15 @@ export async function cancelOrder(id: number): Promise<CancelOrderState> {
 export async function confirmReceived(id: number): Promise<CancelOrderState> {
   const userId = await currentUserId();
   if (!userId) return { error: loginRequired };
-  const [done] = await db
-    .update(orders)
-    .set({ status: "selesai", updatedAt: new Date() })
-    .where(and(eq(orders.id, id), eq(orders.userId, userId), eq(orders.status, "sampai")))
-    .returning({ id: orders.id });
-  if (done) await db.insert(orderEvents).values({ orderId: id, fromStatus: "sampai", toStatus: "selesai", source: "pembeli", userId });
+  const done = await db.transaction(async (tx) => {
+    const [done] = await tx
+      .update(orders)
+      .set({ status: "selesai", updatedAt: new Date() })
+      .where(and(eq(orders.id, id), eq(orders.userId, userId), eq(orders.status, "sampai")))
+      .returning({ id: orders.id });
+    if (done) await tx.insert(orderEvents).values({ orderId: id, fromStatus: "sampai", toStatus: "selesai", source: "pembeli", userId });
+    return done;
+  });
   revalidatePath("/pesanan", "layout");
   revalidatePath("/admin", "layout");
   return done ? {} : { error: "Pesanan ini belum sampai atau sudah selesai. Muat ulang halaman untuk melihat statusnya." };

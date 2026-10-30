@@ -32,13 +32,16 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
     const cancelError = await cancelActivePayments(order.payments, `Dibatalkan admin (${order.code})`);
     if (cancelError) return { error: `Pesanan tidak dibatalkan. ${cancelError}` };
   }
-  const [saved] = await db
-    .update(orders)
-    .set({ status, updatedAt: new Date(), ...(status === "sampai" && { deliveredAt: new Date() }) })
-    .where(and(eq(orders.id, id), eq(orders.status, order.status)))
-    .returning({ id: orders.id });
-  if (saved)
-    await db.insert(orderEvents).values({ orderId: id, fromStatus: order.status, toStatus: status, source: "admin", userId: Number(admin.id) });
+  const saved = await db.transaction(async (tx) => {
+    const [saved] = await tx
+      .update(orders)
+      .set({ status, updatedAt: new Date(), ...(status === "sampai" && { deliveredAt: new Date() }) })
+      .where(and(eq(orders.id, id), eq(orders.status, order.status)))
+      .returning({ id: orders.id });
+    if (saved)
+      await tx.insert(orderEvents).values({ orderId: id, fromStatus: order.status, toStatus: status, source: "admin", userId: Number(admin.id) });
+    return saved;
+  });
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
   return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
@@ -86,24 +89,28 @@ export async function bookShipment(orderId: number, _state: ShipmentFormState, f
     console.warn(`[biteship] Kurir pesanan ${order.code} gagal dipesan: ${result.error}`);
     return { error: `Kurir belum bisa dipesan. ${result.error} Bila order ini sudah muncul di dashboard Biteship, batalkan dulu di sana.` };
   }
-  const [saved] = await db
-    .update(orders)
-    .set({
-      status: "dikirim",
-      shipmentId: result.id,
-      shipmentStatus: result.status,
-      waybillId: result.waybillId,
-      trackingUrl: result.trackingUrl,
-      collectionMethod: method,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(orders.id, orderId), eq(orders.status, "dibayar"), isNull(orders.shipmentId)))
-    .returning({ id: orders.id });
+  const saved = await db.transaction(async (tx) => {
+    const [saved] = await tx
+      .update(orders)
+      .set({
+        status: "dikirim",
+        shipmentId: result.id,
+        shipmentStatus: result.status,
+        waybillId: result.waybillId,
+        trackingUrl: result.trackingUrl,
+        collectionMethod: method,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(orders.id, orderId), eq(orders.status, "dibayar"), isNull(orders.shipmentId)))
+      .returning({ id: orders.id });
+    if (saved)
+      await tx.insert(orderEvents).values({ orderId, fromStatus: "dibayar", toStatus: "dikirim", source: "admin", userId: Number(admin.id) });
+    return saved;
+  });
   if (!saved) {
     console.warn(`[biteship] Order ${result.id} ganda untuk pesanan ${order.code}; batalkan di dashboard Biteship`);
     return { error: `Pesanan berubah atau resi sudah dibuat dari tab lain. Batalkan order ${result.id} di dashboard Biteship karena ganda.` };
   }
-  await db.insert(orderEvents).values({ orderId, fromStatus: "dibayar", toStatus: "dikirim", source: "admin", userId: Number(admin.id) });
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
   return {};
@@ -150,13 +157,16 @@ export async function resendShipment(orderId: number, _state: ShipmentFormState,
 /** Pesanan gagal kirim yang tidak dikirim ulang dibatalkan dan masuk alur refund. */
 export async function refundFailedShipment(orderId: number): Promise<ShipmentFormState> {
   const admin = await requireAdmin();
-  const [saved] = await db
-    .update(orders)
-    .set({ status: "refund", updatedAt: new Date() })
-    .where(and(eq(orders.id, orderId), eq(orders.status, "gagal_kirim")))
-    .returning({ id: orders.id });
-  if (saved)
-    await db.insert(orderEvents).values({ orderId, fromStatus: "gagal_kirim", toStatus: "refund", source: "admin", userId: Number(admin.id) });
+  const saved = await db.transaction(async (tx) => {
+    const [saved] = await tx
+      .update(orders)
+      .set({ status: "refund", updatedAt: new Date() })
+      .where(and(eq(orders.id, orderId), eq(orders.status, "gagal_kirim")))
+      .returning({ id: orders.id });
+    if (saved)
+      await tx.insert(orderEvents).values({ orderId, fromStatus: "gagal_kirim", toStatus: "refund", source: "admin", userId: Number(admin.id) });
+    return saved;
+  });
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
   return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
