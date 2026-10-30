@@ -25,7 +25,7 @@ export function MobileProductActions({
   const product = { id, name, price, stock, image };
   const message = `Halo Sak Karepe, saya tertarik dengan produk "${name}". Boleh saya tahu ukuran, motif, dan harga yang tersedia?`;
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 bg-[#faf8f3] px-5 py-3 shadow-[0_-4px_20px_rgba(45,55,35,0.08)] md:hidden">
+    <div className={"fixed inset-x-0 bottom-0 z-50 bg-[#faf8f3] px-5 py-3 shadow-[0_-4px_20px_rgba(45,55,35,0.08)] md:hidden" /* taste-skill-ignore: bar menempel di atas konten */}>
       <div className="mx-auto flex max-w-lg items-center gap-3">
         <a
           href={whatsappUrl(message)}

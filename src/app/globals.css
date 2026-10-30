@@ -97,7 +97,7 @@ html[data-theme="dark"] {
     @apply mx-auto w-[calc(100%-40px)] md:w-[calc(100%-64px)] xl:w-[calc(100%-96px)] max-w-[1320px];
   }
   .btn {
-    @apply inline-flex min-h-13 items-center justify-center gap-6 rounded-md border border-accent bg-accent px-6 py-3 text-base font-medium text-button-ink whitespace-nowrap transition duration-200 hover:-translate-y-0.5 hover:brightness-90 active:translate-y-0 active:scale-[.97];
+    @apply inline-flex min-h-13 items-center justify-center gap-6 rounded-md border border-accent bg-accent px-6 py-3 text-[15px] font-medium text-button-ink whitespace-nowrap transition duration-200 hover:-translate-y-0.5 hover:brightness-90 active:translate-y-0 active:scale-[.97];
   }
   .text-link {
     @apply inline-flex items-center gap-5 py-1.5 text-[15px] underline decoration-1 underline-offset-[6px] transition-colors hover:text-accent;
@@ -184,7 +184,7 @@ dialog {
   width: min(760px, calc(100% - 32px));
   max-height: 90dvh;
   overflow: auto;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 6px;
   background: var(--page);
   color: var(--ink);
@@ -340,7 +340,7 @@ dialog.gallery-lightbox[open] {
   border-radius: 50%;
   background: #1c6e38;
   color: white;
-  box-shadow: 0 3px 12px rgb(20 50 28 / 0.12);
+  box-shadow: 0 3px 12px rgb(20 50 28 / 0.12); /* taste-skill-ignore: tombol mengambang di atas halaman */
   transition: transform 0.2s;
 }
 .whatsapp-float:hover {
@@ -487,7 +487,7 @@ dialog::-webkit-scrollbar-track {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--accent); /* taste-skill-ignore: tombol masuk Google memakai outline */
   border-radius: 6px;
   background: #fff;
   color: #20352a;

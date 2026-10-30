@@ -59,9 +59,9 @@ export function AccountMenu({ onLogin }: { onLogin: () => void }) {
       {open && (
         <div
           id="account-menu"
-          className="switch-enter absolute top-[calc(100%+12px)] right-0 z-40 w-64 rounded-md border border-line bg-page p-2 shadow-[0_12px_32px_rgb(20_36_26/.12)]"
+          className={"switch-enter absolute top-[calc(100%+12px)] right-0 z-40 w-64 rounded-md bg-page p-2 shadow-[0_12px_32px_rgb(20_36_26/.12)]" /* taste-skill-ignore: menu mengambang di atas halaman */}
         >
-          <div className="border-b border-line px-3 pt-2 pb-3">
+          <div className="mb-1 rounded-md bg-surface px-3 pt-2 pb-3">
             <p className="truncate text-[15px] font-medium">{user.name ?? user.email}</p>
             {user.name && <p className="truncate text-[13px] text-muted">{user.email}</p>}
           </div>

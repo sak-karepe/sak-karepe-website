@@ -219,7 +219,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           </Link>
           <div
             id="nav-links"
-            className={`${menu ? "flex" : "hidden"} absolute top-20 inset-x-0 flex-col items-start gap-5 border-b border-line bg-page px-5 py-6 lg:static lg:flex lg:flex-row lg:items-center lg:gap-6 lg:border-0 lg:p-0 xl:gap-7`}
+            className={`${menu ? "flex" : "hidden"} absolute top-20 inset-x-0 flex-col items-start gap-5 bg-surface px-5 py-6 lg:static lg:flex lg:flex-row lg:items-center lg:gap-6 lg:bg-transparent lg:p-0 xl:gap-7`}
           >
             {navigation.map((link) => (
               <Link
@@ -279,7 +279,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             </Link>
             <p className="text-[13px] text-muted">Ecoprint · Surabaya</p>
           </div>
-          <div className="flex flex-wrap gap-5 text-sm">
+          <div className="flex flex-wrap gap-5 text-[15px]">
             <button aria-pressed={dark} onClick={() => setDark(!dark)}>
               {dark ? "Tema terang" : "Tema gelap"}
             </button>
@@ -356,8 +356,8 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                 : modal?.kind === "login"
                   ? "flex flex-col items-center px-8 pt-11 text-center"
                   : modal?.kind === "checkout"
-                    ? "sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-line bg-page px-5 py-4 md:px-7"
-                    : "flex items-center justify-between gap-4 border-b border-line p-5 md:px-7"
+                    ? "sticky top-0 z-10 flex items-center justify-between gap-4 bg-surface px-5 py-4 md:px-7"
+                    : "flex items-center justify-between gap-4 bg-surface p-5 md:px-7"
           }
         >
           {modal?.kind === "login" && (
