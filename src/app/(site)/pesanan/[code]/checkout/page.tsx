@@ -46,16 +46,16 @@ export default async function CheckoutPage({ params }: { params: Promise<{ code:
       />
       <h1 className="mt-8 text-[40px] tracking-[-.045em] md:text-[56px]">Checkout</h1>
       <p className="mt-3 max-w-xl text-muted">
-        Harga pesanan <span className="font-mono text-ink">{order.code}</span> sudah disepakati. Pilih alamat pengiriman untuk
+        Harga pesanan <span className="text-ink tabular-nums">{order.code}</span> sudah disepakati. Pilih alamat pengiriman untuk
         menghitung ongkos kirim, lalu lanjutkan ke pembayaran.
       </p>
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-16">
         <div className="lg:order-last">
           <section aria-labelledby="produk">
             <h2 id="produk" className="text-[24px] tracking-[-.03em]">Produk</h2>
-            <ul className="mt-3 divide-y divide-line border-y border-line">
+            <ul className="mt-3 grid gap-2">
               {order.items.map((item) => (
-                <li key={item.id} className="flex items-baseline justify-between gap-4 py-3.5">
+                <li key={item.id} className="flex items-baseline justify-between gap-4 rounded-md bg-surface px-4 py-3.5">
                   <div className="min-w-0">
                     <p>{item.productName}</p>
                     <p className="text-sm text-muted">
