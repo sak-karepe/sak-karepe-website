@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { test } from "node:test";
-import { getShipment, unreachable } from "@/lib/shipping";
+import { getShipment, lowBalance, unreachable } from "@/lib/shipping";
 
 process.env.BITESHIP_API_KEY = "biteship_test.key";
 
@@ -21,4 +21,15 @@ test("HTTP 5xx dan galat jaringan dianggap gangguan", async () => {
 test("penolakan HTTP 4xx memakai pesan Biteship", async () => {
   reply(400, { success: false, error: "Order not found" });
   assert.deepStrictEqual(await getShipment("abc"), { ok: false, error: "Order not found" });
+});
+
+test("saldo kurang dikenali dari HTTP 402, kode pembayaran, atau pesannya", async () => {
+  for (const [status, body] of [
+    [402, { success: false, error: "Payment required" }],
+    [400, { success: false, error: "There's something wrong with the payment.", code: 40002039 }],
+    [400, { success: false, error: "Insufficient balance" }],
+  ] as const) {
+    reply(status, body);
+    assert.deepStrictEqual(await getShipment("abc"), { ok: false, error: lowBalance });
+  }
 });

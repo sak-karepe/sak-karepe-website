@@ -2,14 +2,24 @@
 import { useActionState } from "react";
 import { WarningCircleIcon } from "@phosphor-icons/react";
 
-type State = { error?: string };
+type State = { error?: string; topUp?: boolean };
 
-function ErrorAlert({ error }: { error?: string }) {
+function ErrorAlert({ error, topUp }: State) {
   if (!error) return null;
   return (
     <p role="alert" className="mt-3 flex gap-2 text-sm text-danger">
       <WarningCircleIcon size={18} weight="bold" aria-hidden="true" className="mt-px shrink-0" />
-      {error}
+      <span>
+        {error}
+        {topUp && (
+          <>
+            {" "}
+            <a className="text-link" href="https://dashboard.biteship.com" target="_blank" rel="noreferrer">
+              Buka dashboard Biteship
+            </a>
+          </>
+        )}
+      </span>
     </p>
   );
 }
@@ -60,7 +70,7 @@ export function ShipmentForm({ action }: { action: (state: State, formData: Form
   return (
     <form action={formAction} className="mt-3">
       <RadioGroup name="method" legend="Cara penyerahan paket" options={methods} />
-      <ErrorAlert error={state.error} />
+      <ErrorAlert {...state} />
       <button className="btn mt-3 min-h-11 w-full px-4 text-[15px]" disabled={pending}>
         {pending ? "Memesan kurir…" : "Buat resi"}
       </button>
@@ -111,7 +121,7 @@ export function ResendShipmentForm({
       ))}
       <RadioGroup name="paidBy" legend="Penanggung ongkir pengiriman ulang" options={payers} noDefault />
       <RadioGroup name="method" legend="Cara penyerahan paket" options={methods} />
-      <ErrorAlert error={state.error} />
+      <ErrorAlert {...state} />
       <button className="btn min-h-11 w-full px-4 text-[15px]" disabled={pending}>
         {pending ? "Memesan kurir…" : "Kirim ulang"}
       </button>
