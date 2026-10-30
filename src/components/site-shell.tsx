@@ -47,17 +47,6 @@ export function useSite() {
 }
 const initialMessage =
   "Halo Sak Karepe, saya ingin berkonsultasi tentang produk ecoprint.";
-export function ConsultButton() {
-  const { open } = useSite();
-  return (
-    <button
-      className="btn"
-      onClick={() => open({ kind: "consult", message: initialMessage })}
-    >
-      Konsultasi pesanan <LinkIcon />
-    </button>
-  );
-}
 export function SiteShell({ children }: { children: React.ReactNode }) {
   const currentPath = usePathname();
   const pathname = basePath && currentPath.startsWith(`${basePath}/`)

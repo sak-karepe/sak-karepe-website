@@ -47,7 +47,7 @@ export default function FashionPage() {
             <br />
             untuk keseharianmu.
           </h2>
-          <Link href="/koleksi/busana" className="btn">
+          <Link href="/koleksi/busana" className="btn btn-outline">
             Jelajahi busana <LinkIcon />
           </Link>
         </div>

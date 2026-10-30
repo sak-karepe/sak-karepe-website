@@ -97,7 +97,25 @@ html[data-theme="dark"] {
     @apply mx-auto w-[calc(100%-40px)] md:w-[calc(100%-64px)] xl:w-[calc(100%-96px)] max-w-[1320px];
   }
   .btn {
-    @apply inline-flex min-h-13 items-center justify-center gap-6 rounded-md border border-accent bg-accent px-6 py-3 text-[15px] font-medium text-button-ink whitespace-nowrap transition duration-200 hover:-translate-y-0.5 hover:brightness-90 active:translate-y-0 active:scale-[.97];
+    @apply inline-flex min-h-13 items-center justify-center gap-3 rounded-md border border-accent bg-accent px-6 py-3 text-[15px] font-medium text-button-ink whitespace-nowrap transition duration-200 hover:-translate-y-0.5 hover:brightness-90 active:translate-y-0 active:scale-[.97];
+  }
+  /* Tombol tunggal di luar hero: bergaris saat diam, isian aksen tergambar dari kiri saat hover/fokus. */
+  .btn-outline {
+    @apply relative isolate overflow-hidden bg-transparent text-accent hover:brightness-100 hover:text-button-ink focus-visible:text-button-ink;
+  }
+  .btn-outline::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 350ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .btn-outline:hover::before,
+  .btn-outline:focus-visible::before {
+    transform: scaleX(1);
   }
   .text-link {
     @apply inline-flex items-center gap-5 py-1.5 text-[15px] underline decoration-1 underline-offset-[6px] transition-colors hover:text-accent;

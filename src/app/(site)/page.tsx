@@ -2,7 +2,6 @@ import { assetPath, productImage, runwayImage } from "@/lib/assets";
 import { LinkIcon } from "@/components/icons";
 import Image from "@/components/site-image";
 import Link from "next/link";
-import { ConsultButton } from "@/components/site-shell";
 import { Collection } from "@/components/collection";
 import { RunwayGallery } from "@/components/runway-gallery";
 import { Reveal } from "@/components/reveal";
@@ -34,7 +33,7 @@ export default function Home() {
           </p>
           <div className="hero-enter mt-8 flex flex-wrap items-center gap-5 xl:gap-7">
             <Link
-              className="btn px-5 xl:px-6"
+              className="btn btn-outline px-5 xl:px-6"
               href="/koleksi"
             >
               Jelajahi koleksi <LinkIcon />
@@ -208,67 +207,48 @@ export default function Home() {
           </div>
         </div>
       </section>
-      <Reveal className="wrap">
-        <section
-          className="grid gap-6 pb-14 md:grid-cols-[1.05fr_.95fr] md:gap-12 md:pt-5 md:pb-[88px] xl:gap-[90px]"
-          aria-labelledby="materials-title"
-        >
-          <div>
-            <h2 id="materials-title">
-              Kain pilihan.
-              <br />
-              Karakter alami.
-            </h2>
-            <p className="mt-6 max-w-[440px] text-muted">
-              Katun premium, sutra, dan Bemberg menjadi pilihan material dalam
-              proses berkarya. Ecoprint juga dipadukan dengan tenun ikat, lurik,
-              dan batik.
-            </p>
-          </div>
-          <div className="grid content-center">
-            {[
-              ["Katun · Sutra · Bemberg", "Ragam material untuk berkarya"],
-              [
-                "Tenun ikat · Lurik · Batik",
-                "Bertemu motif dan warna ecoprint",
-              ],
-              ["Pounding · Steam", "Teknik yang terus dikembangkan"],
-            ].map(([title, copy]) => (
-              <div
-                key={title}
-                className="py-4"
-              >
-                <p className="font-medium">{title}</p>
-                <p className="mt-1 text-[15px] text-muted">{copy}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </Reveal>
-      <Reveal className="wrap">
+      <Reveal className="wrap mt-16 md:mt-24">
         <section
           id="pesanan-khusus"
-          className="grid overflow-hidden rounded-md bg-surface md:grid-cols-[1.25fr_.75fr]"
+          className="grid gap-9 md:grid-cols-2 md:gap-12 xl:gap-20"
           aria-labelledby="custom-title"
         >
-          <div className="px-7 py-9 md:p-10 xl:px-[58px] xl:py-[52px]">
-            <h2 id="custom-title">
-              Punya ide sendiri?
-            </h2>
-            <p className="mt-4 mb-6 max-w-[440px] text-muted">
-              Dari busana hingga tas, ceritakan motif dan bentuk yang kamu
-              inginkan. Diskusikan pesanan khusus bersama Sak Karepe.
-            </p>
-            <ConsultButton />
-          </div>
-          <div className="relative h-[230px] md:h-auto">
+          <div className="photo relative aspect-[4/3] md:aspect-auto md:min-h-[480px] xl:min-h-[580px]">
             <Image
-              src={productImage("193084ac-ee0b-4741-8f53-18729d7bce92")}
-              alt="Tote bag ecoprint dengan susunan jejak daun cokelat"
+              src={productImage("c262c573-badf-4f69-a5ba-68ec232fdfbb")}
+              alt="Cangkir putih bermotif daun jingga dengan ranting daun segar di atas meja kayu"
               fill
-              sizes="(max-width: 768px) 90vw, 35vw"
-              className="object-cover object-[center_62%]"
+              sizes="(max-width: 768px) 90vw, 40vw"
+              className="object-cover object-[center_65%]"
             />
+          </div>
+          <div className="self-center">
+            <h2 id="custom-title">Punya ide sendiri?</h2>
+            <p className="mt-4 max-w-[520px] text-muted">
+              Dari busana hingga tas, ceritakan motif dan bentuk yang kamu
+              inginkan. Pilih kainnya, padukan coraknya, lalu diskusikan
+              bersama Sak Karepe.
+            </p>
+            <dl className="my-9 grid gap-4 md:gap-5">
+              {[
+                ["Kain", "Katun · Sutra · Bemberg"],
+                ["Perpaduan", "Tenun ikat · Lurik · Batik"],
+                ["Teknik", "Pounding · Steam"],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="grid items-baseline gap-1 sm:grid-cols-[110px_1fr] sm:gap-4"
+                >
+                  <dt className="text-[15px] text-muted">{label}</dt>
+                  <dd className="font-heading text-[22px] leading-tight font-medium tracking-[-.03em] md:text-[28px]">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <Link href="/kontak" className="btn btn-outline">
+              Hubungi kami <LinkIcon />
+            </Link>
           </div>
         </section>
       </Reveal>

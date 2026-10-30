@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Image from "@/components/site-image";
 import Link from "next/link";
 import { runwayPhotos } from "@/lib/content";
-import { PageIntro } from "@/components/page-intro";
+import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
 import { contact, whatsappUrl } from "@/lib/contact";
 export const metadata: Metadata = {
@@ -14,64 +14,82 @@ export const metadata: Metadata = {
 export default function ContactPage() {
   return (
     <main id="utama">
-      <PageIntro
-        label="Kontak"
-        title="Mari bertemu."
-        accent="Mari bercerita."
-        copy="Bicarakan pilihan produk, sampaikan ide pesanan, atau rencanakan kunjungan untuk melihat karya lebih dekat."
-      />
-      <section className="wrap grid items-start gap-10 md:grid-cols-[.8fr_1.2fr] md:gap-16">
-        <div className="stagger space-y-9">
+      <section className="wrap pt-8 md:pt-10">
+        <Breadcrumb items={[{ label: "Kontak" }]} />
+        <div className="mt-9 grid items-center gap-9 lg:grid-cols-2 lg:gap-16">
           <div>
-            <h2 className="text-[28px]">Hubungi kami.</h2>
-            <p className="mt-4 text-muted">
-              Untuk pertanyaan koleksi dan pesanan khusus.
+            <h1 className="page-title">
+              <span className="hero-title-line">
+                <span>Mari bertemu.</span>
+              </span>
+              <span className="hero-title-line">
+                <span>Mari bercerita.</span>
+              </span>
+            </h1>
+            <p className="hero-enter mt-6 max-w-[480px] text-muted md:text-lg">
+              Bicarakan pilihan produk, sampaikan ide pesanan, atau rencanakan
+              kunjungan untuk melihat karya lebih dekat.
             </p>
-            <a
-              className="mt-3 block text-[28px] font-heading tracking-[-.04em] text-accent"
-              href={whatsappUrl()}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {contact.phone}
-            </a>
-            <a
-              href={whatsappUrl()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn mt-5"
-            >
-              Chat di WhatsApp <LinkIcon />
-            </a>
           </div>
-          <div>
-            <h2 className="text-[28px]">Temukan kami.</h2>
-            <address className="mt-4 not-italic">
-              <p className="font-medium">{contact.location}</p>
-              <p className="mt-2 max-w-[420px] text-muted">{contact.address}</p>
-            </address>
-            <p className="mt-4 max-w-[400px] text-sm text-muted">
-              Hubungi kami terlebih dahulu untuk membicarakan waktu kunjungan.
-            </p>
-            <a
-              className="text-link mt-5"
-              href={contact.maps}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Buka rute di Google Maps <LinkIcon />
-            </a>
+          <div className="hero-images photo">
+            <iframe
+              src={contact.embed}
+              title="Peta lokasi SLB Khusus Bina Mandiri, Surabaya"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+              className="h-[320px] w-full border-0 lg:h-[420px]"
+            />
           </div>
         </div>
-        <div className="photo">
-          <iframe
-            src={contact.embed}
-            title="Peta lokasi SLB Khusus Bina Mandiri, Surabaya"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            allowFullScreen
-            className="h-[390px] w-full border-0 md:h-[590px]"
+      </section>
+      <section
+        className="wrap stagger mt-16 grid gap-10 md:mt-24 lg:grid-cols-2 lg:gap-16"
+        aria-labelledby="find-title"
+      >
+        <div className="photo aspect-[1088/540] lg:aspect-auto lg:min-h-[420px]">
+          <Image
+            src="/images/place/depan-sekolah.jpg"
+            alt="Depan SLB Khusus Bina Mandiri dengan papan nama dan pagar hijau, Jl. Jemursari XVII No. E1, Surabaya"
+            fill
+            sizes="(max-width: 1024px) 90vw, 45vw"
+            className="object-cover object-[15%_50%]"
           />
+        </div>
+        <div>
+          <h2 id="find-title" className="text-[28px]">
+            Temukan kami.
+          </h2>
+          <address className="mt-4 not-italic">
+            <p className="font-medium">{contact.location}</p>
+            <p className="mt-2 text-muted">{contact.address}</p>
+          </address>
+          <a
+            className="text-link mt-5"
+            href={contact.maps}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Buka rute di Google Maps <LinkIcon />
+          </a>
+          <p className="mt-8 text-sm text-muted">
+            Hubungi kami terlebih dahulu untuk membicarakan waktu kunjungan.
+          </p>
+          <a
+            className="mt-3 block text-[28px] font-heading tracking-[-.04em] text-accent"
+            href={whatsappUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {contact.phone}
+          </a>
+          <a
+            href={whatsappUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-outline mt-5"
+          >
+            Chat di WhatsApp <LinkIcon />
+          </a>
         </div>
       </section>
       <Reveal className="wrap mt-16 md:mt-24">
