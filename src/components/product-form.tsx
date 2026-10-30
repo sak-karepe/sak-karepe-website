@@ -222,7 +222,7 @@ export function ProductForm({
       {onDelete && (
         <form
           action={onDelete}
-          className="mt-14 max-w-5xl border-t border-line pt-6"
+          className="mt-20 max-w-5xl"
           onSubmit={(event) => {
             if (!confirm(`Hapus produk "${product?.name}"? Tindakan ini tidak bisa dibatalkan.`)) event.preventDefault();
           }}
