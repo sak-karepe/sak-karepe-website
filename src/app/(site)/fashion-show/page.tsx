@@ -14,8 +14,8 @@ export default function FashionPage() {
     <main id="utama">
       <PageIntro
         label="Fashion show"
-        title="Jejak daun."
-        accent="Langkah baru."
+        title="Melangkah di"
+        accent="tiga kota."
         copy="Busana ecoprint, batik, dan tenun dalam dokumentasi panggung Sak Karepe. Lihat motifnya bergerak bersama pemakainya."
       />
       <section className="bg-surface pt-2 pb-10 md:pb-14">
@@ -23,25 +23,20 @@ export default function FashionPage() {
           <RunwayGallery />
         </div>
       </section>
-      <Reveal className="wrap my-14 md:my-20">
-        <section className="grid gap-7 lg:grid-cols-[.8fr_1.2fr] lg:gap-20">
-          <h2>
-            Dari ruang belajar,
-            <br />
-            ke panggung.
-          </h2>
-          <p className="max-w-[580px] self-center text-muted">
-            Dalam perjalanan yang diceritakan pada katalog, karya Sak Karepe
-            mendapat kesempatan tampil di Jakarta, Yogyakarta, dan Surabaya.
-            Motif daun hadir bersama perpaduan batik, tenun ikat, dan lurik.
-          </p>
-        </section>
-      </Reveal>
-      <section className="wrap" aria-labelledby="archive-title">
+      <section className="wrap mt-14 md:mt-20" aria-labelledby="archive-title">
         <Reveal>
-          <h2 id="archive-title" className="mb-9">
-            Galeri panggung.
-          </h2>
+          <div className="mb-10 grid gap-7 lg:mb-14 lg:grid-cols-[.8fr_1.2fr] lg:gap-20">
+            <h2 id="archive-title">
+              Dari ruang belajar,
+              <br />
+              ke panggung.
+            </h2>
+            <p className="max-w-[580px] self-center text-muted">
+              Dalam perjalanan yang diceritakan pada katalog, karya Sak Karepe
+              mendapat kesempatan tampil di Jakarta, Yogyakarta, dan Surabaya.
+              Motif daun hadir bersama perpaduan batik, tenun ikat, dan lurik.
+            </p>
+          </div>
           <RunwayArchive />
         </Reveal>
       </section>

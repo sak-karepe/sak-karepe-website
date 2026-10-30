@@ -24,7 +24,7 @@ export function RunwayArchive() {
             />
           </div>
           <span className="mt-3 flex justify-between text-[13px] text-muted md:text-sm">
-            Lihat tampilan <LinkIcon />
+            {photo.alt} <LinkIcon />
           </span>
         </button>
       ))}

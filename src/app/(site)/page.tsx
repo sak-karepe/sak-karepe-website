@@ -12,13 +12,13 @@ export default function Home() {
   return (
     <main id="utama">
       <section
-        className="wrap grid items-center gap-9 py-8 lg:grid-cols-[.9fr_1.1fr] lg:gap-14 lg:py-10"
+        className="wrap grid items-center gap-9 py-8 lg:grid-cols-[1.1fr_.9fr] lg:gap-14 lg:py-10"
         aria-labelledby="hero-title"
       >
         <div>
           <h1
             id="hero-title"
-            className="mb-7 text-[clamp(42px,10.8vw,70px)] leading-[1.04] tracking-[-.065em] lg:text-[clamp(56px,5.4vw,80px)]"
+            className="mb-7 text-[clamp(42px,10.8vw,70px)] leading-[1.04] tracking-[-.065em] lg:text-[clamp(56px,7.4vw,112px)]"
           >
             <span className="hero-title-line">
               <span>Ecoprint dari</span>
@@ -56,7 +56,7 @@ export default function Home() {
         </div>
       </section>
       <section
-        className="wrap grid items-center gap-7 py-14 lg:grid-cols-2 lg:gap-12 lg:py-24 xl:gap-20"
+        className="wrap grid items-center gap-7 py-14 lg:grid-cols-[1.25fr_1fr] lg:gap-12 lg:py-24 xl:gap-20"
         id="cerita"
         aria-labelledby="story-title"
       >
@@ -85,16 +85,16 @@ export default function Home() {
             id="story-title"
             className="max-w-[440px]"
           >
-            Dari sekolah,
+            Dimulai dari
             <br />
-            menuju dunia.
+            batik tulis.
           </h2>
-          <p className="mt-6 max-w-[400px] text-muted">
+          <p className="mt-6 max-w-[520px] text-muted">
             Sak Karepe tumbuh dari pendidikan vokasi di SLB Khusus Bina Mandiri.
             Sejak 2004, peserta didik diperkenalkan pada batik tulis dengan
             pewarnaan alami.
           </p>
-          <p className="my-6 max-w-[400px] text-muted">
+          <p className="my-6 max-w-[520px] text-muted">
             Jumputan, shibori, lalu ecoprint membuka cara berkarya yang
             disesuaikan dengan kemampuan setiap anak. Setiap potensi mendapat
             ruang untuk tumbuh.
@@ -106,7 +106,7 @@ export default function Home() {
       </section>
       <Reveal className="wrap">
         <section
-          className="grid items-center gap-6 py-10 lg:grid-cols-[1fr_1.2fr] xl:grid-cols-[1.1fr_1.2fr_.5fr] xl:gap-12"
+          className="grid items-end gap-6 py-10 lg:grid-cols-[1fr_1.2fr] lg:py-20 xl:gap-12"
           aria-labelledby="nature-title"
         >
           <h2 id="nature-title">
@@ -119,24 +119,23 @@ export default function Home() {
               alami. Hasilnya punya karakter yang tidak selalu dapat diulang
               persis sama.
             </p>
-            <a
-              className="text-link mt-4"
-              href={catalog}
-              target="_blank"
-              rel="noopener"
-            >
-              Baca katalog 2026 <LinkIcon />
-            </a>
           </div>
-          <div className="photo hidden h-[165px] xl:block">
-            <Image
-              src={productImage("8804e501-4559-4aa9-9848-df5476f1c64d")}
-              alt="Jejak berbagai bentuk daun pada kain ecoprint"
-              fill
-              sizes="180px"
-              className="object-cover object-[center_35%]"
-            />
-          </div>
+          <figure className="mt-8 lg:col-span-2 lg:mt-16">
+            <blockquote className="max-w-[980px] text-[21px] leading-[1.35] tracking-[-.02em] md:text-[32px] xl:text-[36px]">
+              &ldquo;Setiap helai daun meninggalkan jejak yang berbeda. Setiap
+              tangan menghasilkan cerita yang berbeda.&rdquo;
+            </blockquote>
+            <figcaption className="mt-5">
+              <a
+                className="text-link"
+                href={catalog}
+                target="_blank"
+                rel="noopener"
+              >
+                Katalog Sak Karepe 2026 <LinkIcon />
+              </a>
+            </figcaption>
+          </figure>
         </section>
       </Reveal>
       <section
@@ -161,14 +160,14 @@ export default function Home() {
         className="bg-surface py-11 md:pt-[72px] md:pb-12"
         aria-labelledby="runway-title"
       >
-        <div className="wrap grid items-center gap-9 py-9 md:min-h-[610px] md:grid-cols-[1fr_1.12fr] md:gap-9 md:py-12 xl:min-h-[680px] xl:gap-14">
+        <div className="wrap grid items-center gap-9 py-9 md:grid-cols-[1fr_1.12fr] md:gap-9 md:py-12 xl:gap-14">
                     <div>
             <h2
               id="runway-title"
             >
-              Jejak daun.
+              Daun di atas
               <br />
-              Langkah baru.
+              panggung.
             </h2>
             <p className="mt-6 max-w-[540px] text-muted">
               Karya dari ruang belajar hadir di panggung fashion. Dalam

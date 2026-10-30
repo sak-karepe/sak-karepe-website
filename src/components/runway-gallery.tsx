@@ -85,7 +85,7 @@ export function RunwayGallery() {
               />
             </div>
             <span className="mt-3 flex justify-between gap-2 text-[13px] md:text-sm">
-              Lihat tampilan <LinkIcon />
+              {photo.alt} <LinkIcon />
             </span>
           </button>
         ))}

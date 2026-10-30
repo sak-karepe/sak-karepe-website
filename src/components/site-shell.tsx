@@ -254,7 +254,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             </button>
             <AccountMenu onLogin={() => open({ kind: "login" })} />
             <button
-              className="rounded-md border border-line px-3 py-2 text-sm lg:hidden"
+              className="rounded-md bg-surface px-3 py-2 text-sm lg:hidden"
               aria-expanded={menu}
               aria-controls="nav-links"
               onClick={() => setMenu(!menu)}
