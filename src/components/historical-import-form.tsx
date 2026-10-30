@@ -124,14 +124,14 @@ export function HistoricalImportForm() {
 export function UndoHistoricalImport({ batchId }: { batchId: string }) {
   const [state, action, pending] = useActionState<{ error?: string }>(async () => {
     try { return await undoHistoricalImport(batchId); }
-    catch { return { error: "Batch belum bisa dibatalkan. Coba lagi." }; }
+    catch { return { error: "Hasil impor belum bisa dihapus. Coba lagi." }; }
   }, {});
   return (
     <form action={action} onSubmit={(event) => {
       if (!confirm("Hapus semua transaksi dalam batch ini? Stok tidak akan berubah.")) event.preventDefault();
     }}>
       <button className="min-h-11 rounded-md border border-danger px-4 text-sm text-danger" disabled={pending}>
-        {pending ? "Membatalkan…" : "Batalkan import"}
+        {pending ? "Menghapus…" : "Hapus"}
       </button>
       {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
     </form>

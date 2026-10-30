@@ -15,7 +15,6 @@ import {
   bookShipment,
   createCheckoutLink,
   markReviewed,
-  recheckOrder,
   refundFailedShipment,
   resendShipment,
   updateOrderStatus,
@@ -299,9 +298,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 ))}
               </ul>
             </section>
-          )}
-          {(order.payments.length > 0 || order.shipmentId) && (
-            <ActionButton action={recheckOrder.bind(null, order.id)} label="Cek ulang status" pendingLabel="Mengecek DOKU & Biteship…" />
           )}
           {adminTransitions[order.status] && (
             <StatusForm
