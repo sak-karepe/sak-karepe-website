@@ -5,12 +5,13 @@ import { eq } from "drizzle-orm";
 import { ArrowSquareOutIcon, WarningCircleIcon, WhatsappLogoIcon } from "@phosphor-icons/react/dist/ssr";
 import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
-import { orders } from "@/db/schema";
+import { orders, type OrderEvent } from "@/db/schema";
 import { AdminBack } from "@/components/admin-back";
 import { CheckoutLinkDialog, CopyCheckoutLink } from "@/components/checkout-link-dialog";
-import { ActionButton, RefundButton, ResendShipmentForm, ShipmentForm, StatusForm } from "@/components/shipment-forms";
+import { ActionButton, NoteForm, RefundButton, ResendShipmentForm, ShipmentForm, StatusForm } from "@/components/shipment-forms";
 import { formatDateTime, formatRupiah } from "@/lib/format";
 import {
+  addOrderNote,
   bookShipment,
   createCheckoutLink,
   markReviewed,
@@ -29,6 +30,14 @@ import {
   shipmentStatusLabels,
 } from "@/lib/order-status";
 import { isActivePayment } from "@/lib/payments";
+
+const eventSourceLabels: Record<OrderEvent["source"], string> = {
+  admin: "Admin",
+  pembeli: "Pembeli",
+  doku: "DOKU",
+  biteship: "Biteship",
+  sistem: "Sistem",
+};
 export const metadata: Metadata = { title: "Detail pesanan" };
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdminPage();
@@ -38,6 +47,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     where: eq(orders.id, id),
     with: { user: true, items: true, payments: { orderBy: (payment, { desc }) => [desc(payment.id)], limit: 1 },
       shipmentHistory: { orderBy: (history, { desc }) => [desc(history.id)] },
+      events: { orderBy: (event, { desc }) => [desc(event.id)], with: { user: { columns: { name: true, email: true } } } },
     },
   });
   if (!order) notFound();
@@ -126,6 +136,32 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <section aria-labelledby="catatan">
             <h2 id="catatan" className="text-xl tracking-[-.03em]">Catatan pembeli</h2>
             <p className="mt-3 whitespace-pre-line text-[15px] text-muted">{order.notes || "Tidak ada catatan."}</p>
+          </section>
+          <section aria-labelledby="riwayat">
+            <h2 id="riwayat" className="text-xl tracking-[-.03em]">Riwayat</h2>
+            {order.events.length > 0 ? (
+              <ol className="mt-3 divide-y divide-line border-y border-line">
+                {order.events.map((event) => (
+                  <li key={event.id} className="py-3 text-[15px]">
+                    {event.toStatus ? (
+                      <p>
+                        {event.fromStatus ? orderStatusLabels[event.fromStatus] : "—"} → {orderStatusLabels[event.toStatus]}
+                      </p>
+                    ) : (
+                      <p className="text-sm font-medium">Catatan internal</p>
+                    )}
+                    {event.note && <p className={event.toStatus ? "text-sm text-muted" : "whitespace-pre-line"}>{event.note}</p>}
+                    <p className="text-sm text-muted">
+                      {formatDateTime(event.createdAt)} · {eventSourceLabels[event.source]}
+                      {event.user && ` · ${event.user.name ?? event.user.email}`}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="mt-3 text-[15px] text-muted">Belum ada perubahan status tercatat.</p>
+            )}
+            <NoteForm action={addOrderNote.bind(null, order.id)} />
           </section>
         </div>
         <aside className="grid content-start gap-8">
