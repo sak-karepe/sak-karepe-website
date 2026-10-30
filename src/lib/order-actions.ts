@@ -9,7 +9,7 @@ import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } 
 import { checkStatus } from "@/lib/doku";
 import { applyPayment, cancelActivePayments } from "@/lib/payments";
 import { refreshShipment, saveResend } from "@/lib/shipments";
-import { createShipment, lowBalance, unreachable } from "@/lib/shipping";
+import { createShipment, lowBalance, quotaReached, unreachable } from "@/lib/shipping";
 
 export type StatusFormState = { error?: string };
 
@@ -47,12 +47,12 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
   return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
 }
 
-export type ShipmentFormState = { error?: string; topUp?: boolean };
+export type ShipmentFormState = { error?: string; dashboard?: boolean };
 
-/** Hanya galat jaringan/5xx yang bisa menyisakan order di Biteship; penolakan 4xx (mis. saldo kurang) tidak membuat order. */
+/** Hanya gangguan yang bisa menyisakan order di Biteship; penolakan (mis. saldo kurang, kuota habis) tidak membuat order. */
 const bookingError = (error: string): ShipmentFormState => ({
   error: `Kurir belum bisa dipesan. ${error}${error === unreachable ? " Bila order ini sudah muncul di dashboard Biteship, batalkan dulu di sana." : ""}`,
-  topUp: error === lowBalance,
+  dashboard: error === lowBalance || error === quotaReached,
 });
 
 /** Booking kurir pilihan pembeli di Biteship ke alamat pesanan; dipakai untuk resi pertama dan kirim ulang. */

@@ -2,16 +2,16 @@
 import { useActionState } from "react";
 import { WarningCircleIcon } from "@phosphor-icons/react";
 
-type State = { error?: string; topUp?: boolean };
+type State = { error?: string; dashboard?: boolean };
 
-function ErrorAlert({ error, topUp }: State) {
+function ErrorAlert({ error, dashboard }: State) {
   if (!error) return null;
   return (
     <p role="alert" className="mt-3 flex gap-2 text-sm text-danger">
       <WarningCircleIcon size={18} weight="bold" aria-hidden="true" className="mt-px shrink-0" />
       <span>
         {error}
-        {topUp && (
+        {dashboard && (
           <>
             {" "}
             <a className="text-link" href="https://dashboard.biteship.com" target="_blank" rel="noreferrer">

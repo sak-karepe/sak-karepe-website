@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { test } from "node:test";
-import { getShipment, lowBalance, unreachable } from "@/lib/shipping";
+import { getShipment, lowBalance, quoteShipping, quotaReached, unreachable } from "@/lib/shipping";
 
 process.env.BITESHIP_API_KEY = "biteship_test.key";
 
@@ -25,13 +25,15 @@ test("penolakan HTTP 4xx memakai pesan Biteship", async () => {
   assert.deepStrictEqual(await getShipment("abc"), { ok: false, error: "Order not found" });
 });
 
-test("saldo kurang dikenali dari HTTP 402, kode pembayaran, atau pesannya", async () => {
-  for (const [status, body] of [
-    [402, { success: false, error: "Payment required" }],
-    [400, { success: false, error: "There's something wrong with the payment.", code: 40002039 }],
-    [400, { success: false, error: "Insufficient balance" }],
-  ] as const) {
-    reply(status, body);
-    assert.deepStrictEqual(await getShipment("abc"), { ok: false, error: lowBalance });
-  }
+test("saldo kurang dan kuota habis memakai pesan untuk admin", async () => {
+  reply(400, { success: false, error: "Bite points tidak cukup" });
+  assert.deepStrictEqual(await getShipment("abc"), { ok: false, error: lowBalance });
+  reply(400, { success: false, error: "You have reached your monthly Orders API limit" });
+  assert.deepStrictEqual(await getShipment("abc"), { ok: false, error: quotaReached });
+});
+
+test("saldo habis saat cek ongkir tidak menyalahkan kode pos pembeli", async () => {
+  reply(400, { success: false, error: "No sufficient balance to call rates API. Please top up your balance" });
+  const quote = await quoteShipping("60111", [{ name: "Batik", price: 100_000, quantity: 1, weight: null }]);
+  assert.deepStrictEqual(quote, { ok: false, error: "Layanan cek ongkir sedang gangguan. Coba lagi sebentar." });
 });
