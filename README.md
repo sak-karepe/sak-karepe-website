@@ -54,7 +54,7 @@ Konsultasi dan pesanan membuka WhatsApp ke nomor di `NEXT_PUBLIC_WHATSAPP_NUMBER
 
 Tombol **Masuk** di navbar membuka modal login Google (Auth.js / `next-auth` v5). Semua akun Google dengan email terverifikasi boleh masuk sebagai pembeli dan kembali ke halaman tempat ia menekan **Masuk**. Saat login, akun disimpan di tabel `users`; `users.id` menjadi `session.user.id` sekaligus "ID pembeli". Dashboard `/admin` dan menu "Dashboard admin" hanya untuk admin:
 
-- **Admin utama**: email di `ADMIN_EMAILS`. Selalu admin walaupun `users.role` diubah, dan role-nya diset `admin` setiap login, jadi instalasi baru tidak terkunci dan admin utama tidak bisa dicabut lewat dashboard/database. Mengganti admin utama berarti mengubah env dan restart server.
+- **Admin utama**: email di `ADMIN_EMAILS`. Selalu admin apa pun isi `users.role`-nya (role-nya tidak ditulis ke database), jadi instalasi baru tidak terkunci dan admin utama tidak bisa dicabut lewat dashboard/database. Mengganti admin utama berarti mengubah env dan restart server; email yang dihapus dari env langsung kehilangan akses.
 - **Admin lain**: akun dengan `users.role = 'admin'` (default `pembeli`), tanpa perlu ada di env.
 
 Role disimpan di token sesi hanya untuk menampilkan menu admin. `requireAdminPage()` dan `requireAdmin()` (`src/auth.ts`) selalu mengecek ulang role ke database, sehingga admin yang diturunkan ke pembeli langsung ditolak di halaman dan Server Action admin.

@@ -22,13 +22,16 @@ export function isRootAdmin(email?: string | null) {
   return admins.includes(email.toLowerCase());
 }
 
-/** Sesi admin yang dicek ulang ke database, supaya admin yang dicabut langsung kehilangan akses. */
+/** Admin utama, atau role admin di database (dibaca ulang supaya admin yang dicabut langsung kehilangan akses). */
+export async function isAdmin(user: { id: string; email?: string | null }) {
+  if (isRootAdmin(user.email)) return true;
+  const row = await db.query.users.findFirst({ columns: { role: true }, where: eq(users.id, Number(user.id)) });
+  return row?.role === "admin";
+}
+
 async function currentAdmin() {
   const user = (await auth())?.user;
-  if (!user) return null;
-  if (isRootAdmin(user.email)) return user;
-  const row = await db.query.users.findFirst({ columns: { role: true }, where: eq(users.id, Number(user.id)) });
-  return row?.role === "admin" ? user : null;
+  return user && (await isAdmin(user)) ? user : null;
 }
 
 /** Untuk layout/halaman admin: pengunjung tanpa sesi admin dikembalikan ke beranda. */
@@ -51,13 +54,15 @@ export async function currentUserId() {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-/** Simpan/perbarui akun di tabel users (admin utama ditandai admin) dan kembalikan id serta role-nya. */
+/**
+ * Simpan/perbarui akun di tabel users dan kembalikan id serta role-nya. Role admin utama sengaja tidak ditulis,
+ * supaya menghapus email dari ADMIN_EMAILS langsung mencabut aksesnya.
+ */
 async function upsertUser(email: string, name?: string | null, image?: string | null) {
-  const root = isRootAdmin(email);
   const [user] = await db
     .insert(users)
-    .values({ email: email.toLowerCase(), name, image, role: root ? "admin" : "pembeli" })
-    .onConflictDoUpdate({ target: users.email, set: root ? { name, image, role: "admin" } : { name, image } })
+    .values({ email: email.toLowerCase(), name, image })
+    .onConflictDoUpdate({ target: users.email, set: { name, image } })
     .returning({ id: users.id, role: users.role });
   return user;
 }
