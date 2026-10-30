@@ -27,14 +27,14 @@ export default function Home() {
               <span>ruang belajar.</span>
             </span>
           </h1>
-          <p className="hero-enter max-w-[460px] text-[17px] xl:text-lg">
+          <p className="hero-enter max-w-[460px]">
             Busana, tas, kain, dan sepatu bermotif daun dari pendidikan vokasi
             SLB Khusus Bina Mandiri, Surabaya. Karyanya telah tampil di
             panggung Jakarta, Yogyakarta, dan Surabaya.
           </p>
           <div className="hero-enter mt-8 flex flex-wrap items-center gap-5 xl:gap-7">
             <Link
-              className="btn px-5 text-[15px] xl:px-6 xl:text-base"
+              className="btn px-5 xl:px-6"
               href="/koleksi"
             >
               Jelajahi koleksi <LinkIcon />
@@ -83,7 +83,7 @@ export default function Home() {
         <Reveal>
           <h2
             id="story-title"
-            className="max-w-[440px] text-[42px] xl:text-[54px]"
+            className="max-w-[440px]"
           >
             Dari sekolah,
             <br />
@@ -106,15 +106,15 @@ export default function Home() {
       </section>
       <Reveal className="wrap">
         <section
-          className="grid items-center gap-6 py-10 md:grid-cols-[1fr_1.2fr] xl:grid-cols-[1.1fr_1.2fr_.5fr] xl:gap-12"
+          className="grid items-center gap-6 py-10 lg:grid-cols-[1fr_1.2fr] xl:grid-cols-[1.1fr_1.2fr_.5fr] xl:gap-12"
           aria-labelledby="nature-title"
         >
-          <h2 id="nature-title" className="text-[32px] xl:text-[34px]">
+          <h2 id="nature-title">
             Setiap daun,
-            <br className="hidden md:block" /> jejak yang berbeda.
+            <br className="hidden lg:block" /> jejak yang berbeda.
           </h2>
           <div>
-            <p className="max-w-[420px] text-base text-muted">
+            <p className="max-w-[420px] text-muted">
               Daun dan bunga dari lingkungan menjadi sumber motif dan warna
               alami. Hasilnya punya karakter yang tidak selalu dapat diulang
               persis sama.
@@ -165,13 +165,12 @@ export default function Home() {
                     <div>
             <h2
               id="runway-title"
-              className="text-5xl md:text-[clamp(48px,5.3vw,72px)] leading-[1.04] tracking-[-.065em]"
             >
               Jejak daun.
               <br />
               Langkah baru.
             </h2>
-            <p className="mt-6 max-w-[540px] text-base text-muted md:text-[17px]">
+            <p className="mt-6 max-w-[540px] text-muted">
               Karya dari ruang belajar hadir di panggung fashion. Dalam
               perjalanan Sak Karepe, koleksinya telah tampil di Jakarta,
               Yogyakarta, dan Surabaya.
@@ -216,7 +215,7 @@ export default function Home() {
           aria-labelledby="materials-title"
         >
           <div>
-            <h2 id="materials-title" className="text-4xl md:text-[42px]">
+            <h2 id="materials-title">
               Kain pilihan.
               <br />
               Karakter alami.
@@ -240,8 +239,8 @@ export default function Home() {
                 key={title}
                 className="py-4"
               >
-                <p className="text-lg font-medium">{title}</p>
-                <p className="mt-1 text-sm text-muted">{copy}</p>
+                <p className="font-medium">{title}</p>
+                <p className="mt-1 text-[15px] text-muted">{copy}</p>
               </div>
             ))}
           </div>
@@ -254,7 +253,7 @@ export default function Home() {
           aria-labelledby="custom-title"
         >
           <div className="px-7 py-9 md:p-10 xl:px-[58px] xl:py-[52px]">
-            <h2 id="custom-title" className="text-4xl xl:text-5xl">
+            <h2 id="custom-title">
               Punya ide sendiri?
             </h2>
             <p className="mt-4 mb-6 max-w-[440px] text-muted">
@@ -289,7 +288,7 @@ export default function Home() {
             </p>
             <address className="mt-8 not-italic">
               <p className="font-medium">{contact.location}</p>
-              <p className="mt-2 max-w-[370px] text-base text-muted">
+              <p className="mt-2 max-w-[370px] text-muted">
                 {contact.address}
               </p>
             </address>

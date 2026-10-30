@@ -19,7 +19,7 @@ export function ProductCard({ product }: { product: CatalogProduct }) {
         </div>
         <div className="mt-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-base leading-snug tracking-[-.025em] md:text-lg">{product.name}</h3>
+            <h3 className="text-base leading-snug tracking-[-.025em] md:text-[17px]">{product.name}</h3>
             <p className="mt-1 text-[13px] leading-snug text-muted">
               {product.categoryTitle} · {product.price === null ? "Konsultasi" : formatRupiah(product.price)}
             </p>

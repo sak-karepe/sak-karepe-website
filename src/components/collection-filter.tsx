@@ -18,7 +18,7 @@ export function CollectionFilter({
     <>
       <div className="mt-8 mb-7 flex items-center justify-between gap-5">
         <div
-          className="flex min-w-0 gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none]"
+          className="flex min-w-0 flex-wrap gap-2"
           role="group"
           aria-label="Filter koleksi"
         >
@@ -27,7 +27,7 @@ export function CollectionFilter({
               key={category.slug}
               aria-pressed={filter === category.slug}
               onClick={() => setFilter(category.slug)}
-              className={`min-h-12 shrink-0 rounded-md px-3 py-3 text-base transition-colors hover:text-accent ${filter === category.slug ? "bg-surface font-medium text-ink" : "text-muted"}`}
+              className={`min-h-12 shrink-0 rounded-md px-3 py-3 text-[15px] transition-colors hover:text-accent ${filter === category.slug ? "bg-surface font-medium text-ink" : "text-muted"}`}
             >
               {category.title}
             </button>
