@@ -11,6 +11,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local src/db/seed.ts",
     "db:seed-regions": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local src/db/seed-regions.ts",
+    "db:seed-dummy": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local src/db/seed-dummy-users.ts",
     "db:studio": "drizzle-kit studio",
     "check": "tsx scripts/check-shipments.mts",
     "test": "tsx --test \"src/**/*.test.ts\""
