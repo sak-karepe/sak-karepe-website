@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PackageIcon, ReceiptIcon, SquaresFourIcon, UsersIcon } from "@phosphor-icons/react";
-
+import { ImagesIcon, PackageIcon, ReceiptIcon, SquaresFourIcon, UsersIcon } from "@phosphor-icons/react";
 const menu = [
   { label: "Dashboard", href: "/admin", icon: SquaresFourIcon },
   { label: "Produk", href: "/admin/produk", icon: PackageIcon },
+  { label: "Fashion show", href: "/admin/fashion-show", icon: ImagesIcon },
   { label: "Pesanan", href: "/admin/pesanan", icon: ReceiptIcon },
   { label: "Pengguna", href: "/admin/pengguna", icon: UsersIcon },
 ];
