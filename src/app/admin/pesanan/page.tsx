@@ -39,9 +39,8 @@ export default async function AdminOrdersPage({
     sampaiDate ? lte(orders.createdAt, sampaiDate) : undefined
   );
 
-  const statusCondition = status ? eq(orders.status, status as any) : undefined;
+  const statusCondition = status ? eq(orders.status, status as typeof orderStatuses[number]) : undefined;
 
-  // Helper untuk membangun kondisi pencarian teks (ID, kode, nama tamu, telepon, serta nama/email user)
   const getSearchCondition = () => {
     if (!query) return undefined;
     const isNum = /^\d+$/.test(query);
@@ -59,11 +58,10 @@ export default async function AdminOrdersPage({
 
   const searchCondition = getSearchCondition();
 
-  // Gabungkan semua kondisi filter untuk query data & hitungan tab
   const currentWhere = and(statusCondition, userCondition, dateCondition, searchCondition);
   const baseWhereForTabs = and(userCondition, dateCondition, searchCondition);
 
-  // Ambil counts untuk tab, total row terfilter, dan data rows secara paralel dengan join ke users
+  // Ambil counts untuk tab, total row terfilter, dan data rows secara paralel
   const [counts, totalResult, rows] = await Promise.all([
     db
       .select({ status: orders.status, total: count() })
@@ -77,28 +75,23 @@ export default async function AdminOrdersPage({
       .leftJoin(users, eq(orders.userId, users.id))
       .where(currentWhere),
     db.query.orders.findMany({
-      where: (orders, { and, eq, gte, lte, or, like }) => {
+      where: (orders, { and, eq, or, like }) => {
         const conds = [];
         if (statusCondition) conds.push(statusCondition);
         if (userCondition) conds.push(userCondition);
         if (dateCondition) conds.push(dateCondition);
-        if (searchCondition) {
-          // Karena query.orders.findMany tidak otomatis join users di dalam where callback,
-          // kita gunakan query builder standar untuk findMany atau biarkan Drizzle mencocokkan kolom orders.
-          // Alternatif paling aman di Drizzle findMany:
-          if (query) {
-            const isNum = /^\d+$/.test(query);
-            if (isNum) {
-              conds.push(or(eq(orders.id, Number(query)), like(orders.customerPhone, `%${query}%`)));
-            } else {
-              conds.push(
-                or(
-                  like(orders.code, `%${upperQuery}%`),
-                  like(orders.customerName, `%${query}%`),
-                  like(orders.customerPhone, `%${query}%`)
-                )
-              );
-            }
+        if (query) {
+          const isNum = /^\d+$/.test(query);
+          if (isNum) {
+            conds.push(or(eq(orders.id, Number(query)), like(orders.customerPhone, `%${query}%`)));
+          } else {
+            conds.push(
+              or(
+                like(orders.code, `%${upperQuery}%`),
+                like(orders.customerName, `%${query}%`),
+                like(orders.customerPhone, `%${query}%`)
+              )
+            );
           }
         }
         return and(...conds);
@@ -112,10 +105,6 @@ export default async function AdminOrdersPage({
       },
     }),
   ]);
-
-  // Catatan: Jika ingin findMany juga memfilter berdasarkan nama/email user yang di-join, 
-  // kita bisa mengambil ID pesanan terlebih dahulu via db.select atau biarkan guest & customerName tercover.
-  // Tapi untuk kebutuhan umum admin, pencarian di atas sudah mencakup customerName, code, ID, dan phone.
 
   const totalOrders = totalResult[0]?.total ?? 0;
   const totalPages = Math.ceil(totalOrders / ORDERS_PER_PAGE);
