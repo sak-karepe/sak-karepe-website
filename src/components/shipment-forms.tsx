@@ -214,11 +214,26 @@ export function NoteForm({ action }: { action: (state: State, formData: FormData
   );
 }
 
-/** Tombol satu aksi tanpa isian, mis. cek ulang status atau menandai sudah dicek. */
-export function ActionButton({ action, label, pendingLabel }: { action: () => Promise<State>; label: string; pendingLabel: string }) {
+/** Tombol satu aksi tanpa isian, mis. cek ulang status atau menandai sudah dicek; `confirmText` ditanyakan dulu. */
+export function ActionButton({
+  action,
+  label,
+  pendingLabel,
+  confirmText,
+}: {
+  action: () => Promise<State>;
+  label: string;
+  pendingLabel: string;
+  confirmText?: string;
+}) {
   const [state, formAction, pending] = useActionState(action, {});
   return (
-    <form action={formAction}>
+    <form
+      action={formAction}
+      onSubmit={(event) => {
+        if (confirmText && !confirm(confirmText)) event.preventDefault();
+      }}
+    >
       <button
         className="min-h-11 w-full rounded-md border border-line px-4 text-[15px] font-medium transition-colors hover:border-accent hover:text-accent"
         disabled={pending}
@@ -226,6 +241,26 @@ export function ActionButton({ action, label, pendingLabel }: { action: () => Pr
         {pending ? pendingLabel : label}
       </button>
       <ErrorAlert error={state.error} />
+    </form>
+  );
+}
+
+/** Tambah admin lewat email, termasuk email yang belum pernah login; form dikosongkan React setelah tersimpan. */
+export function AddAdminForm({ action }: { action: (state: State & { message?: string }, formData: FormData) => Promise<State & { message?: string }> }) {
+  const [state, formAction, pending] = useActionState(action, {});
+  return (
+    <form action={formAction} className="mt-6 max-w-md rounded-md border border-line p-5">
+      <label htmlFor="admin-email" className="text-sm font-medium">Tambah admin lewat email</label>
+      <input id="admin-email" name="email" type="email" required maxLength={254} autoComplete="off" placeholder="nama@gmail.com" className={inputClass} />
+      <p className="mt-1 text-sm text-muted">Akun Google dengan email ini langsung bisa membuka dashboard admin.</p>
+      <ErrorAlert error={state.error} />
+      {state.message && <p role="status" className="mt-3 text-sm text-accent">{state.message}</p>}
+      <button
+        className="mt-3 min-h-11 rounded-md border border-line px-4 text-[15px] font-medium transition-colors hover:border-accent hover:text-accent"
+        disabled={pending}
+      >
+        {pending ? "Menyimpan…" : "Jadikan admin"}
+      </button>
     </form>
   );
 }
