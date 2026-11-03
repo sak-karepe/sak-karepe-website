@@ -39,6 +39,8 @@ test("batas waktu pembatalan otomatis", async () => {
   const idleCheckout = await order("menunggu_checkout", ago(idleOrderMs + second));
   const idleRecent = await order("menunggu_checkout", ago(idleOrderMs - second));
   const paid = await order("dibayar", ago(idleOrderMs * 2));
+  const flagged = await order("menunggu_pembayaran", ago(unpaidExpiryMs * 2), [{ expiresAt: ago(unpaidExpiryMs * 2) }]);
+  await db.update(orders).set({ reviewNote: "Nominal tidak cocok" }).where(eq(orders.id, flagged));
 
   const cancelled = await cancelExpiredOrders(now);
   assert.deepStrictEqual(cancelled.map(({ id }) => id).sort(), [unpaidOld, idleOld, idleCheckout].sort());
@@ -46,6 +48,7 @@ test("batas waktu pembatalan otomatis", async () => {
   for (const id of [unpaidRecentLink, idleRecent]) assert.notStrictEqual(await statusOf(id), "dibatalkan");
   assert.strictEqual(await statusOf(paidLastSecond), "menunggu_pembayaran");
   assert.strictEqual(await statusOf(paid), "dibayar");
+  assert.strictEqual(await statusOf(flagged), "menunggu_pembayaran");
 
   const events = await db.query.orderEvents.findMany({ where: eq(orderEvents.orderId, idleOld) });
   assert.deepStrictEqual(

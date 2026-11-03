@@ -124,13 +124,15 @@ export const expiredNote = "Dibatalkan otomatis: kedaluwarsa";
 
 /**
  * Membatalkan pesanan belum dibayar yang kedaluwarsa (lihat `unpaidExpiryMs` dan `idleOrderMs`). Pesanan yang punya
- * pembayaran lunas atau link yang belum lama kedaluwarsa dilewati, jadi pembayaran di menit terakhir yang baru tercatat
+ * pembayaran lunas, link yang belum lama kedaluwarsa, atau tanda "Perlu dicek" dilewati, jadi pembayaran di menit terakhir yang baru tercatat
  * lewat notifikasi atau `reconcilePayments` tidak ikut terbatalkan. Aman dijalankan berulang.
  */
 export const cancelExpiredOrders = (now = new Date()) =>
   db.transaction(
     async (tx) => {
       const expired = and(
+        // Pesanan "Perlu dicek" (mis. uang masuk dengan nominal salah) menunggu admin, tidak dibatalkan.
+        isNull(orders.reviewNote),
         or(
           and(eq(orders.status, "menunggu_pembayaran"), lte(orders.updatedAt, new Date(now.getTime() - unpaidExpiryMs))),
           and(inArray(orders.status, ["menunggu_konfirmasi", "menunggu_checkout"]), lte(orders.updatedAt, new Date(now.getTime() - idleOrderMs))),
