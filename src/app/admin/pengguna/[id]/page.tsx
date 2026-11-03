@@ -4,7 +4,9 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { eq, desc, count } from "drizzle-orm";
 import { ArrowLeftIcon, UserIcon, MapPinIcon, PackageIcon, CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/dist/ssr";
-import { requireAdminPage } from "@/auth";
+import { isRootAdmin, requireAdminPage } from "@/auth";
+import { ActionButton } from "@/components/shipment-forms";
+import { makeAdmin, removeAdmin } from "@/lib/user-actions";
 import { db } from "@/db";
 import { users, addresses, orders } from "@/db/schema";
 import { formatDateTime, formatRupiah } from "@/lib/format";
@@ -25,7 +27,7 @@ export default async function AdminUserDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ page?: string }>;
 }) {
-  await requireAdminPage();
+  const admin = await requireAdminPage();
   const { id } = await params;
   const { page: pageParam } = await searchParams;
   const userId = Number(id);
@@ -53,6 +55,7 @@ export default async function AdminUserDetailPage({
 
   if (!user) notFound();
 
+  const root = isRootAdmin(user.email);
   const totalOrders = totalOrdersResult[0]?.total ?? 0;
   const totalPages = Math.ceil(totalOrders / ORDERS_PER_PAGE);
 
@@ -75,13 +78,27 @@ export default async function AdminUserDetailPage({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl md:text-3xl font-medium truncate">{user.name ?? "Tanpa Nama"}</h1>
-            <span className={`rounded-full px-2.5 py-0.5 text-xs uppercase font-medium ${user.role === 'admin' ? 'bg-accent/10 text-accent' : 'bg-surface text-muted border border-line'}`}>
-              {user.role}
+            <span className={`rounded-full px-2.5 py-0.5 text-xs uppercase font-medium ${user.role === 'admin' || root ? 'bg-accent/10 text-accent' : 'bg-surface text-muted border border-line'}`}>
+              {root ? "admin bawaan" : user.role}
             </span>
           </div>
           <p className="text-muted mt-1">{user.email}</p>
           <p className="text-xs text-muted mt-2">Terdaftar sejak {formatDateTime(user.createdAt)}</p>
         </div>
+        {/* Admin bawaan diatur lewat ADMIN_EMAILS; akun sendiri tidak bisa dicabut agar selalu ada admin. */}
+        {!root &&
+          (user.role !== "admin" ? (
+            <ActionButton action={makeAdmin.bind(null, user.id)} label="Jadikan admin" pendingLabel="Menyimpan…" />
+          ) : (
+            String(user.id) !== admin.id && (
+              <ActionButton
+                action={removeAdmin.bind(null, user.id)}
+                label="Cabut admin"
+                pendingLabel="Mencabut…"
+                confirmText={`Cabut akses admin ${user.name ?? user.email}? Akun ini tidak bisa lagi membuka dashboard admin.`}
+              />
+            )
+          ))}
       </div>
 
       {/* Layout Stacked (2 Row ke bawah) */}

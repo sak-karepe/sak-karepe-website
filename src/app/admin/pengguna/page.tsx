@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { and, count, desc, eq, like, or } from "drizzle-orm";
+import { count, desc, eq, like, or } from "drizzle-orm";
 import { MagnifyingGlassIcon, UserIcon, CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/dist/ssr";
-import { requireAdminPage } from "@/auth";
+import { isRootAdmin, requireAdminPage } from "@/auth";
+import { AddAdminForm } from "@/components/shipment-forms";
+import { addAdmin } from "@/lib/user-actions";
 import { db } from "@/db";
 import { users, orders } from "@/db/schema";
 import { formatDateTime } from "@/lib/format";
@@ -74,6 +76,8 @@ export default async function AdminUsersPage({
         {totalUsers} pengguna terdaftar{query && ` untuk pencarian "${query}"`}.
       </p>
 
+      <AddAdminForm action={addAdmin} />
+
       {/* Form Search (Server-side GET Request) */}
       <form action="/admin/pengguna" method="GET" role="search" className="mt-6 flex max-w-md items-center gap-2">
         <label className="flex min-h-11 flex-1 items-center gap-2 rounded-md border border-line bg-page px-3 focus-within:border-accent">
@@ -126,8 +130,8 @@ export default async function AdminUsersPage({
                   </div>
 
                   <div className="justify-self-end md:justify-self-start">
-                    <span className={`rounded-full px-2.5 py-1 text-xs uppercase font-medium ${user.role === 'admin' ? 'bg-accent/10 text-accent' : 'bg-surface text-muted border border-line'}`}>
-                      {user.role}
+                    <span className={`rounded-full px-2.5 py-1 text-xs uppercase font-medium ${user.role === 'admin' || isRootAdmin(user.email) ? 'bg-accent/10 text-accent' : 'bg-surface text-muted border border-line'}`}>
+                      {isRootAdmin(user.email) ? "admin bawaan" : user.role}
                     </span>
                   </div>
 
