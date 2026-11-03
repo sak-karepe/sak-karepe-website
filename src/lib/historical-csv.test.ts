@@ -20,12 +20,40 @@ test("DD/MM/YYYY dan ISO disimpan pada awal hari WIB; kalender invalid ditolak",
     assert.equal(parseHistoricalDate(date), null, date);
 });
 
-test("template valid dan nomor HP tetap teks dengan nol di depan", () => {
+test("template valid dan nomor HP berawalan 62 dikonversi menjadi nol di depan", () => {
   const result = validateHistoricalCsv(historicalTemplate);
   assert.deepEqual(result.errors, []);
   assert.equal(result.rows.length, 2);
   assert.equal(result.rows[0].customerPhone, "081234567890");
   assert.equal(result.rows[0].productName, "Tas, motif daun");
+});
+
+test("nomor HP dengan awalan 62 dikonversi menjadi awalan 0", () => {
+  const result = validateHistoricalCsv(csv("01/01/2024,N1,Sari,628123456789,Tas,1,100,0,tunai,"));
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.rows[0].customerPhone, "08123456789");
+});
+
+test("nomor HP dari Excel dalam notasi ilmiah atau formula teks dinormalisasi", () => {
+  for (const phone of ["6.28123456789E+11", '"=""628123456789"""']) {
+    const result = validateHistoricalCsv(csv(`01/01/2024,N1,Sari,${phone},Tas,1,100,0,tunai,`));
+    assert.deepEqual(result.errors, [], phone);
+    assert.equal(result.rows[0].customerPhone, "08123456789", phone);
+  }
+});
+
+test("nota yang mengandung (contoh) tidak masuk hasil validasi untuk diimport", () => {
+  for (const ref of ["NOTA-001 (contoh)", "NOTA-002 ( CONTOH )"]) {
+    const result = validateHistoricalCsv(csv(`01/01/2024,${ref},,invalid,Tas,invalid,invalid,invalid,bukan-metode,`));
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.rows.length, 0, ref);
+  }
+});
+
+test("nama pembeli yang mengandung (contoh) tidak masuk hasil validasi untuk diimport", () => {
+  const result = validateHistoricalCsv(csv("01/01/2024,N1,Sari ( CONTOH ),,Tas,1,100,0,tunai,"));
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.rows.length, 0);
 });
 
 test("validasi melaporkan nomor baris untuk tanggal, qty, harga, ongkir dan metode salah", () => {

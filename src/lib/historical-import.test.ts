@@ -27,6 +27,11 @@ test("import atomik, pencocokan katalog, deduplikasi, dan pembatalan batch tanpa
     assert.deepEqual(preview.rows.map((row) => row.duplicateLines), [[3], [2], []], "duplikat nota menunjuk baris lain, bukan dirinya sendiri");
     assert.ok(preview.rows.every((row) => !row.duplicate), "nomor nota berulang dalam CSV belum tentu sudah tersimpan");
     assert.equal((await db.query.orders.findMany()).length, 0, "preview tidak menyimpan apa pun");
+    const examplePreview = await previewHistoricalImport(db, header +
+      "01/01/2021,N-CONTOH (contoh),Nama contoh,,Tas daun,1,100,0,tunai,\n" +
+      "01/01/2021,N-VALID,Nama valid,,Tas daun,1,100,0,tunai,\n");
+    assert.deepEqual(examplePreview.rows.map((row) => row.values[1]), ["N-VALID"]);
+    assert.equal(examplePreview.skipped, 1);
 
     const invalidCsv = csv + "31/02/2020,N3,Sari,,Tas daun,,100,0,tunai,";
     const invalidPreview = await previewHistoricalImport(db, invalidCsv);

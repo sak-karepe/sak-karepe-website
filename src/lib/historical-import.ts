@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import type { db } from "@/db";
 import { orderEvents, orderItems, orders, payments, products } from "@/db/schema";
-import { historicalHeaders, validateHistoricalCsv, type HistoricalRow } from "@/lib/historical-csv";
+import { historicalHeaders, isExampleHistoricalBuyer, isExampleHistoricalRef, normalizeHistoricalPhone, validateHistoricalCsv, type HistoricalRow } from "@/lib/historical-csv";
 
 export async function previewHistoricalImport(database: typeof db, csv: string) {
   const parsed = validateHistoricalCsv(csv);
@@ -21,17 +21,33 @@ export async function previewHistoricalImport(database: typeof db, csv: string) 
     lines.push(row.line);
     receiptLines.set(ref, lines);
   }
+  const previewRecords = parsed.records.filter((row) =>
+    !isExampleHistoricalRef(row.values[1]?.trim() ?? "") &&
+    !isExampleHistoricalBuyer(row.values[2]?.trim() ?? ""));
   return {
     errors: parsed.errors,
-    rows: parsed.records.map((row) => ({
-      line: row.line, values: historicalHeaders.map((_, i) => row.values[i]?.trim() ?? ""),
+    rows: previewRecords.map((row) => ({
+      line: row.line, values: historicalHeaders.map((_, i) => {
+        const value = row.values[i]?.trim() ?? "";
+        return i === 3 ? normalizeHistoricalPhone(value) : value;
+      }),
+      example: isExampleHistoricalRef(row.values[1]?.trim() ?? ""),
+      exampleBuyer: isExampleHistoricalBuyer(row.values[2]?.trim() ?? ""),
       productId: catalog.find((product) => product.name === row.values[4]?.trim())?.id ?? null,
       duplicate: references.has(row.values[1]?.trim() ?? ""),
       duplicateLines: (receiptLines.get(row.values[1]?.trim() ?? "") ?? []).filter((line) => line !== row.line),
       errors: parsed.errors.filter((error) => error.line === row.line).map((error) => error.message),
     })),
-    orderCount: new Set(parsed.rows.map((row) => row.externalRef)).size,
-    skipped: new Set(parsed.rows.filter((row) => references.has(row.externalRef)).map((row) => row.externalRef)).size,
+    orderCount: new Set([
+      ...parsed.rows.map((row) => row.externalRef),
+      ...parsed.records.filter((row) => isExampleHistoricalRef(row.values[1]?.trim() ?? "")).map((row) => row.values[1].trim()),
+      ...parsed.records.filter((row) => isExampleHistoricalBuyer(row.values[2]?.trim() ?? "")).map((row) => row.values[1].trim()),
+    ]).size,
+    skipped: new Set([
+      ...parsed.rows.filter((row) => references.has(row.externalRef)).map((row) => row.externalRef),
+      ...parsed.records.filter((row) => isExampleHistoricalRef(row.values[1]?.trim() ?? "")).map((row) => row.values[1].trim()),
+      ...parsed.records.filter((row) => isExampleHistoricalBuyer(row.values[2]?.trim() ?? "")).map((row) => row.values[1].trim()),
+    ]).size,
   };
 }
 
@@ -40,6 +56,7 @@ export async function saveHistoricalImport(database: typeof db, csv: string, rec
   if (parsed.errors.length) return { errors: parsed.errors, inserted: 0, skipped: 0, batchId: null };
   const grouped = new Map<string, HistoricalRow[]>();
   for (const row of parsed.rows) {
+    if (isExampleHistoricalRef(row.externalRef) || isExampleHistoricalBuyer(row.customerName)) continue;
     const items = grouped.get(row.externalRef) ?? [];
     items.push(row);
     grouped.set(row.externalRef, items);

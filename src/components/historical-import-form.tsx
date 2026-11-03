@@ -2,10 +2,23 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { WarningCircleIcon } from "@phosphor-icons/react";
-import { historicalHeaders, historicalTemplate, maxHistoricalCsvBytes } from "@/lib/historical-csv";
+import * as XLSX from "xlsx";
+import { historicalHeaders, maxHistoricalCsvBytes } from "@/lib/historical-csv";
 import { importHistoricalCsv, previewHistoricalCsv, undoHistoricalImport } from "@/lib/historical-import-actions";
 
 type Preview = Awaited<ReturnType<typeof previewHistoricalCsv>>;
+
+function downloadHistoricalTemplate() {
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    historicalHeaders,
+    ["25/12/2023", "NOTA-001", "Ibu Sari", 6281234567890, "Tas, motif daun", 2, 150000, 10000, "transfer", "Penjualan lama"],
+    ["25/12/2023", "NOTA-001", "Ibu Sari", 6281234567890, "Syal ecoprint", 1, 75000, 10000, "transfer", "Penjualan lama"],
+  ]);
+  for (const cell of ["D2", "D3"]) worksheet[cell].z = "###############";
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Transaksi historis");
+  XLSX.writeFile(workbook, "template-transaksi-historis.xlsx");
+}
 
 export function HistoricalImportForm() {
   const [csv, setCsv] = useState("");
@@ -25,13 +38,13 @@ export function HistoricalImportForm() {
         baris nota tersebut. Ongkir dihitung sekali per nota; kosong berarti 0. Nama produk yang sama persis dengan katalog
         ditautkan ke produk, sisanya disimpan sebagai item bebas.
       </p>
-      <a
-        download="template-transaksi-historis.csv"
-        href={`data:text/csv;charset=utf-8,${encodeURIComponent(historicalTemplate)}`}
+      <button
+        type="button"
+        onClick={downloadHistoricalTemplate}
         className="mt-4 inline-flex min-h-11 items-center rounded-md border border-line px-4 text-sm hover:border-accent"
       >
-        Download template CSV
-      </a>
+        Download template Excel
+      </button>
       <form className="mt-5 flex flex-wrap items-end gap-3" action={(formData) => {
         startTransition(async () => {
           setError(""); setMessage(""); setPreview(undefined); setCsv("");
@@ -39,15 +52,23 @@ export function HistoricalImportForm() {
           if (!(file instanceof File) || !file.size) { setError("Pilih file CSV terlebih dahulu."); return; }
           if (file.size > maxHistoricalCsvBytes) { setError("Ukuran CSV maksimal 200 KB."); return; }
           try {
-            const text = await file.text();
+            let text: string;
+            if (file.name.toLowerCase().endsWith(".xlsx")) {
+              const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+              const sheet = workbook.Sheets[workbook.SheetNames[0]];
+              if (!sheet) { setError("File Excel tidak memiliki sheet."); return; }
+              text = XLSX.utils.sheet_to_csv(sheet, { FS: ",", RS: "\r\n" });
+            } else {
+              text = await file.text();
+            }
             const result = await previewHistoricalCsv(text);
             setCsv(text); setPreview(result);
           } catch { setError("Preview gagal dimuat. Coba lagi."); }
         });
       }}>
         <label className="grid gap-2 text-sm">
-          File CSV (maksimal 200 KB / 1000 baris)
-          <input type="file" name="csv" accept=".csv,text/csv" required disabled={pending}
+          File CSV atau Excel (maksimal 200 KB / 1000 baris)
+          <input type="file" name="csv" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required disabled={pending}
             className="min-h-11 max-w-full rounded-md border border-line p-2"
             onChange={() => { setPreview(undefined); setCsv(""); setMessage(""); setError(""); }} />
         </label>
@@ -64,7 +85,7 @@ export function HistoricalImportForm() {
                 {preview.errors.map((item, i) => <li key={i}>Baris {item.line}: {item.message}</li>)}
               </ul>
             </div>
-          ) : <p className="text-sm">{preview.orderCount} transaksi, {preview.rows.length} item. {preview.skipped} nota sudah ada dan akan dilewati.</p>}
+          ) : <p className="text-sm">{preview.orderCount} transaksi, {preview.rows.length} item ditampilkan. {preview.skipped} nota dilewati.</p>}
           {preview.rows.length > 0 && (
             <div className="mt-4 max-h-[32rem] overflow-auto rounded-md border border-line" tabIndex={0} role="region" aria-label="Preview baris CSV">
               <table className="w-full text-left text-sm">
@@ -74,6 +95,8 @@ export function HistoricalImportForm() {
                 <tbody className="divide-y divide-line">
                   {preview.rows.map((row) => {
                     const warning = [
+                      row.example ? "Nomor nota contoh akan dilewati dan tidak diimport." : "",
+                      row.exampleBuyer ? "Nama pembeli contoh akan dilewati dan tidak diimport." : "",
                       row.duplicateLines.length > 0
                         ? `Nomor nota sama dengan baris ${row.duplicateLines.join(", ")}. Item pada baris-baris ini digabung menjadi satu transaksi.`
                         : "",
@@ -91,10 +114,10 @@ export function HistoricalImportForm() {
                         )}
                       </span>
                     </td>
-                    {row.values.map((value, i) => <td key={i} className="max-w-xs min-w-24 px-3 py-3 wrap-break-word">{value || "—"}</td>)}
+                    {row.values.map((value, i) => <td key={i} className={`max-w-xs px-3 py-3 ${i === 3 ? "min-w-40 whitespace-nowrap" : "min-w-24 wrap-break-word"}`}>{value || "—"}</td>)}
                     <td className="px-3 py-3 whitespace-nowrap">{row.productId ? `Katalog #${row.productId}` : "Item bebas"}</td>
                     <td className={`min-w-48 px-3 py-3 ${row.errors.length ? "text-danger" : ""}`}>
-                      {row.errors.length ? row.errors.join(" ") : row.duplicate ? "Dilewati: nota sudah ada" : "Siap diimport"}
+                      {row.errors.length ? row.errors.join(" ") : row.example || row.exampleBuyer ? "Dilewati: data contoh" : row.duplicate ? "Dilewati: nota sudah ada" : "Siap diimport"}
                     </td>
                   </tr>;
                   })}
@@ -113,7 +136,7 @@ export function HistoricalImportForm() {
                 setMessage(`${result.inserted} transaksi berhasil diimport. ${result.skipped} nota duplikat dilewati.${result.batchId ? ` Batch: ${result.batchId}.` : ""}`);
               } catch { setError("Hasil import belum dapat dikonfirmasi. Coba lagi; nomor nota yang sudah ada akan dilewati."); }
             })}>
-            {pending ? "Memproses…" : `Simpan ${preview.orderCount - preview.skipped} transaksi`}
+            {pending ? "Memproses…" : preview.orderCount === preview.skipped ? "Tidak ada transaksi untuk disimpan" : `Simpan ${preview.orderCount - preview.skipped} transaksi`}
           </button>
         </div>
       )}

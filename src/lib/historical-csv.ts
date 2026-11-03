@@ -4,9 +4,27 @@ export const historicalHeaders = [
   "tanggal", "no. nota", "nama pembeli", "no. HP", "nama produk", "qty", "harga satuan", "ongkir", "metode bayar", "catatan",
 ];
 export const historicalTemplate = "\uFEFF" + historicalHeaders.join(",") + "\r\n" +
-  '25/12/2023,NOTA-001,Ibu Sari,081234567890,"Tas, motif daun",2,150000,10000,transfer,Penjualan lama\r\n' +
-  '25/12/2023,NOTA-001,Ibu Sari,081234567890,Syal ecoprint,1,75000,10000,transfer,Penjualan lama\r\n';
+  '25/12/2023,NOTA-001,Ibu Sari,"=""6281234567890""","Tas, motif daun",2,150000,10000,transfer,Penjualan lama\r\n' +
+  '25/12/2023,NOTA-001,Ibu Sari,"=""6281234567890""",Syal ecoprint,1,75000,10000,transfer,Penjualan lama\r\n';
 export const maxHistoricalCsvBytes = 200_000;
+
+export function normalizeHistoricalPhone(value: string) {
+  const formula = /^="([^"]*)"$/i.exec(value);
+  const withoutFormula = formula ? formula[1] : value.replace(/^'+/, "");
+  const scientific = /^(\d+(?:\.\d+)?)[eE]\+?(\d+)$/.exec(withoutFormula);
+  const expanded = scientific
+    ? Number.isSafeInteger(Number(withoutFormula)) ? String(Number(withoutFormula)) : withoutFormula
+    : withoutFormula;
+  return expanded.startsWith("62") ? `0${expanded.slice(2)}` : expanded;
+}
+
+export function isExampleHistoricalRef(value: string) {
+  return /\(\s*contoh\s*\)/i.test(value);
+}
+
+export function isExampleHistoricalBuyer(value: string) {
+  return isExampleHistoricalRef(value);
+}
 
 export type CsvError = { line: number; message: string };
 export type HistoricalRow = {
@@ -91,10 +109,12 @@ export function validateHistoricalCsv(csv: string) {
   for (const record of data) {
     const { line } = record;
     const values = record.values.map((v) => v.trim());
-    const [tanggal, externalRef, customerName, customerPhone, productName, qty, harga, ongkir, method, notes] = values;
+    const [tanggal, externalRef, customerName, rawCustomerPhone, productName, qty, harga, ongkir, method, notes] = values;
+    const customerPhone = normalizeHistoricalPhone(rawCustomerPhone);
     const error = (message: string) => errors.push({ line, message });
     const before = errors.length;
     if (values.length !== historicalHeaders.length) { error("Jumlah kolom tidak sesuai template."); continue; }
+    if (isExampleHistoricalRef(externalRef) || isExampleHistoricalBuyer(customerName)) continue;
     const date = parseHistoricalDate(tanggal);
     if (!date) error("Tanggal tidak valid. Gunakan DD/MM/YYYY atau YYYY-MM-DD.");
     if (!externalRef) error("No. nota wajib diisi.");
