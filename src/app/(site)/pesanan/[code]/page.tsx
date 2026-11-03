@@ -54,7 +54,12 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
   // Pesanan milik akun lain diperlakukan seperti tidak ada.
   const order = await db.query.orders.findFirst({
     where: and(eq(orders.code, code), eq(orders.userId, userId)),
-    with: { items: true, payments: { orderBy: (payment, { desc }) => [desc(payment.id)], limit: 1 } },
+    with: {
+      items: true,
+      payments: { orderBy: (payment, { desc }) => [desc(payment.id)], limit: 1 },
+      // Alasan pembatalan otomatis; catatan admin di riwayat bersifat internal.
+      events: { columns: { note: true }, where: (event, { and, eq }) => and(eq(event.toStatus, "dibatalkan"), eq(event.source, "sistem")), limit: 1 },
+    },
   });
   if (!order) notFound();
   const [payment] = order.payments;
@@ -83,7 +88,10 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
           {orderStatusLabels[order.status]}
         </span>
       </div>
-      <p className="mt-6 max-w-xl text-[17px]">{statusHints[order.status]}</p>
+      <p className="mt-6 max-w-xl text-[17px]">
+        {statusHints[order.status]}
+        {order.status === "dibatalkan" && order.events[0]?.note && ` ${order.events[0].note}.`}
+      </p>
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-16">
         <div className="grid content-start gap-10">
           <section aria-labelledby="produk">
