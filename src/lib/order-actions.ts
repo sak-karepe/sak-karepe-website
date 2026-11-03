@@ -1,5 +1,5 @@
 "use server";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
@@ -185,6 +185,9 @@ export async function addOrderNote(orderId: number, _state: NoteFormState, formD
   if (!note) return { error: "Tulis catatannya dulu." };
   if (note.length > 2000) return { error: "Catatan maksimal 2000 karakter." };
   await db.insert(orderEvents).values({ orderId, source: "admin", userId: Number(admin.id), note });
+  // Catatan dihitung aktivitas agar pesanan yang masih dibahas tidak dibatalkan otomatis (cancelExpiredOrders). Hanya
+  // pesanan belum dibayar: updatedAt pesanan "dikirim" menandai awal on_hold (stuckOnHoldOrders).
+  await db.update(orders).set({ updatedAt: new Date() }).where(and(eq(orders.id, orderId), inArray(orders.status, checkoutStatuses)));
   revalidatePath(`/admin/pesanan/${orderId}`);
   return {};
 }
