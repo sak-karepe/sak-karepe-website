@@ -133,6 +133,9 @@ export default async function AdminOrdersPage({
   return (
     <main id="utama" className="px-5 py-8 md:px-10 md:py-12">
       <h1 className="text-3xl tracking-[-.045em] md:text-4xl">Pesanan</h1>
+      <Link href="/admin/pesanan/import" className="mt-4 inline-flex min-h-11 items-center rounded-md border border-line px-4 text-sm hover:border-accent">
+        Import transaksi lama
+      </Link>
       <p className="mt-2 text-muted">
         {totalOrders} pesanan{status && ` ${orderStatusLabels[status].toLowerCase()}`}
         {query && ` untuk pencarian "${query}"`}. Pembeli melanjutkan lewat WhatsApp dengan mengutip kode pesanan.
