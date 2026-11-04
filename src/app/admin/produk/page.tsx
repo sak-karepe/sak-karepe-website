@@ -19,39 +19,66 @@ export default async function AdminProductsPage({
     db.select().from(categories).orderBy(asc(categories.sortOrder)),
     db.query.products.findMany({
       where: koleksi ? eq(products.categorySlug, koleksi) : undefined,
-      orderBy: [asc(products.categorySlug), asc(products.sortOrder), asc(products.id)],
-      with: { images: { orderBy: (image, { asc }) => [asc(image.sortOrder), asc(image.id)], limit: 1 } },
+      orderBy: [
+        asc(products.categorySlug),
+        asc(products.sortOrder),
+        asc(products.id),
+      ],
+      with: {
+        images: {
+          orderBy: (image, { asc }) => [asc(image.sortOrder), asc(image.id)],
+          limit: 1,
+        },
+      },
     }),
   ]);
-  const categoryTitle = (slug: string) => allCategories.find((category) => category.slug === slug)?.title ?? slug;
+  const categoryTitle = (slug: string) =>
+    allCategories.find((category) => category.slug === slug)?.title ?? slug;
   return (
     <main id="utama" className="px-5 py-8 md:px-10 md:py-12">
       <div className="flex flex-wrap items-end justify-between gap-5">
         <div>
           <h1 className="text-3xl tracking-[-.045em] md:text-4xl">Produk</h1>
-          <p className="mt-2 text-muted">{rows.length} produk{koleksi && ` di koleksi ${categoryTitle(koleksi)}`}</p>
+          <p className="mt-2 text-muted">
+            {rows.length} produk
+            {koleksi && ` di koleksi ${categoryTitle(koleksi)}`}
+          </p>
         </div>
-        <Link href="/admin/produk/baru" className="btn min-h-11 gap-2 px-4 text-[15px]">
+        <Link
+          href="/admin/produk/baru"
+          className="btn min-h-11 gap-2 px-4 text-[15px]"
+        >
           <PlusIcon size={18} aria-hidden="true" /> Tambah produk
         </Link>
       </div>
-      <nav aria-label="Filter koleksi" className="mt-8 flex gap-6 overflow-x-auto border-b border-line">
-        {[{ slug: undefined, title: "Semua" }, ...allCategories].map((category) => {
-          const active = koleksi === category.slug;
-          return (
-            <Link
-              key={category.title}
-              href={category.slug ? `/admin/produk?koleksi=${category.slug}` : "/admin/produk"}
-              aria-current={active ? "page" : undefined}
-              className={`shrink-0 border-b-2 px-1 py-3 text-[15px] ${active ? "border-accent font-medium" : "border-transparent text-muted hover:text-ink"}`}
-            >
-              {category.title}
-            </Link>
-          );
-        })}
+      <nav
+        aria-label="Filter koleksi"
+        className="mt-8 flex gap-6 overflow-x-auto border-b border-line"
+      >
+        {[{ slug: undefined, title: "Semua" }, ...allCategories].map(
+          (category) => {
+            const active = koleksi === category.slug;
+            return (
+              <Link
+                key={category.title}
+                href={
+                  category.slug
+                    ? `/admin/produk?koleksi=${category.slug}`
+                    : "/admin/produk"
+                }
+                aria-current={active ? "page" : undefined}
+                className={`shrink-0 border-b-2 px-1 py-3 text-[15px] ${active ? "border-accent font-medium" : "border-transparent text-muted hover:text-ink"}`}
+              >
+                {category.title}
+              </Link>
+            );
+          },
+        )}
       </nav>
       {rows.length === 0 ? (
-        <p className="py-16 text-center text-muted">Belum ada produk di sini.</p>
+        <p className="py-16 text-center text-muted">
+          Belum ada produk di sini.
+        </p>
       ) : (
         <ul className="divide-y divide-line">
           {rows.map((product) => (
@@ -62,27 +89,53 @@ export default async function AdminProductsPage({
               >
                 <div className="photo size-14 md:size-16">
                   {product.images[0] && (
-                    <Image src={product.images[0].src} alt="" fill sizes="64px" className="object-cover" />
+                    <Image
+                      src={product.images[0].src}
+                      alt=""
+                      fill
+                      sizes="64px"
+                      className="object-cover"
+                    />
                   )}
                 </div>
                 <div className="min-w-0">
                   <p className="truncate font-medium">{product.name}</p>
                   <p className="mt-0.5 text-sm text-muted">
                     {categoryTitle(product.categorySlug)}
-                    <span className="md:hidden"> · {product.price === null ? "Konsultasi" : formatRupiah(product.price)}</span>
+                    <span className="md:hidden">
+                      {" "}
+                      ·{" "}
+                      {product.price === null
+                        ? "Konsultasi"
+                        : formatRupiah(product.price)}
+                    </span>
                   </p>
                 </div>
                 <p className="hidden text-[15px] md:block">
-                  {product.price === null ? <span className="text-muted">Konsultasi</span> : formatRupiah(product.price)}
+                  {product.price === null ? (
+                    <span className="text-muted">Konsultasi</span>
+                  ) : (
+                    formatRupiah(product.price)
+                  )}
                 </p>
-                <p className={`hidden text-[15px] md:block ${product.stock === 0 ? "text-danger" : "text-muted"}`}>
-                  {product.stock === null ? "Stok tak terbatas" : product.stock === 0 ? "Stok habis" : `Stok ${product.stock}`}
+                <p
+                  className={`hidden text-[15px] md:block ${product.stock === 0 ? "text-danger" : "text-muted"}`}
+                >
+                  {product.stock === null
+                    ? "Stok tak terbatas"
+                    : product.stock === 0
+                      ? "Stok habis"
+                      : `Stok ${product.stock}`}
                 </p>
                 {/* Stok 0 ikut disembunyikan dari toko (lib/catalog). */}
                 <span
                   className={`justify-self-end rounded-full px-2.5 py-1 text-xs ${!product.published ? "border border-line text-muted" : product.stock === 0 ? "border border-danger text-danger" : "bg-surface text-accent"}`}
                 >
-                  {!product.published ? "Disembunyikan" : product.stock === 0 ? "Habis" : "Tampil"}
+                  {!product.published
+                    ? "Disembunyikan"
+                    : product.stock === 0
+                      ? "Habis"
+                      : "Tampil"}
                 </span>
               </Link>
             </li>
