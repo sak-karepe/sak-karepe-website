@@ -1,17 +1,34 @@
 "use server";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
-import { orderEvents, orderItems, orders, type Order, type OrderItem } from "@/db/schema";
+import { orderEvents, orderItems, orders, payments, products, type Order, type OrderItem } from "@/db/schema";
 import { parseAmount } from "@/lib/format";
 import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } from "@/lib/order-status";
 import { checkStatus } from "@/lib/doku";
 import { applyPayment, cancelActivePayments } from "@/lib/payments";
 import { refreshShipment, saveResend } from "@/lib/shipments";
 import { createShipment, lowBalance, quotaReached, unreachable } from "@/lib/shipping";
+import { saveUpload } from "@/lib/uploads";
 
 export type StatusFormState = { error?: string };
+
+export type DirectSaleItemInput = {
+  productId?: number | null;
+  productName: string;
+  price: number;
+  quantity: number;
+};
+
+export type DirectSaleFormState = { error?: string };
+
+/** Membuat kode unik untuk transaksi langsung */
+function generateDirectSaleCode(): string {
+  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, "");
+  const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `SK-OFF-${dateStr}-${randomStr}`;
+}
 
 /**
  * Admin mengubah status lewat dropdown, hanya untuk perpindahan di `adminTransitions`. Status lama ikut dicek di WHERE
@@ -264,4 +281,209 @@ export async function createCheckoutLink(
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
   return { saved: true };
+}
+
+/**
+ * Mencatat penjualan langsung (offline/pameran/WhatsApp) oleh admin.
+ * Mengurangi stok produk katalog secara otomatis, mencatat pembayaran, dan menetapkan recordedBy.
+ */
+export async function createDirectSale(_state: DirectSaleFormState, formData: FormData): Promise<DirectSaleFormState & { redirectTo?: string }> {
+  const admin = await requireAdmin();
+
+  const customerType = formData.get("customerType") as string; // "registered" | "manual" | "general"
+  const registeredUserId = formData.get("userId") ? Number(formData.get("userId")) : null;
+  const customerName = (formData.get("customerName") as string) || null;
+  const customerPhone = (formData.get("customerPhone") as string) || null;
+
+  const transactionDateRaw = formData.get("transactionDate") as string;
+  const transactionDate = transactionDateRaw ? new Date(transactionDateRaw) : new Date();
+
+  const paymentMethod = (formData.get("paymentMethod") as any) || "tunai";
+  const notes = (formData.get("notes") as string) || "";
+  const isShipping = formData.get("isShipping") === "true";
+
+  const recipientName = (formData.get("recipientName") as string) || null;
+  const phone = (formData.get("phone") as string) || null;
+  const shippingAddress = (formData.get("shippingAddress") as string) || null;
+  const postalCode = (formData.get("postalCode") as string) || null;
+
+  const proofFile = formData.get("proofFile") as File | null;
+  let proofUrl: string | null = null;
+  if (proofFile && proofFile.size > 0) {
+    try {
+      proofUrl = await saveUpload(proofFile);
+    } catch (err) {
+      return { error: "Gagal mengunggah bukti pembayaran." };
+    }
+  }
+
+  const rawItems = formData.get("items") as string;
+  let itemsList: DirectSaleItemInput[] = [];
+  try {
+    itemsList = rawItems ? JSON.parse(rawItems) : [];
+  } catch {
+    return { error: "Format item produk tidak valid." };
+  }
+
+  if (itemsList.length === 0) {
+    return { error: "Minimal harus ada satu item dalam transaksi." };
+  }
+
+  let calculatedSubtotal = 0;
+  for (const item of itemsList) {
+    if (!item.productName || item.price < 0 || item.quantity < 1) {
+      return { error: "Data item produk, harga, atau kuantitas tidak valid." };
+    }
+    calculatedSubtotal += item.price * item.quantity;
+  }
+
+  const initialStatus = isShipping ? "dibayar" : "selesai";
+  const orderCode = generateDirectSaleCode();
+  let createdOrderId: number | null = null;
+
+  try {
+    await db.transaction(async (tx) => {
+      // 1. Kurangi stok produk katalog jika productId ada
+      for (const item of itemsList) {
+        if (item.productId) {
+          const [prod] = await tx
+            .select({ stock: products.stock })
+            .from(products)
+            .where(eq(products.id, item.productId));
+
+          if (prod && prod.stock !== null) {
+            if (prod.stock < item.quantity) {
+              throw new Error(`Stok produk "${item.productName}" tidak mencukupi (sisa ${prod.stock}).`);
+            }
+            await tx
+              .update(products)
+              .set({
+                stock: sql`${products.stock} - ${item.quantity}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(products.id, item.productId));
+          }
+        }
+      }
+
+      // 2. Buat record Order dengan sumber "langsung" dan recordedBy terisi
+      const [insertedOrder] = await tx
+        .insert(orders)
+        .values({
+          code: orderCode,
+          source: "langsung",
+          userId: customerType === "registered" ? registeredUserId : null,
+          customerName: customerType === "general" ? "Pembeli Umum" : customerName,
+          customerPhone,
+          recordedBy: Number(admin.id),
+          status: initialStatus,
+          recipientName: isShipping ? recipientName : null,
+          phone: isShipping ? phone : null,
+          shippingAddress: isShipping ? shippingAddress : null,
+          postalCode: isShipping ? postalCode : null,
+          subtotal: calculatedSubtotal,
+          notes: proofUrl ? `${notes}\nBukti Bayar: ${proofUrl}`.trim() : notes,
+          createdAt: transactionDate,
+          updatedAt: transactionDate,
+        })
+        .returning({ id: orders.id });
+
+      createdOrderId = insertedOrder.id;
+
+      // 3. Masukkan Order Items
+      for (const item of itemsList) {
+        await tx.insert(orderItems).values({
+          orderId: createdOrderId,
+          productId: item.productId || null,
+          productName: item.productName,
+          price: item.price,
+          quantity: item.quantity,
+        });
+      }
+
+      // 4. Masukkan record Payment
+      await tx.insert(payments).values({
+        orderId: createdOrderId,
+        method: paymentMethod,
+        amount: calculatedSubtotal,
+        paidAt: transactionDate,
+        createdAt: transactionDate,
+      });
+
+      // 5. Catat Event Log
+      await tx.insert(orderEvents).values({
+        orderId: createdOrderId,
+        toStatus: initialStatus,
+        source: "admin",
+        userId: Number(admin.id),
+        note: `Penjualan langsung dicatat oleh admin (Sumber: Langsung, Metode: ${paymentMethod}).`,
+        createdAt: transactionDate,
+      });
+    });
+  } catch (err: any) {
+    return { error: err.message || "Gagal menyimpan transaksi langsung." };
+  }
+
+  revalidatePath("/admin", "layout");
+  revalidatePath("/pesanan", "layout");
+  return { redirectTo: `/admin/pesanan/${createdOrderId}` };
+}
+
+/**
+ * Membatalkan transaksi (baik online maupun langsung) dengan menyertakan alasan
+ * serta mengembalikan stok produk katalog secara otomatis (restock).
+ */
+export async function cancelOrderWithRestock(orderId: number, _state: StatusFormState, formData: FormData): Promise<StatusFormState> {
+  const admin = await requireAdmin();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reason) return { error: "Berikan alasan pembatalan transaksi." };
+
+  try {
+    await db.transaction(async (tx) => {
+      const [order] = await tx.select().from(orders).where(eq(orders.id, orderId));
+      if (!order) throw new Error("Pesanan tidak ditemukan.");
+      if (order.status === "dibatalkan") throw new Error("Pesanan sudah dibatalkan sebelumnya.");
+
+      const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+
+      // Kembalikan stok produk jika item terhubung ke produk katalog
+      for (const item of items) {
+        if (item.productId) {
+          await tx
+            .update(products)
+            .set({
+              stock: sql`${products.stock} + ${item.quantity}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(products.id, item.productId));
+        }
+      }
+
+      // Ubah status order menjadi dibatalkan
+      await tx
+        .update(orders)
+        .set({
+          status: "dibatalkan",
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, orderId));
+
+      // Catat event perubahan status & alasan pembatalan
+      await tx.insert(orderEvents).values({
+        orderId,
+        fromStatus: order.status,
+        toStatus: "dibatalkan",
+        source: "admin",
+        userId: Number(admin.id),
+        note: `Dibatalkan & stok dikembalikan. Alasan: ${reason}`,
+        createdAt: new Date(),
+      });
+    });
+  } catch (err: any) {
+    return { error: err.message || "Gagal membatalkan pesanan." };
+  }
+
+  revalidatePath("/admin", "layout");
+  revalidatePath("/pesanan", "layout");
+  return {};
 }
