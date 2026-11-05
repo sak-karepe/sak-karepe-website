@@ -22,7 +22,13 @@ export default async function FashionPage() {
       />
       <section className="bg-surface pt-2 pb-10 md:pb-14">
         <div className="wrap">
-          <RunwayGallery photos={photos} />
+          {photos.length === 0 ? (
+            <p className="py-10 text-center text-muted" aria-live="polite">
+              Tidak ada fashion show yang dapat diperlihatkan saat ini
+            </p>
+          ) : (
+            <RunwayGallery photos={photos} />
+          )}
         </div>
       </section>
       <section className="wrap mt-14 md:mt-20" aria-labelledby="archive-title">
