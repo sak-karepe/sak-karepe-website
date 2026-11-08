@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { and, asc, count, eq, like, or } from "drizzle-orm";
-import { PlusIcon } from "@phosphor-icons/react/dist/ssr";
+import {
+  CaretLeftIcon,
+  CaretRightIcon,
+  PlusIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import { ProductsSearch } from "@/components/products-search";
 import Image from "@/components/site-image";
 import { requireAdminPage } from "@/auth";
@@ -11,7 +15,7 @@ import { formatRupiah } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Produk" };
 
-const PER_PAGE = 20;
+const PRODUCTS_PER_PAGE = 15;
 
 export default async function AdminProductsPage({
   searchParams,
@@ -19,7 +23,7 @@ export default async function AdminProductsPage({
   searchParams: Promise<{ koleksi?: string; q?: string; page?: string }>;
 }) {
   await requireAdminPage();
-  const { koleksi: rawKoleksi, q: rawQ, page: rawPage } = await searchParams;
+  const { koleksi: rawKoleksi, q: rawQ, page: pageParam } = await searchParams;
   const q = (typeof rawQ === "string" ? rawQ : "").trim().slice(0, 80);
   const koleksiParam = typeof rawKoleksi === "string" ? rawKoleksi.trim() : "";
 
@@ -36,34 +40,56 @@ export default async function AdminProductsPage({
   const countOf = (slug?: string) =>
     counts.filter((row) => !slug || row.slug === slug).reduce((sum, row) => sum + row.total, 0);
 
-  const total = countOf(koleksi);
-  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
-  const parsedPage = Number(rawPage);
-  const page = Number.isInteger(parsedPage) && parsedPage > 1 ? Math.min(parsedPage, totalPages) : 1;
+  const totalProducts = countOf(koleksi);
+  const totalPages = Math.ceil(totalProducts / PRODUCTS_PER_PAGE);
+  const parsedPage = Number(pageParam);
+  const currentPage =
+    Number.isInteger(parsedPage) && parsedPage > 1
+      ? Math.min(parsedPage, Math.max(1, totalPages))
+      : 1;
+  const offset = (currentPage - 1) * PRODUCTS_PER_PAGE;
+
+  const whereClause = and(koleksi ? eq(products.categorySlug, koleksi) : undefined, search);
 
   const rows = await db.query.products.findMany({
-    where: and(koleksi ? eq(products.categorySlug, koleksi) : undefined, search),
-    orderBy: [asc(products.categorySlug), asc(products.sortOrder), asc(products.id)],
-    limit: PER_PAGE,
-    offset: (page - 1) * PER_PAGE,
-    with: { images: { orderBy: (image, { asc }) => [asc(image.sortOrder), asc(image.id)], limit: 1 } },
+    where: whereClause,
+    orderBy: [
+      asc(products.categorySlug),
+      asc(products.sortOrder),
+      asc(products.id),
+    ],
+    limit: PRODUCTS_PER_PAGE,
+    offset,
+    with: {
+      images: {
+        orderBy: (image, { asc }) => [asc(image.sortOrder), asc(image.id)],
+        limit: 1,
+      },
+    },
   });
 
-  const categoryTitle = (slug: string) => allCategories.find((category) => category.slug === slug)?.title ?? slug;
+  const categoryTitle = (slug: string) =>
+    allCategories.find((category) => category.slug === slug)?.title ?? slug;
 
-  const tabHref = (slug?: string) => {
+  // Helper untuk membuat URL kategori dengan mempertahankan query pencarian dan mereset halaman ke 1
+  const categoryHref = (slug?: string) => {
     const params = new URLSearchParams({ ...(slug && { koleksi: slug }), ...(q && { q }) });
     return params.size ? `/admin/produk?${params}` : "/admin/produk";
   };
 
-  const pageHref = (targetPage: number) => {
+  // Helper untuk membuat URL pagination dengan mempertahankan filter koleksi dan query pencarian
+  const createPageUrl = (pageNumber: number) => {
     const params = new URLSearchParams({
       ...(koleksi && { koleksi }),
       ...(q && { q }),
-      ...(targetPage > 1 && { page: String(targetPage) }),
+      ...(pageNumber > 1 && { page: String(pageNumber) }),
     });
     return params.size ? `/admin/produk?${params}` : "/admin/produk";
   };
+
+  const visibleTabs = [{ slug: undefined, title: "Semua" }, ...allCategories].filter(
+    (category) => !q || !category.slug || koleksi === category.slug || countOf(category.slug) > 0,
+  );
 
   return (
     <main id="utama" className="px-5 py-8 md:px-10 md:py-12">
@@ -71,24 +97,31 @@ export default async function AdminProductsPage({
         <div>
           <h1 className="text-3xl tracking-[-.045em] md:text-4xl">Produk</h1>
           <p className="mt-2 text-muted">
-            {total} produk{activeCategory && ` di koleksi ${activeCategory.title}`}
+            {totalProducts} produk
+            {activeCategory && ` di koleksi ${activeCategory.title}`}
             {q && ` untuk "${q}"`}
           </p>
         </div>
-        <Link href="/admin/produk/baru" className="btn min-h-11 gap-2 px-4 text-[15px]">
+        <Link
+          href="/admin/produk/baru"
+          className="btn min-h-11 gap-2 px-4 text-[15px]"
+        >
           <PlusIcon size={18} aria-hidden="true" /> Tambah produk
         </Link>
       </div>
 
       <ProductsSearch initialQ={q} koleksi={koleksi ?? ""} />
 
-      <nav aria-label="Filter koleksi" className="mt-8 flex gap-6 overflow-x-auto border-b border-line">
-        {[{ slug: undefined, title: "Semua" }, ...allCategories].map((category) => {
+      <nav
+        aria-label="Filter koleksi"
+        className="mt-8 flex gap-6 overflow-x-auto border-b border-line"
+      >
+        {visibleTabs.map((category) => {
           const active = koleksi === category.slug;
           return (
             <Link
               key={category.title}
-              href={tabHref(category.slug)}
+              href={categoryHref(category.slug)}
               aria-current={active ? "page" : undefined}
               className={`flex shrink-0 items-center gap-2 border-b-2 px-1 py-3 text-[15px] ${active ? "border-accent font-medium" : "border-transparent text-muted hover:text-ink"}`}
             >
@@ -98,6 +131,7 @@ export default async function AdminProductsPage({
           );
         })}
       </nav>
+
       {rows.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-muted">
@@ -107,7 +141,7 @@ export default async function AdminProductsPage({
           </p>
           {(q || koleksi) && (
             <Link
-              href={q && koleksi ? tabHref(koleksi) : "/admin/produk"}
+              href={q && koleksi ? categoryHref(koleksi) : "/admin/produk"}
               className="mt-4 inline-flex min-h-11 items-center rounded-md border border-line px-4 text-sm transition-colors hover:border-accent hover:text-accent"
             >
               {q && koleksi ? "Reset pencarian" : "Reset filter"}
@@ -125,74 +159,94 @@ export default async function AdminProductsPage({
                 >
                   <div className="photo size-14 md:size-16">
                     {product.images[0] && (
-                      <Image src={product.images[0].src} alt="" fill sizes="64px" className="object-cover" />
+                      <Image
+                        src={product.images[0].src}
+                        alt=""
+                        fill
+                        sizes="64px"
+                        className="object-cover"
+                      />
                     )}
                   </div>
                   <div className="min-w-0">
                     <p className="truncate font-medium">{product.name}</p>
                     <p className="mt-0.5 text-sm text-muted">
                       {categoryTitle(product.categorySlug)}
-                      <span className="md:hidden"> · {product.price === null ? "Konsultasi" : formatRupiah(product.price)}</span>
+                      <span className="md:hidden">
+                        {" "}
+                        ·{" "}
+                        {product.price === null
+                          ? "Konsultasi"
+                          : formatRupiah(product.price)}
+                      </span>
                     </p>
                   </div>
                   <p className="hidden text-[15px] md:block">
-                    {product.price === null ? <span className="text-muted">Konsultasi</span> : formatRupiah(product.price)}
+                    {product.price === null ? (
+                      <span className="text-muted">Konsultasi</span>
+                    ) : (
+                      formatRupiah(product.price)
+                    )}
                   </p>
-                  <p className={`hidden text-[15px] md:block ${product.stock === 0 ? "text-danger" : "text-muted"}`}>
-                    {product.stock === null ? "Stok tak terbatas" : product.stock === 0 ? "Stok habis" : `Stok ${product.stock}`}
+                  <p
+                    className={`hidden text-[15px] md:block ${product.stock === 0 ? "text-danger" : "text-muted"}`}
+                  >
+                    {product.stock === null
+                      ? "Stok tak terbatas"
+                      : product.stock === 0
+                        ? "Stok habis"
+                        : `Stok ${product.stock}`}
                   </p>
                   {/* Stok 0 ikut disembunyikan dari toko (lib/catalog). */}
                   <span
                     className={`justify-self-end rounded-full px-2.5 py-1 text-xs ${!product.published ? "border border-line text-muted" : product.stock === 0 ? "border border-danger text-danger" : "bg-surface text-accent"}`}
                   >
-                    {!product.published ? "Disembunyikan" : product.stock === 0 ? "Habis" : "Tampil"}
+                    {!product.published
+                      ? "Disembunyikan"
+                      : product.stock === 0
+                        ? "Habis"
+                        : "Tampil"}
                   </span>
                 </Link>
               </li>
             ))}
           </ul>
+
+          {/* Server-Side Pagination Navigasi */}
           {totalPages > 1 && (
-            <nav aria-label="Navigasi halaman" className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
+            <div className="flex items-center justify-between mt-8 pt-4 border-t border-line px-2">
               <p className="text-sm text-muted">
-                Halaman <span className="font-medium text-ink tabular-nums">{page}</span> dari{" "}
-                <span className="font-medium text-ink tabular-nums">{totalPages}</span>
+                Halaman {currentPage} dari {totalPages} (Total {totalProducts}{" "}
+                produk)
               </p>
-              <div className="flex flex-wrap items-center gap-2">
-                {page > 1 && (
+              <div className="flex items-center gap-2">
+                {currentPage > 1 ? (
                   <Link
-                    href={pageHref(page - 1)}
-                    className="inline-flex min-h-11 items-center rounded-md border border-line px-3.5 text-sm transition-colors hover:border-accent hover:text-accent"
+                    href={createPageUrl(currentPage - 1)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-line hover:border-accent hover:text-accent transition-colors"
                   >
-                    Sebelumnya
+                    <CaretLeftIcon size={16} /> Sebelumnya
                   </Link>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-line opacity-50 cursor-not-allowed">
+                    <CaretLeftIcon size={16} /> Sebelumnya
+                  </span>
                 )}
-                {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNum) => {
-                  const active = pageNum === page;
-                  return (
-                    <Link
-                      key={pageNum}
-                      href={pageHref(pageNum)}
-                      aria-current={active ? "page" : undefined}
-                      className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border px-3 text-sm tabular-nums transition-colors ${
-                        active
-                          ? "border-accent bg-accent font-medium text-button-ink"
-                          : "border-line hover:border-accent hover:text-accent"
-                      }`}
-                    >
-                      {pageNum}
-                    </Link>
-                  );
-                })}
-                {page < totalPages && (
+
+                {currentPage < totalPages ? (
                   <Link
-                    href={pageHref(page + 1)}
-                    className="inline-flex min-h-11 items-center rounded-md border border-line px-3.5 text-sm transition-colors hover:border-accent hover:text-accent"
+                    href={createPageUrl(currentPage + 1)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-line hover:border-accent hover:text-accent transition-colors"
                   >
-                    Berikutnya
+                    Selanjutnya <CaretRightIcon size={16} />
                   </Link>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-line opacity-50 cursor-not-allowed">
+                    Selanjutnya <CaretRightIcon size={16} />
+                  </span>
                 )}
               </div>
-            </nav>
+            </div>
           )}
         </>
       )}
