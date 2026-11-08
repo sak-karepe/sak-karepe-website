@@ -13,7 +13,6 @@ import { normalizePhone, phoneError } from "@/lib/phone";
 import { checkoutStatuses } from "@/lib/order-status";
 import { cancelActivePayments, isActivePayment } from "@/lib/payments";
 import { quoteShipping, type ShippingOption } from "@/lib/shipping";
-import { isAdmin } from "@/auth";
 
 const loginRequired = "Sesi masuk berakhir. Silakan masuk kembali.";
 const notCancellable = "Pesanan ini sudah tidak bisa dibatalkan. Muat ulang halaman untuk melihat statusnya.";
@@ -130,7 +129,6 @@ export async function placeOrder(input: { items: { productId: number; quantity: 
   if (!userId) return { error: loginRequired };
   if (!Array.isArray(input.items) || input.items.length === 0) return { error: "Keranjang masih kosong." };
   if (input.items.length > 20) return { error: "Maksimal 20 produk dalam satu pesanan." };
-  const sessionUser = { id: String(userId) }; // Atau ambil email/cek role database
   // Sesuai auth.ts, kita bisa cek role dari database atau helper isAdmin
   const userRow = await db.query.users.findFirst({ columns: { email: true, role: true }, where: eq(users.id, userId) });
   if (userRow?.role === "admin" || isRootAdmin(userRow?.email)) {

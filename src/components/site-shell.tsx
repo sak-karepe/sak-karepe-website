@@ -11,10 +11,15 @@ import {
   useRef,
   useState,
   useCallback,
+  useMemo,
+  useSyncExternalStore,
 } from "react";
 import { navigation } from "@/lib/content";
 import type { RunwayPhoto } from "@/lib/runway";
-import { ShoppingCartSimpleIcon, WhatsappLogoIcon } from "@phosphor-icons/react";
+import {
+  ShoppingCartSimpleIcon,
+  WhatsappLogoIcon,
+} from "@phosphor-icons/react";
 import { SessionProvider, useSession } from "next-auth/react";
 import { signInWithGoogle } from "@/lib/auth-actions";
 import { AccountMenu } from "./account-menu";
@@ -22,15 +27,86 @@ import { whatsappUrl } from "@/lib/contact";
 import { GalleryLightbox } from "./gallery-lightbox";
 import { Checkout, type CartItem } from "./checkout";
 
+const cartKey = "sak-karepe-cart";
+const cartParam = "keranjang";
+const CART_CHANGE_EVENT = "sak-karepe-cart-change";
+const LOCATION_CHANGE_EVENT = "sak-karepe-location-change";
+
+// Cart store
+function subscribeCart(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(CART_CHANGE_EVENT, callback);
+
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(CART_CHANGE_EVENT, callback);
+  };
+}
+
+function getCartSnapshot() {
+  try {
+    return localStorage.getItem(cartKey) ?? "[]";
+  } catch {
+    return "[]";
+  }
+}
+
+function getServerCartSnapshot() {
+  return "[]";
+}
+
+function parseCartSnapshot(snapshot: string): CartItem[] {
+  try {
+    const parsed = JSON.parse(snapshot);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// URL store
+function subscribeLocation(callback: () => void) {
+  window.addEventListener("popstate", callback);
+  window.addEventListener(LOCATION_CHANGE_EVENT, callback);
+
+  return () => {
+    window.removeEventListener("popstate", callback);
+    window.removeEventListener(LOCATION_CHANGE_EVENT, callback);
+  };
+}
+
+function getLocationSnapshot() {
+  return window.location.search;
+}
+
+function getServerLocationSnapshot() {
+  return "";
+}
+
+// Membersihkan parameter URL modal
+function clearModalQuery() {
+  const url = new URL(window.location.href);
+
+  url.searchParams.delete("error");
+  url.searchParams.delete(cartParam);
+
+  window.history.replaceState(null, "", url);
+  window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
+}
+
 type Modal =
-  | { kind: "product"; product: { title: string; src: string; description: string } }
+  | {
+      kind: "product";
+      product: { title: string; src: string; description: string };
+    }
   | { kind: "consult"; message: string }
   | { kind: "gallery"; photos: RunwayPhoto[]; index: number }
   | { kind: "login"; notice?: string; redirectTo?: string }
   | { kind: "checkout" };
 
 const loginNotices: Record<string, string> = {
-  AccessDenied: "Login ditolak. Pastikan email akun Google sudah terverifikasi.",
+  AccessDenied:
+    "Login ditolak. Pastikan email akun Google sudah terverifikasi.",
   SessionRequired: "Masuk dengan akun admin untuk membuka dashboard.",
 };
 
@@ -39,9 +115,6 @@ const SiteContext = createContext<{
   cart: CartItem[];
   updateCart: (change: (items: CartItem[]) => CartItem[]) => void;
 } | null>(null);
-
-const cartKey = "sak-karepe-cart";
-const cartParam = "keranjang";
 
 export function useSite() {
   const value = useContext(SiteContext);
@@ -56,14 +129,51 @@ const initialMessage =
 function SiteContent({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession(); // Aman dipanggil di sini karena di bawah SessionProvider
   const currentPath = usePathname();
-  const pathname = basePath && currentPath.startsWith(`${basePath}/`)
-    ? currentPath.slice(basePath.length) : currentPath;
-  const [modal, setModal] = useState<Modal | null>(null),
+  const pathname =
+    basePath && currentPath.startsWith(`${basePath}/`)
+      ? currentPath.slice(basePath.length)
+      : currentPath;
+  const [manualModal, setManualModal] = useState<Modal | null>(null),
     [menu, setMenu] = useState(false),
     [dark, setDark] = useState(false),
     [message, setMessage] = useState(""),
-    [status, setStatus] = useState(""),
-    [cart, setCart] = useState<CartItem[]>([]);
+    [status, setStatus] = useState("");
+
+  // Cart dari external store
+  const cartSnapshot = useSyncExternalStore(
+    subscribeCart,
+    getCartSnapshot,
+    getServerCartSnapshot,
+  );
+
+  const cart = useMemo(() => parseCartSnapshot(cartSnapshot), [cartSnapshot]);
+
+  // Modal dari URL
+  const locationSearch = useSyncExternalStore(
+    subscribeLocation,
+    getLocationSnapshot,
+    getServerLocationSnapshot,
+  );
+
+  const urlModal = useMemo<Modal | null>(() => {
+    const params = new URLSearchParams(locationSearch);
+    const error = params.get("error");
+
+    if (error) {
+      return {
+        kind: "login",
+        notice: loginNotices[error] ?? "Login gagal. Silakan coba lagi.",
+      };
+    }
+
+    if (params.has(cartParam)) {
+      return { kind: "checkout" };
+    }
+
+    return null;
+  }, [locationSearch]);
+
+  const modal = manualModal ?? urlModal;
   const dialog = useRef<HTMLDialogElement>(null),
     textarea = useRef<HTMLTextAreaElement>(null),
     animation = useRef<Animation | null>(null),
@@ -72,48 +182,49 @@ function SiteContent({ children }: { children: React.ReactNode }) {
   const open = useCallback((next: Modal) => {
     if (!dialog.current?.open)
       opener.current = document.activeElement as HTMLElement;
+
     animation.current?.cancel();
     animation.current = null;
     setStatus("");
+
     if (next.kind === "consult") setMessage(next.message);
-    setModal(next);
+
+    setManualModal(next);
   }, []);
 
-  const updateCart = useCallback((change: (items: CartItem[]) => CartItem[]) => {
-    setCart((items) => {
-      const next = change(items);
+  const updateCart = useCallback(
+    (change: (items: CartItem[]) => CartItem[]) => {
+      const current = parseCartSnapshot(getCartSnapshot());
+      const next = change(current);
+
       try {
         localStorage.setItem(cartKey, JSON.stringify(next));
       } catch {}
-      return next;
-    });
-  }, []);
 
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(cartKey) ?? "[]");
-      if (Array.isArray(saved)) setCart(saved);
-    } catch {}
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has(cartParam)) return;
-    url.searchParams.delete(cartParam);
-    window.history.replaceState(null, "", url);
-    open({ kind: "checkout" });
-  }, [open]);
+      window.dispatchEvent(new Event(CART_CHANGE_EVENT));
+    },
+    [],
+  );
 
   const close = useCallback(() => {
     const element = dialog.current;
+
     if (!element || animation.current) return;
+
+    clearModalQuery();
+
     const finish = () => {
       element.close();
-      setModal(null);
+      setManualModal(null);
       opener.current?.focus();
       animation.current = null;
     };
+
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       finish();
       return;
     }
+
     animation.current = element.animate(
       [
         { opacity: 1, transform: "translateY(0)" },
@@ -121,6 +232,7 @@ function SiteContent({ children }: { children: React.ReactNode }) {
       ],
       { duration: 160, easing: "ease-in" },
     );
+
     animation.current.onfinish = finish;
   }, []);
 
@@ -146,15 +258,6 @@ function SiteContent({ children }: { children: React.ReactNode }) {
   useEffect(() => () => animation.current?.cancel(), []);
 
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const error = url.searchParams.get("error");
-    if (!error) return;
-    url.searchParams.delete("error");
-    window.history.replaceState(null, "", url);
-    open({ kind: "login", notice: loginNotices[error] ?? "Login gagal. Silakan coba lagi." });
-  }, [open]);
-
-  useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
   }, [dark]);
 
@@ -168,10 +271,11 @@ function SiteContent({ children }: { children: React.ReactNode }) {
 
   const changePhoto = (delta: number) => {
     if (modal?.kind === "gallery")
-      setModal({
+      setManualModal({
         kind: "gallery",
         photos: modal.photos,
-        index: (modal.index + delta + modal.photos.length) % modal.photos.length,
+        index:
+          (modal.index + delta + modal.photos.length) % modal.photos.length,
       });
   };
 
@@ -303,7 +407,9 @@ function SiteContent({ children }: { children: React.ReactNode }) {
             ))}
           </div>
         </div>
-        <p className="pb-6 text-[13px] text-muted">Sak Karepe · Pewarnaan Alami</p>
+        <p className="pb-6 text-[13px] text-muted">
+          Sak Karepe · Pewarnaan Alami
+        </p>
       </footer>
       <a
         href={whatsappUrl()}
@@ -333,7 +439,7 @@ function SiteContent({ children }: { children: React.ReactNode }) {
           event.preventDefault();
           close();
         }}
-        onClose={() => setModal(null)}
+        onClose={() => setManualModal(null)}
         onKeyDown={(event) => {
           if (
             modal?.kind === "gallery" &&
@@ -510,7 +616,9 @@ function SiteContent({ children }: { children: React.ReactNode }) {
             <GalleryLightbox
               photos={modal.photos}
               index={modal.index}
-              onChange={(index) => setModal({ kind: "gallery", photos: modal.photos, index })}
+              onChange={(index) =>
+                setManualModal({ kind: "gallery", photos: modal.photos, index })
+              }
             />
           )}
         </div>
