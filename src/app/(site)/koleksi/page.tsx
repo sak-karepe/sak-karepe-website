@@ -11,7 +11,15 @@ export const metadata: Metadata = {
   description:
     "Jelajahi ragam tas, busana, sepatu, dan kain ecoprint Sak Karepe.",
 };
-export default function CollectionPage() {
+export default async function CollectionPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string; koleksi?: string }>;
+}) {
+  const params = await searchParams;
+  const q = String(params?.q ?? "").trim().slice(0, 80);
+  const koleksi = String(params?.koleksi ?? "").trim();
+
   return (
     <main id="utama">
       <div className="wrap pt-8 md:pt-10">
@@ -38,7 +46,7 @@ export default function CollectionPage() {
           </div>
         </section>
         <div id="ragam-koleksi" className="scroll-mt-24">
-          <Collection />
+          <Collection initialQ={q} initialKoleksi={koleksi} />
         </div>
       </div>
       <Reveal className="wrap mt-16 md:mt-24">
