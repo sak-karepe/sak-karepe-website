@@ -263,6 +263,23 @@ export const orderEvents = sqliteTable(
   (table) => [index("order_events_order_idx").on(table.orderId)],
 );
 
+/**
+ * Foto dokumentasi fashion show untuk /fashion-show dan beranda. `src` berupa foto bawaan di public/images/runway
+ * atau unggahan admin (lib/uploads). `caption` = nama acara, mis. "Jakarta Fashion Week".
+ */
+export const runwayPhotos = sqliteTable("runway_photos", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  src: text("src").notNull(),
+  alt: text("alt").notNull(),
+  caption: text("caption"),
+  city: text("city"),
+  year: integer("year"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  published: integer("published", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
 export const productsRelations = relations(products, ({ many, one }) => ({
   images: many(productImages),
   category: one(categories, { fields: [products.categorySlug], references: [categories.slug] }),
@@ -311,3 +328,4 @@ export type OrderItem = typeof orderItems.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type ShipmentHistory = typeof shipmentHistory.$inferSelect;
 export type OrderEvent = typeof orderEvents.$inferSelect;
+export type RunwayPhotoRow = typeof runwayPhotos.$inferSelect;
