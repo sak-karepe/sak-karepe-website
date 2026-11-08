@@ -40,14 +40,20 @@ export function CollectionFilter({
           {matching.length} produk
         </p>
       </div>
-      <div
-        key={filter}
-        className="stagger grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-x-5 md:gap-y-10 xl:gap-x-6"
-      >
-        {visible.map((product) => (
-          <ProductCard key={product.id} product={product} />
-        ))}
-      </div>
+      {visible.length === 0 ? (
+        <p key={filter} className="py-12 text-muted">
+          Belum ada produk yang ditampilkan di koleksi ini.
+        </p>
+      ) : (
+        <div
+          key={filter}
+          className="stagger grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-x-5 md:gap-y-10 xl:gap-x-6"
+        >
+          {visible.map((product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+        </div>
+      )}
     </>
   );
 }
