@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { CaretDownIcon, CheckCircleIcon, MinusIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useSession } from "next-auth/react";
 import { LinkIcon } from "@/components/icons";
@@ -418,7 +418,15 @@ function AddressForm({ onSaved, onCancel }: { onSaved: (address: Address) => voi
   }, [phoneInvalid]);
 
   return (
-    <form action={formAction} className="mt-4 grid gap-x-4 gap-y-5 sm:grid-cols-2">
+    <form
+      action={formAction}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        startTransition(() => formAction(formData));
+      }}
+      className="mt-4 grid gap-x-4 gap-y-5 sm:grid-cols-2"
+    >
       {!onCancel && (
         <p className="-mt-1 text-sm text-muted sm:col-span-2">Isi sekali, alamat tersimpan untuk pesanan berikutnya.</p>
       )}
