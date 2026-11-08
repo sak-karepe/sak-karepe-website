@@ -19,3 +19,8 @@ export function sanitizeSlugInput(value: string) {
     .slice(0, 80)
     .replace(/^-+/, "");
 }
+
+/** "Tote Bag, Daun Jati!" menjadi "tote-bag-daun-jati". */
+export function slugify(value: string) {
+  return sanitizeSlugInput(value).replace(/-+$/g, "") || "produk";
+}
