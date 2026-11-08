@@ -1,0 +1,1 @@
+ALTER TABLE `payments` ADD `pending_change` text;

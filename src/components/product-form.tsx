@@ -3,9 +3,9 @@ import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { ArrowDownIcon, ArrowUpIcon, ImageIcon, TrashIcon } from "@phosphor-icons/react";
 import Image from "@/components/site-image";
-import type { ProductFormState } from "@/lib/product-actions";
+import { SearchableSelect, type SearchOption } from "@/components/searchable-select";
+import { searchCategories, type ProductFormState } from "@/lib/product-actions";
 
-type Option = { slug: string; title: string };
 type ExistingImage = { id: number; src: string; alt: string };
 export type ProductFormValues = {
   name: string;
@@ -24,16 +24,18 @@ const label = "mb-2 block text-sm font-medium";
 
 export function ProductForm({
   action,
-  categories,
+  category: initialCategory,
   product,
   onDelete,
 }: {
   action: (state: ProductFormState, formData: FormData) => Promise<ProductFormState>;
-  categories: Option[];
+  /** Koleksi produk yang sedang diubah, untuk label awal dropdown. */
+  category?: SearchOption;
   product?: ProductFormValues;
   onDelete?: () => Promise<void>;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
+  const [category, setCategory] = useState(initialCategory ?? null);
   const [images, setImages] = useState(product?.images ?? []);
   const [previews, setPreviews] = useState<{ url: string; name: string }[]>([]);
   useEffect(() => () => previews.forEach((preview) => URL.revokeObjectURL(preview.url)), [previews]);
@@ -163,12 +165,16 @@ export function ProductForm({
         <div className="space-y-6 lg:sticky lg:top-8 lg:self-start">
           <div>
             <label htmlFor="categorySlug" className={label}>Koleksi</label>
-            <select id="categorySlug" name="categorySlug" required defaultValue={product?.categorySlug ?? ""} className={field}>
-              <option value="" disabled>Pilih koleksi</option>
-              {categories.map((category) => (
-                <option key={category.slug} value={category.slug}>{category.title}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              id="categorySlug"
+              name="categorySlug"
+              required
+              placeholder="Cari koleksi"
+              className={field}
+              value={category}
+              onChange={setCategory}
+              load={searchCategories}
+            />
           </div>
           <div>
             <label htmlFor="price" className={label}>

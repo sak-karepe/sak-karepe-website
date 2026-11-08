@@ -1,10 +1,10 @@
 "use server";
 import { randomInt } from "node:crypto";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { currentUserId } from "@/auth";
 import { db } from "@/db";
-import { addresses, orderEvents, orderItems, orders, payments, products, regions, type Address } from "@/db/schema";
+import { addresses, orderEvents, orderItems, orders, payments, products, regions, type Address, type PendingOrderChange } from "@/db/schema";
 import { formatAddress } from "@/lib/address";
 import { cancelCheckout, createCheckout } from "@/lib/doku";
 import { whatsappUrl } from "@/lib/contact";
@@ -25,15 +25,19 @@ export async function listAddresses(): Promise<Address[]> {
 
 export type AddressFormState = { error?: string; address?: Address };
 
-export async function saveAddress(_state: AddressFormState, formData: FormData): Promise<AddressFormState> {
-  const userId = await currentUserId();
-  if (!userId) return { error: loginRequired };
+/**
+ * Membaca dan memvalidasi isian form alamat, dipakai untuk tambah dan ubah. Nama wilayah diambil dari tabel regions,
+ * bukan dari form.
+ */
+async function readAddressForm(
+  formData: FormData,
+): Promise<{ error: string } | { values: Omit<typeof addresses.$inferInsert, "userId"> }> {
   const value = (name: string) => String(formData.get(name) ?? "").trim();
   const phone = normalizePhone(value("phone"));
   const postalCode = value("postalCode");
   if (!value("recipientName")) return { error: "Isi nama penerima." };
   if (!phone) return { error: phoneError };
-  // Nama wilayah diambil dari tabel regions, bukan dari form: "35.78.08.1001" -> 35, 35.78, 35.78.08, 35.78.08.1001.
+  // "35.78.08.1001" -> 35, 35.78, 35.78.08, 35.78.08.1001.
   const parts = value("villageCode").split(".");
   const codes = parts.map((_, index) => parts.slice(0, index + 1).join("."));
   const found = parts.length === 4 ? await db.select().from(regions).where(inArray(regions.code, codes)) : [];
@@ -41,10 +45,8 @@ export async function saveAddress(_state: AddressFormState, formData: FormData):
   if (!province || !city || !district || !village) return { error: "Pilih provinsi sampai kelurahan/desa." };
   if (!value("street")) return { error: "Isi alamat jalan dan nomor rumah." };
   if (!/^\d{5}$/.test(postalCode)) return { error: "Kode pos terdiri dari 5 angka." };
-  const [address] = await db
-    .insert(addresses)
-    .values({
-      userId,
+  return {
+    values: {
       recipientName: value("recipientName"),
       phone,
       street: value("street"),
@@ -55,9 +57,49 @@ export async function saveAddress(_state: AddressFormState, formData: FormData):
       villageCode: village.code,
       postalCode,
       notes: value("notes"),
-    })
-    .returning();
+    },
+  };
+}
+
+export async function saveAddress(_state: AddressFormState, formData: FormData): Promise<AddressFormState> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const form = await readAddressForm(formData);
+  if ("error" in form) return { error: form.error };
+  const [address] = await db.insert(addresses).values({ userId, ...form.values }).returning();
   return { address };
+}
+
+/**
+ * Mengubah alamat milik pembeli yang sedang masuk (userId ikut di WHERE, jadi alamat orang lain tidak bisa disentuh).
+ * Pesanan lama tidak terpengaruh karena alamatnya sudah disalin ke `orders` saat checkout.
+ */
+export async function updateAddress(id: number, _state: AddressFormState, formData: FormData): Promise<AddressFormState> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const form = await readAddressForm(formData);
+  if ("error" in form) return { error: form.error };
+  const [address] = await db
+    .update(addresses)
+    .set(form.values)
+    .where(and(eq(addresses.id, id), eq(addresses.userId, userId)))
+    .returning();
+  if (!address) return { error: "Alamat tidak ditemukan. Muat ulang halaman lalu coba lagi." };
+  return { address };
+}
+
+export type DeleteAddressResult = { error?: string };
+
+/** Menghapus alamat milik pembeli yang sedang masuk. Pesanan lama tidak terpengaruh (alamatnya sudah disalin). */
+export async function deleteAddress(id: number): Promise<DeleteAddressResult> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const deleted = await db
+    .delete(addresses)
+    .where(and(eq(addresses.id, id), eq(addresses.userId, userId)))
+    .returning({ id: addresses.id });
+  if (!deleted.length) return { error: "Alamat tidak ditemukan. Muat ulang halaman lalu coba lagi." };
+  return {};
 }
 
 /** Kode pendek yang mudah dibaca dan didiktekan, mis. SK-261023-7K2P. */
@@ -359,4 +401,157 @@ export async function confirmReceived(id: number): Promise<CancelOrderState> {
   revalidatePath("/pesanan", "layout");
   revalidatePath("/admin", "layout");
   return done ? {} : { error: "Pesanan ini belum sampai atau sudah selesai. Muat ulang halaman untuk melihat statusnya." };
+}
+
+export type ChangePaidAddressResult = { error?: string; success?: boolean; priceDiff?: number };
+
+type AddressChangeInput = { orderId: number; addressId: number; courier: { courierCode: string; serviceCode: string } };
+
+/** Validasi bersama ubah alamat setelah bayar: pesanan "dibayar" milik pembeli, kurir belum dipesan, kurir tersedia. */
+async function prepareAddressChange(userId: number, input: AddressChangeInput) {
+  const [order, address] = await Promise.all([
+    findOwnOrder(userId, input.orderId),
+    db.query.addresses.findFirst({ where: and(eq(addresses.id, input.addressId), eq(addresses.userId, userId)) }),
+  ]);
+  if (!order) return { error: "Pesanan tidak ditemukan." };
+  if (order.status !== "dibayar")
+    return { error: "Alamat hanya bisa diubah untuk pesanan yang sudah dibayar dan belum dikirim." };
+  if (order.shipmentId) return { error: "Alamat tidak bisa diubah setelah booking kurir." };
+  if (!address) return { error: "Pilih alamat pengiriman." };
+
+  const quote = await quoteOrder(order, address.postalCode);
+  if (!quote.ok) return { error: quote.error };
+  const option = quote.options.find(
+    (opt) => opt.courierCode === input.courier.courierCode && opt.serviceCode === input.courier.serviceCode,
+  );
+  if (!option) return { error: "Layanan kurir tersebut tidak tersedia untuk alamat ini. Pilih kurir lain." };
+
+  const shippingAddress = formatAddress(address);
+  const change: PendingOrderChange = {
+    recipientName: address.recipientName,
+    phone: address.phone,
+    shippingAddress: address.notes ? `${shippingAddress} (${address.notes})` : shippingAddress,
+    postalCode: address.postalCode,
+    courierCode: option.courierCode,
+    courierServiceCode: option.serviceCode,
+    courierName: option.name,
+    shippingCost: option.price,
+  };
+  return { order, change, diff: option.price - (order.shippingCost ?? 0) };
+}
+
+/**
+ * Pembeli mengubah alamat dan kurir setelah pesanan dibayar, selama kurir belum dipesan (`!order.shipmentId`).
+ * Ongkir dihitung ulang dengan quoteShipping.
+ * - Bila ongkir baru <= ongkir lama: perubahan langsung disimpan. Bila lebih hemat, pesanan ditandai "Perlu dicek" untuk refund.
+ * - Bila ongkir baru > ongkir lama: mengembalikan info selisih agar pembeli bisa membayar selisih lewat DOKU atau hubungi admin.
+ */
+export async function changePaidOrderAddress(input: AddressChangeInput): Promise<ChangePaidAddressResult> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const prepared = await prepareAddressChange(userId, input);
+  if (!prepared.order) return { error: prepared.error };
+  const { order, change, diff } = prepared;
+
+  if (diff > 0) {
+    return {
+      error: `Ongkos kirim ke alamat ini lebih tinggi sebesar ${formatRupiah(diff)}. Bayar selisih lewat DOKU atau konfirmasi dengan admin via WhatsApp.`,
+      priceDiff: diff,
+    };
+  }
+
+  const refundNote = `Pembeli mengubah alamat; selisih ongkir lebih hemat ${formatRupiah(-diff)} dicatat untuk penanganan admin/refund.`;
+  const saved = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(orders)
+      .set({
+        ...change,
+        // Ditambahkan, bukan menimpa, agar catatan "Perlu dicek" sebelumnya tidak hilang.
+        ...(diff < 0 && { reviewNote: [order.reviewNote, refundNote].filter(Boolean).join(" · ") }),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(orders.id, input.orderId), eq(orders.status, "dibayar"), isNull(orders.shipmentId)))
+      .returning({ id: orders.id });
+
+    if (updated) {
+      await tx.insert(orderEvents).values({
+        orderId: input.orderId,
+        source: "pembeli",
+        userId,
+        note:
+          diff < 0
+            ? `Alamat pengiriman diubah pembeli ke ${change.recipientName}, ${change.shippingAddress} (${change.courierName}). Ongkir baru ${formatRupiah(change.shippingCost)} (lebih hemat ${formatRupiah(-diff)}). Selisih dicatat untuk refund/kebijakan admin.`
+            : `Alamat pengiriman diubah pembeli ke ${change.recipientName}, ${change.shippingAddress} (${change.courierName}). Ongkir tetap ${formatRupiah(change.shippingCost)}.`,
+      });
+    }
+    return updated;
+  });
+
+  if (!saved) return { error: "Pesanan sudah berubah atau resi sudah dibuat. Alamat tidak bisa diubah." };
+
+  revalidatePath("/pesanan", "layout");
+  revalidatePath("/admin", "layout");
+  return { success: true };
+}
+
+export type PayShippingDiffResult = { error: string } | { url: string };
+
+/**
+ * Membuat link pembayaran DOKU untuk selisih ongkir yang lebih mahal saat pembeli mengubah alamat. Alamat baru disimpan
+ * di pembayaran (`pendingChange`) dan baru diterapkan ke pesanan oleh `applyPayment` setelah lunas.
+ */
+export async function payShippingDifference(input: AddressChangeInput): Promise<PayShippingDiffResult> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const prepared = await prepareAddressChange(userId, input);
+  if (!prepared.order) return { error: prepared.error };
+  const { order, change, diff } = prepared;
+  if (diff <= 0) return { error: "Tidak ada selisih biaya ongkir yang perlu dibayar." };
+
+  // Link selisih sebelumnya dibatalkan agar pembeli tidak membayar dua perubahan alamat.
+  const cancelError = await cancelActivePayments(order.payments, `Diganti perubahan alamat baru (${order.code})`);
+  if (cancelError) return { error: `Link selisih ongkir sebelumnya belum bisa dibatalkan. ${cancelError}` };
+
+  const invoiceNumber = `${order.code.replace(/[^A-Z0-9]/g, "")}S${order.payments.length + 1}`;
+  const result = await createCheckout({
+    invoiceNumber,
+    amount: diff,
+    lineItems: [{ id: "selisih_ongkir", name: `Selisih ongkir (${change.courierName})`, price: diff, quantity: 1 }],
+    dueMinutes,
+    customer: {
+      id: String(userId),
+      name: change.recipientName.replace(/[^\p{L} ]/gu, "").trim().slice(0, 255),
+      email: order.user!.email,
+      phone: change.phone.replace(/^0/, "62"),
+      address: change.shippingAddress.slice(0, 400),
+      postcode: change.postalCode,
+    },
+  });
+
+  if (!result.ok) {
+    console.warn(`[doku] Link selisih ongkir ${invoiceNumber} pesanan ${order.code} gagal dibuat: ${result.error}`);
+    return { error: `Link pembayaran selisih ongkir belum bisa dibuat. ${result.error}` };
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.insert(payments).values({
+      orderId: input.orderId,
+      invoiceNumber,
+      amount: diff,
+      url: result.url,
+      expiresAt: result.expiresAt,
+      requestId: result.requestId,
+      pendingChange: change,
+    });
+    await tx.insert(orderEvents).values({
+      orderId: input.orderId,
+      source: "pembeli",
+      userId,
+      note: `Pembeli ingin mengubah alamat ke ${change.recipientName}, ${change.shippingAddress} (${change.courierName}). Dibuat link DOKU untuk selisih ongkir ${formatRupiah(diff)} (${invoiceNumber}); alamat berubah setelah lunas.`,
+    });
+  });
+
+  revalidatePath("/pesanan", "layout");
+  revalidatePath("/admin", "layout");
+  return { url: result.url };
 }

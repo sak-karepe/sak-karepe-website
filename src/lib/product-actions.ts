@@ -1,15 +1,27 @@
 "use server";
-import { and, eq, max, ne, notInArray } from "drizzle-orm";
+import { and, asc, eq, max, ne, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
 import { categories, productImages, products } from "@/db/schema";
 import { parseAmount } from "@/lib/format";
+import { contains, searchLimit } from "@/lib/search";
 import { uniqueSlug } from "@/lib/slug";
 import { checkUpload, removeUpload, saveUpload } from "@/lib/uploads";
 
 export type ProductFormState = { error?: string };
+
+/** Pencarian koleksi untuk dropdown form produk; dicari di server supaya client tidak memuat semua koleksi. */
+export async function searchCategories(query: string) {
+  await requireAdmin();
+  return db
+    .select({ value: categories.slug, label: categories.title })
+    .from(categories)
+    .where(contains(categories.title, String(query ?? "").slice(0, 100)))
+    .orderBy(asc(categories.sortOrder), asc(categories.title))
+    .limit(searchLimit);
+}
 
 async function readForm(formData: FormData, excludeId?: number) {
   const name = String(formData.get("name") ?? "").trim();

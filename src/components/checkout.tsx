@@ -1,16 +1,17 @@
 "use client";
 import Link from "next/link";
-import { startTransition, useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { CaretDownIcon, CheckCircleIcon, MinusIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import { startTransition, useActionState, useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { CheckCircleIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useSession } from "next-auth/react";
 import { LinkIcon } from "@/components/icons";
+import { SearchableSelect } from "@/components/searchable-select";
 import { useSite } from "@/components/site-shell";
 import Image from "@/components/site-image";
 import type { RegionOption } from "@/app/api/regions/route";
 import type { Address } from "@/db/schema";
 import { formatAddress } from "@/lib/address";
 import { basePath } from "@/lib/assets";
-import { listAddresses, placeOrder, saveAddress, type AddressFormState, type PlaceOrderResult } from "@/lib/checkout-actions";
+import { deleteAddress, listAddresses, placeOrder, saveAddress, updateAddress, type AddressFormState, type PlaceOrderResult } from "@/lib/checkout-actions";
 import { formatRupiah } from "@/lib/format";
 import { normalizePhone, phoneError } from "@/lib/phone";
 
@@ -31,6 +32,7 @@ export const maxQuantity = (product: CheckoutProduct) => Math.min(product.stock 
 const field =
   "h-11 w-full rounded-md border border-line bg-transparent px-3 text-[15px] text-ink transition-colors placeholder:text-muted focus:border-accent focus:outline-none disabled:opacity-50";
 const label = "mb-1.5 block text-[13px] font-medium text-muted";
+const iconButton = "grid size-8 place-items-center rounded-full text-muted transition-colors hover:text-ink disabled:opacity-40";
 /** Mengisi lebar penuh area konten dialog (padding px-5 / md:px-7 di SiteShell). */
 const bleed = "-mx-5 px-5 md:-mx-7 md:px-7";
 
@@ -219,9 +221,24 @@ export function Checkout({ onLogin }: { onLogin: () => void }) {
 /**
  * Pilih alamat tersimpan atau isi alamat baru. Alamat pertama yang dimuat atau baru disimpan langsung terpilih.
  */
-export function AddressPicker({ selected, onSelect }: { selected: number | null; onSelect: (id: number | null) => void }) {
+export function AddressPicker({
+  selected,
+  onSelect,
+  onUpdated,
+}: {
+  selected: number | null;
+  onSelect: (id: number | null) => void;
+  /** Dipanggil setelah sebuah alamat diubah, mis. agar ongkir alamat yang sedang dipilih dihitung ulang. */
+  onUpdated?: (id: number) => void;
+}) {
   const [addresses, setAddresses] = useState<Address[] | null>(null);
   const [adding, setAdding] = useState(false);
+  /** Alamat yang sedang diubah (form tampil di tempat kartunya). */
+  const [editing, setEditing] = useState<number | null>(null);
+  /** Alamat yang menunggu konfirmasi hapus. */
+  const [confirming, setConfirming] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [deleting, startDelete] = useTransition();
 
   useEffect(() => {
     let active = true;
@@ -237,6 +254,23 @@ export function AddressPicker({ selected, onSelect }: { selected: number | null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const remove = (id: number) => {
+    setError("");
+    startDelete(async () => {
+      try {
+        const result = await deleteAddress(id);
+        if (result.error) return setError(result.error);
+        // Updater, bukan `addresses` dari closure: alamat lain yang baru disimpan selama menghapus tidak tertimpa versi lama.
+        setAddresses((list) => (list ?? []).filter((address) => address.id !== id));
+        setConfirming(null);
+        // Alamat yang dipilih dihapus: pindah ke alamat pertama yang tersisa (atau kosong). Id tidak berubah saat diedit.
+        if (selected === id) onSelect(addresses?.find((address) => address.id !== id)?.id ?? null);
+      } catch {
+        setError("Alamat belum bisa dihapus. Periksa koneksi internet lalu coba lagi.");
+      }
+    });
+  };
+
   const showForm = addresses !== null && (adding || addresses.length === 0);
   return (
     <section aria-labelledby="address-title">
@@ -245,7 +279,15 @@ export function AddressPicker({ selected, onSelect }: { selected: number | null;
           {showForm ? "Alamat baru" : "Kirim ke"}
         </h2>
         {addresses !== null && !showForm && (
-          <button className="text-sm text-accent hover:underline" onClick={() => setAdding(true)}>
+          <button
+            className="text-sm text-accent hover:underline"
+            onClick={() => {
+              setAdding(true);
+              setEditing(null);
+              setConfirming(null);
+              setError("");
+            }}
+          >
             Tambah alamat
           </button>
         )}
@@ -264,27 +306,84 @@ export function AddressPicker({ selected, onSelect }: { selected: number | null;
       ) : (
         <fieldset className="mt-3 space-y-2">
           <legend className="sr-only">Pilih alamat</legend>
-          {addresses.map((address) => (
-            <label
-              key={address.id}
-              className="flex cursor-pointer gap-3 rounded-md border border-line px-4 py-3.5 transition-colors hover:border-muted has-checked:border-accent has-checked:bg-surface/60"
-            >
-              <input
-                type="radio"
-                name="address"
-                className="mt-1 size-4 shrink-0 accent-(--accent)"
-                checked={selected === address.id}
-                onChange={() => onSelect(address.id)}
-              />
-              <span className="min-w-0 text-[15px] leading-snug">
-                <span className="font-medium">{address.recipientName}</span>
-                <span className="text-muted"> · {address.phone}</span>
-                <span className="mt-1 block text-sm text-muted">
-                  {formatAddress(address)} {address.postalCode}
-                </span>
-              </span>
-            </label>
-          ))}
+          {error && (
+            <p role="alert" className="text-sm text-danger">
+              {error}
+            </p>
+          )}
+          {addresses.map((address) =>
+            editing === address.id ? (
+              <div key={address.id} className="rounded-md border border-line p-4 md:p-5">
+                <h3 className="text-[18px] font-medium tracking-[-.02em]">Ubah alamat</h3>
+                <AddressForm
+                  address={address}
+                  onCancel={() => setEditing(null)}
+                  onSaved={(saved) => {
+                    setAddresses((list) => (list ?? []).map((item) => (item.id === saved.id ? saved : item)));
+                    setEditing(null);
+                    onUpdated?.(saved.id);
+                  }}
+                />
+              </div>
+            ) : (
+              <div key={address.id}>
+                <div className="relative">
+                  <label className="flex cursor-pointer gap-3 rounded-md border border-line py-3.5 pr-20 pl-4 transition-colors hover:border-muted has-checked:border-accent has-checked:bg-surface/60">
+                    <input
+                      type="radio"
+                      name="address"
+                      className="mt-1 size-4 shrink-0 accent-(--accent)"
+                      checked={selected === address.id}
+                      onChange={() => onSelect(address.id)}
+                    />
+                    <span className="min-w-0 text-[15px] leading-snug">
+                      <span className="font-medium">{address.recipientName}</span>
+                      <span className="text-muted"> · {address.phone}</span>
+                      <span className="mt-1 block text-sm text-muted">
+                        {formatAddress(address)} {address.postalCode}
+                      </span>
+                    </span>
+                  </label>
+                  <div className="absolute top-2.5 right-2.5 flex items-center">
+                    <button
+                      type="button"
+                      className={iconButton}
+                      aria-label={`Ubah alamat ${address.recipientName}`}
+                      onClick={() => {
+                        setEditing(address.id);
+                        setConfirming(null);
+                        setError("");
+                      }}
+                    >
+                      <PencilSimpleIcon size={17} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className={iconButton}
+                      aria-label={`Hapus alamat ${address.recipientName}`}
+                      onClick={() => {
+                        setConfirming(address.id);
+                        setError("");
+                      }}
+                    >
+                      <TrashIcon size={17} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+                {confirming === address.id && (
+                  <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                    <span className="text-muted">Hapus alamat ini? Pesanan yang sudah dibuat tidak terpengaruh.</span>
+                    <button type="button" className="text-danger hover:underline disabled:opacity-50" disabled={deleting} onClick={() => remove(address.id)}>
+                      {deleting ? "Menghapus…" : "Ya, hapus"}
+                    </button>
+                    <button type="button" className="text-muted hover:text-ink" disabled={deleting} onClick={() => setConfirming(null)}>
+                      Batal
+                    </button>
+                  </p>
+                )}
+              </div>
+            ),
+          )}
         </fieldset>
       )}
     </section>
@@ -293,41 +392,20 @@ export function AddressPicker({ selected, onSelect }: { selected: number | null;
 
 const regionCache = new Map<string, Promise<RegionOption[]>>();
 
-/** Daftar wilayah di bawah `parent` ("" untuk provinsi), disimpan selama halaman terbuka. */
-function loadRegions(parent: string) {
-  let request = regionCache.get(parent);
+/** Hasil pencarian wilayah di bawah `parent` ("" untuk provinsi), disimpan selama halaman terbuka. */
+function loadRegions(parent: string, query: string) {
+  const key = new URLSearchParams({ parent, q: query.trim() }).toString();
+  let request = regionCache.get(key);
   if (!request) {
-    request = fetch(`${basePath}/api/regions${parent ? `?parent=${parent}` : ""}`).then((response) => {
+    request = fetch(`${basePath}/api/regions?${key}`).then((response) => {
       if (!response.ok) throw new Error(String(response.status));
       return response.json() as Promise<RegionOption[]>;
     });
-    request.catch(() => regionCache.delete(parent));
-    regionCache.set(parent, request);
+    // Gagal tidak disimpan, jadi "Coba lagi" benar-benar meminta ulang.
+    request.catch(() => regionCache.delete(key));
+    regionCache.set(key, request);
   }
   return request;
-}
-
-/** null selama memuat atau bila `parent` belum dipilih; `failed` bila permintaan gagal. `retry` memuat ulang tingkat ini. */
-function useRegions(parent: string | null) {
-  const [state, setState] = useState<{ parent: string; options: RegionOption[]; failed?: boolean } | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    if (parent === null) return;
-    let active = true;
-    loadRegions(parent).then(
-      (options) => active && setState({ parent, options }),
-      () => active && setState({ parent, options: [], failed: true }),
-    );
-    return () => {
-      active = false;
-    };
-  }, [parent, attempt]);
-  // loadRegions sudah menghapus cache saat gagal, jadi percobaan berikutnya benar-benar meminta ulang.
-  const retry = () => {
-    setState(null);
-    setAttempt((value) => value + 1);
-  };
-  return { regions: parent !== null && state?.parent === parent ? state : null, retry };
 }
 
 function RegionSelect({
@@ -345,70 +423,61 @@ function RegionSelect({
   /** Kode induk; null bila tingkat di atasnya belum dipilih. */
   parent: string | null;
   waiting: string;
-  value: string;
-  onChange: (option: RegionOption | undefined) => void;
+  value: RegionOption | null;
+  onChange: (option: RegionOption) => void;
 }) {
-  const { regions, retry } = useRegions(parent);
-  const placeholder =
-    parent === null ? waiting : !regions ? "Memuat…" : regions.failed ? "Gagal memuat" : `Pilih ${title.toLowerCase()}`;
+  const load = useCallback((query: string) => loadRegions(parent ?? "", query), [parent]);
   return (
     <div>
       <label htmlFor={id} className={label}>
         {title}
       </label>
-      <div className="relative">
-        <select
-          id={id}
-          name={name}
-          required
-          disabled={!regions?.options.length}
-          className={`${field} appearance-none truncate pr-9`}
-          value={value}
-          onChange={(event) => onChange(regions?.options.find((option) => option.code === event.target.value))}
-        >
-          <option value="" disabled>
-            {placeholder}
-          </option>
-          {regions?.options.map((option) => (
-            <option key={option.code} value={option.code}>
-              {option.name}
-            </option>
-          ))}
-        </select>
-        <CaretDownIcon
-          size={14}
-          className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted"
-          aria-hidden="true"
-        />
-      </div>
-      {regions?.failed && (
-        <p role="alert" className="mt-1.5 text-sm text-danger">
-          Daftar {title.toLowerCase()} belum bisa dimuat.{" "}
-          <button type="button" className="text-accent hover:underline" onClick={retry}>
-            Coba lagi
-          </button>
-        </p>
-      )}
+      <SearchableSelect
+        id={id}
+        name={name}
+        required
+        disabled={parent === null}
+        placeholder={parent === null ? waiting : `Cari ${title.toLowerCase()}`}
+        className={field}
+        value={value}
+        onChange={onChange}
+        load={load}
+      />
     </div>
   );
 }
 
-function AddressForm({ onSaved, onCancel }: { onSaved: (address: Address) => void; onCancel?: () => void }) {
+/** Form alamat baru; dengan `address` menjadi form ubah alamat (dipakai di daftar alamat checkout). */
+function AddressForm({
+  address,
+  onSaved,
+  onCancel,
+}: {
+  address?: Address;
+  onSaved: (address: Address) => void;
+  onCancel?: () => void;
+}) {
   const [state, formAction, pending] = useActionState(async (previous: AddressFormState, formData: FormData) => {
-    const result = await saveAddress(previous, formData);
+    const result = address ? await updateAddress(address.id, previous, formData) : await saveAddress(previous, formData);
     if (result.address) onSaved(result.address);
     return result;
   }, {});
+  // Mode ubah: pilihan wilayah diisi dari kode kelurahan, "35.78.08.1001" -> 35, 35.78, 35.78.08, 35.78.08.1001.
+  const parts = address?.villageCode?.split(".") ?? [];
+  const codes = parts.length === 4 ? parts.map((_, index) => parts.slice(0, index + 1).join(".")) : [];
   // Semua isian dikontrol state: React 19 mengosongkan field uncontrolled setelah action selesai, termasuk saat server menolak.
-  const [recipientName, setRecipientName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [street, setStreet] = useState("");
-  const [notes, setNotes] = useState("");
-  const [province, setProvince] = useState("");
-  const [city, setCity] = useState("");
-  const [district, setDistrict] = useState("");
-  const [village, setVillage] = useState("");
-  const [postalCode, setPostalCode] = useState("");
+  const [recipientName, setRecipientName] = useState(address?.recipientName ?? "");
+  const [phone, setPhone] = useState(address?.phone ?? "");
+  const [street, setStreet] = useState(address?.street ?? "");
+  const [notes, setNotes] = useState(address?.notes ?? "");
+  // Nama wilayah sudah disalin ke alamat, jadi pilihan awal tidak perlu dimuat ulang dari /api/regions.
+  const initial = (index: number, label = "", postalCode: string | null = null): RegionOption | null =>
+    address && codes[index] ? { value: codes[index], label, postalCode } : null;
+  const [province, setProvince] = useState(initial(0, address?.province));
+  const [city, setCity] = useState(initial(1, address?.city));
+  const [district, setDistrict] = useState(initial(2, address?.district));
+  const [village, setVillage] = useState(initial(3, address?.village, address?.postalCode));
+  const [postalCode, setPostalCode] = useState(address?.postalCode ?? "");
   const [phoneTouched, setPhoneTouched] = useState(false);
   const phoneRef = useRef<HTMLInputElement>(null);
   // Aturan yang sama dengan server (lib/phone), jadi browser memblokir submit dan menampilkan pesan di field.
@@ -427,8 +496,13 @@ function AddressForm({ onSaved, onCancel }: { onSaved: (address: Address) => voi
       }}
       className="mt-4 grid gap-x-4 gap-y-5 sm:grid-cols-2"
     >
-      {!onCancel && (
+      {!onCancel && !address && (
         <p className="-mt-1 text-sm text-muted sm:col-span-2">Isi sekali, alamat tersimpan untuk pesanan berikutnya.</p>
+      )}
+      {address && codes.length === 0 && (
+        <p className="-mt-1 text-sm text-muted sm:col-span-2">
+          Wilayah belum tersimpan di alamat ini. Pilih provinsi sampai kelurahan/desa untuk menyimpannya.
+        </p>
       )}
       <div>
         <label htmlFor="recipientName" className={label}>Nama penerima</label>
@@ -474,35 +548,35 @@ function AddressForm({ onSaved, onCancel }: { onSaved: (address: Address) => voi
         waiting=""
         value={province}
         onChange={(option) => {
-          setProvince(option?.code ?? "");
-          setCity("");
-          setDistrict("");
-          setVillage("");
+          setProvince(option);
+          setCity(null);
+          setDistrict(null);
+          setVillage(null);
           setPostalCode("");
         }}
       />
       <RegionSelect
         id="city"
         title="Kota/kabupaten"
-        parent={province || null}
+        parent={province?.value ?? null}
         waiting="Pilih provinsi dulu"
         value={city}
         onChange={(option) => {
-          setCity(option?.code ?? "");
-          setDistrict("");
-          setVillage("");
+          setCity(option);
+          setDistrict(null);
+          setVillage(null);
           setPostalCode("");
         }}
       />
       <RegionSelect
         id="district"
         title="Kecamatan"
-        parent={city || null}
+        parent={city?.value ?? null}
         waiting="Pilih kota dulu"
         value={district}
         onChange={(option) => {
-          setDistrict(option?.code ?? "");
-          setVillage("");
+          setDistrict(option);
+          setVillage(null);
           setPostalCode("");
         }}
       />
@@ -510,12 +584,12 @@ function AddressForm({ onSaved, onCancel }: { onSaved: (address: Address) => voi
         id="village"
         name="villageCode"
         title="Kelurahan/desa"
-        parent={district || null}
+        parent={district?.value ?? null}
         waiting="Pilih kecamatan dulu"
         value={village}
         onChange={(option) => {
-          setVillage(option?.code ?? "");
-          setPostalCode(option?.postalCode ?? "");
+          setVillage(option);
+          setPostalCode(option.postalCode ?? "");
         }}
       />
       <div className="sm:col-span-2">
@@ -568,7 +642,7 @@ function AddressForm({ onSaved, onCancel }: { onSaved: (address: Address) => voi
       )}
       <div className="flex items-center gap-5 pt-1 sm:col-span-2">
         <button className="btn gap-3 px-5" disabled={pending}>
-          {pending ? "Menyimpan…" : "Simpan alamat"}
+          {pending ? "Menyimpan…" : address ? "Simpan perubahan" : "Simpan alamat"}
         </button>
         {onCancel && (
           <button type="button" className="text-sm text-muted hover:text-ink" onClick={onCancel}>
