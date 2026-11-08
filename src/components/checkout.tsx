@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { startTransition, useActionState, useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { CaretDownIcon, CheckCircleIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useSession } from "next-auth/react";
 import { LinkIcon } from "@/components/icons";
 import { SearchableSelect } from "@/components/searchable-select";
@@ -260,11 +260,11 @@ export function AddressPicker({
       try {
         const result = await deleteAddress(id);
         if (result.error) return setError(result.error);
-        const rest = (addresses ?? []).filter((address) => address.id !== id);
-        setAddresses(rest);
+        // Updater, bukan `addresses` dari closure: alamat lain yang baru disimpan selama menghapus tidak tertimpa versi lama.
+        setAddresses((list) => (list ?? []).filter((address) => address.id !== id));
         setConfirming(null);
-        // Alamat yang dipilih dihapus: pindah ke alamat pertama yang tersisa (atau kosong).
-        if (selected === id) onSelect(rest[0]?.id ?? null);
+        // Alamat yang dipilih dihapus: pindah ke alamat pertama yang tersisa (atau kosong). Id tidak berubah saat diedit.
+        if (selected === id) onSelect(addresses?.find((address) => address.id !== id)?.id ?? null);
       } catch {
         setError("Alamat belum bisa dihapus. Periksa koneksi internet lalu coba lagi.");
       }
@@ -448,7 +448,7 @@ function RegionSelect({
 }
 
 /** Form alamat baru; dengan `address` menjadi form ubah alamat (dipakai di daftar alamat checkout). */
-export function AddressForm({
+function AddressForm({
   address,
   onSaved,
   onCancel,
@@ -470,10 +470,13 @@ export function AddressForm({
   const [phone, setPhone] = useState(address?.phone ?? "");
   const [street, setStreet] = useState(address?.street ?? "");
   const [notes, setNotes] = useState(address?.notes ?? "");
-  const [province, setProvince] = useState(codes[0] ?? "");
-  const [city, setCity] = useState(codes[1] ?? "");
-  const [district, setDistrict] = useState(codes[2] ?? "");
-  const [village, setVillage] = useState(codes[3] ?? "");
+  // Nama wilayah sudah disalin ke alamat, jadi pilihan awal tidak perlu dimuat ulang dari /api/regions.
+  const initial = (index: number, label = "", postalCode: string | null = null): RegionOption | null =>
+    address && codes[index] ? { value: codes[index], label, postalCode } : null;
+  const [province, setProvince] = useState(initial(0, address?.province));
+  const [city, setCity] = useState(initial(1, address?.city));
+  const [district, setDistrict] = useState(initial(2, address?.district));
+  const [village, setVillage] = useState(initial(3, address?.village, address?.postalCode));
   const [postalCode, setPostalCode] = useState(address?.postalCode ?? "");
   const [phoneTouched, setPhoneTouched] = useState(false);
   const phoneRef = useRef<HTMLInputElement>(null);
