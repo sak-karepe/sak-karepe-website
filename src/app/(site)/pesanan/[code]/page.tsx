@@ -7,6 +7,7 @@ import { currentUserId } from "@/auth";
 import { db } from "@/db";
 import { orders, type Order } from "@/db/schema";
 import { CancelOrder } from "@/components/cancel-order";
+import { ChangeOrderAddress } from "@/components/change-order-address";
 import { LoginPrompt } from "@/components/login-prompt";
 import { ConfirmReceived } from "@/components/shipment-forms";
 import { Breadcrumb } from "@/components/page-intro";
@@ -143,6 +144,32 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
                 <p className="mt-1 max-w-xl text-[15px] leading-relaxed text-muted">
                   {order.shippingAddress} {order.postalCode}
                 </p>
+                {order.courierName && (
+                  <p className="mt-2 text-sm text-muted">
+                    Kurir: {order.courierName}
+                    {order.shippingCost !== null && ` (${formatRupiah(order.shippingCost)})`}
+                  </p>
+                )}
+                {order.status === "dibayar" && !order.shipmentId && (
+                  <ChangeOrderAddress
+                    orderId={order.id}
+                    orderCode={order.code}
+                    currentShippingCost={order.shippingCost ?? 0}
+                  />
+                )}
+                {order.shipmentId && (
+                  <p className="mt-3 text-sm text-muted">
+                    Paket sudah diproses kurir. Untuk perubahan alamat, hubungi Sak Karepe lewat{" "}
+                    <a
+                      href={whatsappUrl(`Halo Sak Karepe, saya ingin mengubah alamat untuk pesanan ${order.code} (ID pesanan ${order.id}).`)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent underline"
+                    >
+                      WhatsApp
+                    </a>.
+                  </p>
+                )}
               </>
             ) : (
               <p className="mt-3 text-[15px] text-muted">Alamat diisi saat checkout.</p>

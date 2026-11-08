@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { orders, type OrderEvent } from "@/db/schema";
 import { AdminBack } from "@/components/admin-back";
 import { CheckoutLinkDialog, CopyCheckoutLink } from "@/components/checkout-link-dialog";
+import { EditAddressDialog } from "@/components/edit-address-dialog";
 import { ActionButton, NoteForm, RefundButton, ResendShipmentForm, ShipmentForm, StatusForm } from "@/components/shipment-forms";
 import { formatDateTime, formatRupiah } from "@/lib/format";
 import {
@@ -17,6 +18,7 @@ import {
   markReviewed,
   refundFailedShipment,
   resendShipment,
+  updateOrderAddress,
   updateOrderStatus,
 } from "@/lib/order-actions";
 import {
@@ -147,7 +149,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                         {event.fromStatus ? orderStatusLabels[event.fromStatus] : "—"} → {orderStatusLabels[event.toStatus]}
                       </p>
                     ) : (
-                      <p className="text-sm font-medium">Catatan internal</p>
+                      <p className="text-sm font-medium">{event.source === "pembeli" ? "Perubahan oleh pembeli" : "Catatan internal"}</p>
                     )}
                     {event.note && <p className={event.toStatus ? "text-sm text-muted" : "whitespace-pre-line"}>{event.note}</p>}
                     <p className="text-sm text-muted">
@@ -306,7 +308,20 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             />
           )}
           <section aria-labelledby="pengiriman">
-            <h2 id="pengiriman" className="text-sm font-medium">Kirim ke</h2>
+            <div className="flex items-center justify-between">
+              <h2 id="pengiriman" className="text-sm font-medium">Kirim ke</h2>
+              {!order.shipmentId && (
+                <EditAddressDialog
+                  action={updateOrderAddress.bind(null, order.id)}
+                  address={{
+                    recipientName: order.recipientName ?? "",
+                    phone: order.phone ?? "",
+                    shippingAddress: order.shippingAddress ?? "",
+                    postalCode: order.postalCode ?? "",
+                  }}
+                />
+              )}
+            </div>
             {buyerWhatsapp ? (
               <>
                 <p className="mt-2">{order.recipientName}</p>

@@ -42,10 +42,10 @@ export async function applyPayment(data: PaymentStatus) {
   const invoiceNumber = data.order?.invoice_number;
   if (data.transaction?.status !== "SUCCESS" || !invoiceNumber) return;
   const payment = await db.query.payments.findFirst({ where: eq(payments.invoiceNumber, invoiceNumber) });
-  // Invoice berformat kode pesanan tanpa tanda hubung + "P" + nomor urut (lib/checkout-actions).
+  // Invoice berformat kode pesanan tanpa tanda hubung + "P"/"S" + nomor urut (lib/checkout-actions).
   if (!payment)
     return flagOrders(
-      eq(sql`replace(${orders.code}, '-', '')`, invoiceNumber.replace(/P\d+$/, "")),
+      eq(sql`replace(${orders.code}, '-', '')`, invoiceNumber.replace(/[PS]\d+$/, "")),
       `Pembayaran DOKU ${invoiceNumber} masuk, tapi invoice tidak dikenal.`,
     );
   if (payment.paidAt) return;
@@ -66,6 +66,22 @@ export async function applyPayment(data: PaymentStatus) {
     // Sudah dicatat notifikasi, job, atau cek ulang yang berjalan bersamaan.
     if (!recorded) return { paid: true, short: [] };
     const order = await tx.query.orders.findFirst({ columns: { status: true }, where: eq(orders.id, payment.orderId) });
+    if (!order) return { paid: false, short: [] };
+
+    // Pembayaran tambahan (mis. selisih ongkir saat ubah alamat) untuk pesanan yang sudah dibayar.
+    if (order.status === "dibayar") {
+      await tx
+        .insert(orderEvents)
+        .values({
+          orderId: payment.orderId,
+          fromStatus: "dibayar",
+          toStatus: "dibayar",
+          source: "doku",
+          note: `Pembayaran tambahan ${invoiceNumber} sebesar ${formatRupiah(payment.amount)} lunas.`,
+        });
+      return { paid: true, short: [] };
+    }
+
     // Status yang sudah diubah admin (dikirim, selesai, dibatalkan) tidak ditimpa.
     const [updated] = await tx
       .update(orders)
@@ -75,7 +91,7 @@ export async function applyPayment(data: PaymentStatus) {
     if (updated)
       await tx
         .insert(orderEvents)
-        .values({ orderId: payment.orderId, fromStatus: order!.status, toStatus: "dibayar", source: "doku", note: `Invoice ${invoiceNumber}` });
+        .values({ orderId: payment.orderId, fromStatus: order.status, toStatus: "dibayar", source: "doku", note: `Invoice ${invoiceNumber}` });
     // Stok diambil hanya saat status benar-benar berpindah ke "dibayar", jadi notifikasi ulang tidak mengurangi lagi.
     return { paid: !!updated, short: updated ? await takeStock(tx, payment.orderId) : [] };
   });

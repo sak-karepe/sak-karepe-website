@@ -200,6 +200,66 @@ export async function markReviewed(orderId: number): Promise<StatusFormState> {
   return {};
 }
 
+export type UpdateAddressFormState = { error?: string; saved?: boolean };
+
+/**
+ * Admin mengubah alamat tujuan pengiriman sebelum kurir dipesan (sebelum `shipmentId` terisi).
+ * Perubahan dicatat di riwayat pesanan (orderEvents).
+ */
+export async function updateOrderAddress(
+  orderId: number,
+  _state: UpdateAddressFormState,
+  formData: FormData,
+): Promise<UpdateAddressFormState> {
+  const admin = await requireAdmin();
+  const [recipientName, rawPhone, shippingAddress, postalCode] = [
+    "recipientName",
+    "phone",
+    "shippingAddress",
+    "postalCode",
+  ].map((key) => String(formData.get(key) ?? "").trim());
+  const phone = rawPhone.replace(/\D/g, "").replace(/^62/, "0");
+  if (!recipientName || !shippingAddress) return { error: "Isi nama penerima dan alamat." };
+  if (!/^0\d{8,13}$/.test(phone)) return { error: "Nomor HP tidak valid. Contoh: 081234567890." };
+  if (!/^\d{5}$/.test(postalCode)) return { error: "Kode pos terdiri dari 5 angka." };
+
+  const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
+  if (!order) return { error: "Pesanan tidak ditemukan." };
+  if (order.shipmentId) return { error: "Alamat tidak bisa diubah setelah booking kurir." };
+
+  const oldAddress = [order.recipientName, order.phone, order.shippingAddress, order.postalCode].filter(Boolean).join(", ");
+  const newAddress = `${recipientName} (${phone}) - ${shippingAddress} ${postalCode}`;
+
+  const saved = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(orders)
+      .set({
+        recipientName,
+        phone,
+        shippingAddress,
+        postalCode,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(orders.id, orderId), isNull(orders.shipmentId)))
+      .returning({ id: orders.id });
+    if (updated) {
+      await tx.insert(orderEvents).values({
+        orderId,
+        source: "admin",
+        userId: Number(admin.id),
+        note: `Alamat pengiriman diubah oleh admin.\nDari: ${oldAddress || "—"}\nMenjadi: ${newAddress}`,
+      });
+    }
+    return updated;
+  });
+
+  if (!saved) return { error: "Pesanan sudah berubah atau resi sudah dibuat dari tab lain." };
+
+  revalidatePath("/admin", "layout");
+  revalidatePath("/pesanan", "layout");
+  return { saved: true };
+}
+
 export type CheckoutLinkFormState = { error?: string; saved?: boolean };
 
 

@@ -1,6 +1,6 @@
 "use server";
 import { randomInt } from "node:crypto";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { currentUserId } from "@/auth";
 import { db } from "@/db";
@@ -351,4 +351,198 @@ export async function confirmReceived(id: number): Promise<CancelOrderState> {
   revalidatePath("/pesanan", "layout");
   revalidatePath("/admin", "layout");
   return done ? {} : { error: "Pesanan ini belum sampai atau sudah selesai. Muat ulang halaman untuk melihat statusnya." };
+}
+
+export type ChangePaidAddressResult = { error?: string; success?: boolean; priceDiff?: number };
+
+/**
+ * Pembeli mengubah alamat dan kurir setelah pesanan dibayar, selama kurir belum dipesan (`!order.shipmentId`).
+ * Ongkir dihitung ulang dengan quoteShipping.
+ * - Bila ongkir baru <= ongkir lama: perubahan langsung disimpan. Bila lebih hemat, selisih dicatat di riwayat/reviewNote.
+ * - Bila ongkir baru > ongkir lama: mengembalikan info selisih agar pembeli bisa membayar selisih lewat DOKU atau hubungi admin.
+ */
+export async function changePaidOrderAddress(input: {
+  orderId: number;
+  addressId: number;
+  courier: { courierCode: string; serviceCode: string };
+}): Promise<ChangePaidAddressResult> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const [order, address] = await Promise.all([
+    findOwnOrder(userId, input.orderId),
+    db.query.addresses.findFirst({ where: and(eq(addresses.id, input.addressId), eq(addresses.userId, userId)) }),
+  ]);
+  if (!order) return { error: "Pesanan tidak ditemukan." };
+  if (order.status !== "dibayar")
+    return { error: "Alamat hanya bisa diubah untuk pesanan yang sudah dibayar dan belum dikirim." };
+  if (order.shipmentId)
+    return { error: "Alamat tidak bisa diubah setelah booking kurir." };
+  if (!address) return { error: "Pilih alamat pengiriman." };
+
+  const quote = await quoteOrder(order, address.postalCode);
+  if (!quote.ok) return { error: quote.error };
+  const option = quote.options.find(
+    (opt) => opt.courierCode === input.courier.courierCode && opt.serviceCode === input.courier.serviceCode,
+  );
+  if (!option) return { error: "Layanan kurir tersebut tidak tersedia untuk alamat ini. Pilih kurir lain." };
+
+  const currentCost = order.shippingCost ?? 0;
+  const newCost = option.price;
+  const diff = newCost - currentCost;
+
+  if (diff > 0) {
+    return {
+      error: `Ongkos kirim ke alamat ini lebih tinggi sebesar ${formatRupiah(diff)}. Bayar selisih lewat DOKU atau konfirmasi dengan admin via WhatsApp.`,
+      priceDiff: diff,
+    };
+  }
+
+  const shippingAddress = formatAddress(address);
+  const fullAddress = address.notes ? `${shippingAddress} (${address.notes})` : shippingAddress;
+
+  const saved = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(orders)
+      .set({
+        recipientName: address.recipientName,
+        phone: address.phone,
+        shippingAddress: fullAddress,
+        postalCode: address.postalCode,
+        courierCode: option.courierCode,
+        courierServiceCode: option.serviceCode,
+        courierName: option.name,
+        shippingCost: newCost,
+        reviewNote:
+          diff < 0
+            ? `Pembeli mengubah alamat; selisih ongkir lebih hemat ${formatRupiah(Math.abs(diff))} dicatat untuk penanganan admin/refund.`
+            : order.reviewNote,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(orders.id, input.orderId), eq(orders.status, "dibayar"), isNull(orders.shipmentId)))
+      .returning({ id: orders.id });
+
+    if (updated) {
+      await tx.insert(orderEvents).values({
+        orderId: input.orderId,
+        source: "pembeli",
+        userId,
+        note:
+          diff < 0
+            ? `Alamat pengiriman diubah pembeli ke ${address.recipientName}, ${fullAddress} (${option.name}). Ongkir baru ${formatRupiah(newCost)} (lebih hemat ${formatRupiah(Math.abs(diff))}). Selisih dicatat untuk refund/kebijakan admin.`
+            : `Alamat pengiriman diubah pembeli ke ${address.recipientName}, ${fullAddress} (${option.name}). Ongkir tetap ${formatRupiah(newCost)}.`,
+      });
+    }
+    return updated;
+  });
+
+  if (!saved) return { error: "Pesanan sudah berubah atau resi sudah dibuat. Alamat tidak bisa diubah." };
+
+  revalidatePath("/pesanan", "layout");
+  revalidatePath("/admin", "layout");
+  return { success: true };
+}
+
+export type PayShippingDiffResult = { error: string } | { url: string };
+
+/**
+ * Membuat link pembayaran DOKU tambahan untuk selisih ongkir yang lebih mahal saat pembeli mengubah alamat.
+ */
+export async function payShippingDifference(input: {
+  orderId: number;
+  addressId: number;
+  courier: { courierCode: string; serviceCode: string };
+}): Promise<PayShippingDiffResult> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const [order, address] = await Promise.all([
+    findOwnOrder(userId, input.orderId),
+    db.query.addresses.findFirst({ where: and(eq(addresses.id, input.addressId), eq(addresses.userId, userId)) }),
+  ]);
+  if (!order) return { error: "Pesanan tidak ditemukan." };
+  if (order.status !== "dibayar")
+    return { error: "Alamat hanya bisa diubah untuk pesanan yang sudah dibayar dan belum dikirim." };
+  if (order.shipmentId)
+    return { error: "Alamat tidak bisa diubah setelah booking kurir." };
+  if (!address) return { error: "Pilih alamat pengiriman." };
+
+  const quote = await quoteOrder(order, address.postalCode);
+  if (!quote.ok) return { error: quote.error };
+  const option = quote.options.find(
+    (opt) => opt.courierCode === input.courier.courierCode && opt.serviceCode === input.courier.serviceCode,
+  );
+  if (!option) return { error: "Layanan kurir tersebut tidak tersedia untuk alamat ini. Pilih kurir lain." };
+
+  const currentCost = order.shippingCost ?? 0;
+  const newCost = option.price;
+  const diff = newCost - currentCost;
+  if (diff <= 0) return { error: "Tidak ada selisih biaya ongkir yang perlu dibayar." };
+
+  const shippingAddress = formatAddress(address);
+  const fullAddress = address.notes ? `${shippingAddress} (${address.notes})` : shippingAddress;
+  const invoiceNumber = `${order.code.replace(/[^A-Z0-9]/g, "")}S${order.payments.length + 1}`;
+
+  const result = await createCheckout({
+    invoiceNumber,
+    amount: diff,
+    lineItems: [{ id: "selisih_ongkir", name: `Selisih ongkir (${option.name})`, price: diff, quantity: 1 }],
+    dueMinutes,
+    customer: {
+      id: String(userId),
+      name: address.recipientName.replace(/[^\p{L} ]/gu, "").trim().slice(0, 255),
+      email: order.user!.email,
+      phone: address.phone.replace(/^0/, "62"),
+      address: fullAddress.slice(0, 400),
+      postcode: address.postalCode,
+    },
+  });
+
+  if (!result.ok) {
+    console.warn(`[doku] Link selisih ongkir ${invoiceNumber} pesanan ${order.code} gagal dibuat: ${result.error}`);
+    return { error: `Link pembayaran selisih ongkir belum bisa dibuat. ${result.error}` };
+  }
+
+  const saved = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(orders)
+      .set({
+        recipientName: address.recipientName,
+        phone: address.phone,
+        shippingAddress: fullAddress,
+        postalCode: address.postalCode,
+        courierCode: option.courierCode,
+        courierServiceCode: option.serviceCode,
+        courierName: option.name,
+        shippingCost: newCost,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(orders.id, input.orderId), eq(orders.status, "dibayar"), isNull(orders.shipmentId)))
+      .returning({ id: orders.id });
+
+    if (updated) {
+      await tx.insert(payments).values({
+        orderId: input.orderId,
+        invoiceNumber,
+        amount: diff,
+        url: result.url,
+        expiresAt: result.expiresAt,
+        requestId: result.requestId,
+      });
+      await tx.insert(orderEvents).values({
+        orderId: input.orderId,
+        source: "pembeli",
+        userId,
+        note: `Pembeli mengubah alamat ke ${address.recipientName}, ${fullAddress} (${option.name}). Dibuat link DOKU untuk selisih ongkir ${formatRupiah(diff)} (${invoiceNumber}).`,
+      });
+    }
+    return updated;
+  });
+
+  if (!saved) {
+    await cancelCheckout(invoiceNumber, result.requestId, `Perubahan alamat dibatalkan (${order.code})`);
+    return { error: "Pesanan sudah berubah atau resi sudah dibuat. Alamat tidak bisa diubah." };
+  }
+
+  revalidatePath("/pesanan", "layout");
+  revalidatePath("/admin", "layout");
+  return { url: result.url };
 }
