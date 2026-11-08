@@ -1,3 +1,4 @@
+/** Data awal untuk `npm run db:seed-runway` (dan seed etalase). Website membaca dari tabel runway_photos lewat lib/runway. */
 export const runwayPhotos = [
   {
     src: "/images/runway/f1259bd9-49f6-49be-b657-f84de04c4a80.jpeg",

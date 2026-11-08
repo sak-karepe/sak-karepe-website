@@ -1,17 +1,17 @@
 "use client";
 import { LinkIcon } from "@/components/icons";
 import Image from "@/components/site-image";
-import { runwayPhotos } from "@/lib/content";
+import type { RunwayPhoto } from "@/lib/runway";
 import { useSite } from "./site-shell";
-export function RunwayArchive() {
+export function RunwayArchive({ photos }: { photos: RunwayPhoto[] }) {
   const { open } = useSite();
   return (
     <div className="grid grid-cols-2 items-start gap-x-4 gap-y-9 md:grid-cols-3 md:gap-x-8 md:gap-y-14">
-      {runwayPhotos.map((photo, index) => (
+      {photos.map((photo, index) => (
         <button
           key={photo.src}
           aria-label={`Perbesar foto ${index + 1}: ${photo.alt}`}
-          onClick={() => open({ kind: "gallery", index })}
+          onClick={() => open({ kind: "gallery", photos, index })}
           className={`group text-left ${index % 3 === 1 ? "md:mt-16" : ""}`}
         >
           <div className="photo aspect-[2/3] transition-transform duration-300 group-hover:-translate-y-1">

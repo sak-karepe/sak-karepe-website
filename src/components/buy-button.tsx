@@ -1,25 +1,38 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check } from "@phosphor-icons/react/dist/ssr";
 import { maxQuantity, type CartItem, type CheckoutProduct } from "@/components/checkout";
 import { useSite } from "@/components/site-shell";
 
-/** Menambah satu produk ke keranjang, tanpa melewati batas stok. */
+/** Menambah satu produk ke keranjang, tanpa melewati batas stok. Stok item yang sudah ada ikut disegarkan dari produk. */
 function addItem(items: CartItem[], product: CheckoutProduct) {
   const existing = items.find((item) => item.id === product.id);
   if (!existing) return [...items, { ...product, quantity: 1 }];
   return items.map((item) =>
-    item.id === product.id ? { ...item, quantity: Math.min(item.quantity + 1, maxQuantity(product)) } : item,
+    item.id === product.id
+      ? { ...item, stock: product.stock, quantity: Math.min(item.quantity + 1, maxQuantity(product)), stockLeft: undefined }
+      : item,
   );
 }
 
 /** "Tambah ke keranjang" lalu lanjut belanja; login baru diminta saat memesan dari keranjang. */
 export function AddToCartButton({ product, className }: { product: CheckoutProduct; className: string }) {
-  const { updateCart } = useSite();
+  const { cart, updateCart } = useSite();
   const [added, setAdded] = useState(false);
+  const limit = maxQuantity(product);
+  const full = (cart.find((item) => item.id === product.id)?.quantity ?? 0) >= limit;
+
+  // Tanda "Ditambahkan" hanya sebentar, lalu tombol kembali ke teks semula.
+  useEffect(() => {
+    if (!added) return;
+    const timer = window.setTimeout(() => setAdded(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [added]);
+
   return (
     <button
       className={className}
+      disabled={full}
       onClick={() => {
         updateCart((items) => addItem(items, product));
         setAdded(true);
@@ -30,6 +43,12 @@ export function AddToCartButton({ product, className }: { product: CheckoutProdu
           <>
             Ditambahkan <Check size={18} weight="bold" aria-hidden="true" />
           </>
+        ) : full ? (
+          limit < 1 ? (
+            "Stok habis"
+          ) : (
+            "Stok maksimal di keranjang"
+          )
         ) : (
           "Tambah ke keranjang"
         )}
