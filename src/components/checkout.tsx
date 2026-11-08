@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
-import { startTransition, useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { startTransition, useActionState, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { CaretDownIcon, CheckCircleIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useSession } from "next-auth/react";
 import { LinkIcon } from "@/components/icons";
+import { SearchableSelect } from "@/components/searchable-select";
 import { useSite } from "@/components/site-shell";
 import Image from "@/components/site-image";
 import type { RegionOption } from "@/app/api/regions/route";
@@ -391,41 +392,20 @@ export function AddressPicker({
 
 const regionCache = new Map<string, Promise<RegionOption[]>>();
 
-/** Daftar wilayah di bawah `parent` ("" untuk provinsi), disimpan selama halaman terbuka. */
-function loadRegions(parent: string) {
-  let request = regionCache.get(parent);
+/** Hasil pencarian wilayah di bawah `parent` ("" untuk provinsi), disimpan selama halaman terbuka. */
+function loadRegions(parent: string, query: string) {
+  const key = new URLSearchParams({ parent, q: query.trim() }).toString();
+  let request = regionCache.get(key);
   if (!request) {
-    request = fetch(`${basePath}/api/regions${parent ? `?parent=${parent}` : ""}`).then((response) => {
+    request = fetch(`${basePath}/api/regions?${key}`).then((response) => {
       if (!response.ok) throw new Error(String(response.status));
       return response.json() as Promise<RegionOption[]>;
     });
-    request.catch(() => regionCache.delete(parent));
-    regionCache.set(parent, request);
+    // Gagal tidak disimpan, jadi "Coba lagi" benar-benar meminta ulang.
+    request.catch(() => regionCache.delete(key));
+    regionCache.set(key, request);
   }
   return request;
-}
-
-/** null selama memuat atau bila `parent` belum dipilih; `failed` bila permintaan gagal. `retry` memuat ulang tingkat ini. */
-function useRegions(parent: string | null) {
-  const [state, setState] = useState<{ parent: string; options: RegionOption[]; failed?: boolean } | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    if (parent === null) return;
-    let active = true;
-    loadRegions(parent).then(
-      (options) => active && setState({ parent, options }),
-      () => active && setState({ parent, options: [], failed: true }),
-    );
-    return () => {
-      active = false;
-    };
-  }, [parent, attempt]);
-  // loadRegions sudah menghapus cache saat gagal, jadi percobaan berikutnya benar-benar meminta ulang.
-  const retry = () => {
-    setState(null);
-    setAttempt((value) => value + 1);
-  };
-  return { regions: parent !== null && state?.parent === parent ? state : null, retry };
 }
 
 function RegionSelect({
@@ -443,50 +423,26 @@ function RegionSelect({
   /** Kode induk; null bila tingkat di atasnya belum dipilih. */
   parent: string | null;
   waiting: string;
-  value: string;
-  onChange: (option: RegionOption | undefined) => void;
+  value: RegionOption | null;
+  onChange: (option: RegionOption) => void;
 }) {
-  const { regions, retry } = useRegions(parent);
-  const placeholder =
-    parent === null ? waiting : !regions ? "Memuat…" : regions.failed ? "Gagal memuat" : `Pilih ${title.toLowerCase()}`;
+  const load = useCallback((query: string) => loadRegions(parent ?? "", query), [parent]);
   return (
     <div>
       <label htmlFor={id} className={label}>
         {title}
       </label>
-      <div className="relative">
-        <select
-          id={id}
-          name={name}
-          required
-          disabled={!regions?.options.length}
-          className={`${field} appearance-none truncate pr-9`}
-          value={value}
-          onChange={(event) => onChange(regions?.options.find((option) => option.code === event.target.value))}
-        >
-          <option value="" disabled>
-            {placeholder}
-          </option>
-          {regions?.options.map((option) => (
-            <option key={option.code} value={option.code}>
-              {option.name}
-            </option>
-          ))}
-        </select>
-        <CaretDownIcon
-          size={14}
-          className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted"
-          aria-hidden="true"
-        />
-      </div>
-      {regions?.failed && (
-        <p role="alert" className="mt-1.5 text-sm text-danger">
-          Daftar {title.toLowerCase()} belum bisa dimuat.{" "}
-          <button type="button" className="text-accent hover:underline" onClick={retry}>
-            Coba lagi
-          </button>
-        </p>
-      )}
+      <SearchableSelect
+        id={id}
+        name={name}
+        required
+        disabled={parent === null}
+        placeholder={parent === null ? waiting : `Cari ${title.toLowerCase()}`}
+        className={field}
+        value={value}
+        onChange={onChange}
+        load={load}
+      />
     </div>
   );
 }
@@ -589,35 +545,35 @@ export function AddressForm({
         waiting=""
         value={province}
         onChange={(option) => {
-          setProvince(option?.code ?? "");
-          setCity("");
-          setDistrict("");
-          setVillage("");
+          setProvince(option);
+          setCity(null);
+          setDistrict(null);
+          setVillage(null);
           setPostalCode("");
         }}
       />
       <RegionSelect
         id="city"
         title="Kota/kabupaten"
-        parent={province || null}
+        parent={province?.value ?? null}
         waiting="Pilih provinsi dulu"
         value={city}
         onChange={(option) => {
-          setCity(option?.code ?? "");
-          setDistrict("");
-          setVillage("");
+          setCity(option);
+          setDistrict(null);
+          setVillage(null);
           setPostalCode("");
         }}
       />
       <RegionSelect
         id="district"
         title="Kecamatan"
-        parent={city || null}
+        parent={city?.value ?? null}
         waiting="Pilih kota dulu"
         value={district}
         onChange={(option) => {
-          setDistrict(option?.code ?? "");
-          setVillage("");
+          setDistrict(option);
+          setVillage(null);
           setPostalCode("");
         }}
       />
@@ -625,12 +581,12 @@ export function AddressForm({
         id="village"
         name="villageCode"
         title="Kelurahan/desa"
-        parent={district || null}
+        parent={district?.value ?? null}
         waiting="Pilih kecamatan dulu"
         value={village}
         onChange={(option) => {
-          setVillage(option?.code ?? "");
-          setPostalCode(option?.postalCode ?? "");
+          setVillage(option);
+          setPostalCode(option.postalCode ?? "");
         }}
       />
       <div className="sm:col-span-2">
