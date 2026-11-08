@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { CaretDownIcon, CheckCircleIcon, MinusIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useSession } from "next-auth/react";
 import { LinkIcon } from "@/components/icons";
@@ -10,8 +10,9 @@ import type { RegionOption } from "@/app/api/regions/route";
 import type { Address } from "@/db/schema";
 import { formatAddress } from "@/lib/address";
 import { basePath } from "@/lib/assets";
-import { listAddresses, placeOrder, saveAddress, type AddressFormState } from "@/lib/checkout-actions";
+import { listAddresses, placeOrder, saveAddress, type AddressFormState, type PlaceOrderResult } from "@/lib/checkout-actions";
 import { formatRupiah } from "@/lib/format";
+import { normalizePhone, phoneError } from "@/lib/phone";
 
 export type CheckoutProduct = {
   id: number;
@@ -21,7 +22,8 @@ export type CheckoutProduct = {
   image: { src: string; alt: string };
 };
 
-export type CartItem = CheckoutProduct & { quantity: number };
+/** `stockLeft`: diisi saat server menolak pesanan karena stok kurang; menandai item dan hilang saat jumlahnya diubah. */
+export type CartItem = CheckoutProduct & { quantity: number; stockLeft?: number };
 
 /** Batas jumlah per produk: stok bila diisi, maksimal 99 (sama dengan validasi placeOrder). */
 export const maxQuantity = (product: CheckoutProduct) => Math.min(product.stock ?? 99, 99);
@@ -48,19 +50,41 @@ export function Checkout({ onLogin }: { onLogin: () => void }) {
     : cart.reduce((sum, item) => sum + item.price! * item.quantity, 0);
 
   const setQuantity = (id: number, quantity: number) =>
-    updateCart((items) => items.map((item) => (item.id === id ? { ...item, quantity } : item)));
+    updateCart((items) => items.map((item) => (item.id === id ? { ...item, quantity, stockLeft: undefined } : item)));
   const remove = (id: number) => updateCart((items) => items.filter((item) => item.id !== id));
+  const soldOut = cart.some((item) => item.stock === 0);
 
   const submit = () => {
     if (status !== "authenticated") return onLogin();
     setError("");
     startTransition(async () => {
-      const result = await placeOrder({
-        items: cart.map((item) => ({ productId: item.id, quantity: item.quantity })),
-        notes,
-      });
+      let result: PlaceOrderResult;
+      try {
+        result = await placeOrder({
+          items: cart.map((item) => ({ productId: item.id, quantity: item.quantity })),
+          notes,
+        });
+      } catch {
+        setError("Pesanan belum bisa dicatat. Periksa koneksi internet lalu coba lagi.");
+        return;
+      }
       if ("error" in result) {
         setError(result.error);
+        // Stok di keranjang bisa usang: tandai item yang bermasalah dan turunkan batas jumlahnya ke sisa stok.
+        const issues = result.stock;
+        if (issues?.length)
+          updateCart((items) =>
+            items.map((item) => {
+              const issue = issues.find((entry) => entry.productId === item.id);
+              if (!issue) return item;
+              return {
+                ...item,
+                stock: issue.available,
+                quantity: issue.available > 0 ? Math.min(item.quantity, issue.available) : item.quantity,
+                stockLeft: issue.available,
+              };
+            }),
+          );
         return;
       }
       setPlaced(result);
@@ -143,6 +167,13 @@ export function Checkout({ onLogin }: { onLogin: () => void }) {
                   </button>
                 </div>
               </div>
+              {item.stockLeft !== undefined && (
+                <p role="alert" className="mt-2 text-sm text-danger">
+                  {item.stockLeft > 0
+                    ? `Stok tersisa ${item.stockLeft}. Jumlah sudah disesuaikan.`
+                    : "Stok habis. Hapus dari keranjang untuk melanjutkan."}
+                </p>
+              )}
             </div>
           </li>
         ))}
@@ -175,7 +206,7 @@ export function Checkout({ onLogin }: { onLogin: () => void }) {
               {subtotal === null ? "Dikonfirmasi penjual" : formatRupiah(subtotal)}
             </p>
           </div>
-          <button className="btn gap-3 px-5" disabled={pending || status === "loading"} onClick={submit}>
+          <button className="btn gap-3 px-5" disabled={pending || status === "loading" || soldOut} onClick={submit}>
             {pending ? "Mencatat…" : status === "authenticated" ? "Pesan via WhatsApp" : "Masuk untuk memesan"}
           </button>
         </div>
@@ -276,9 +307,10 @@ function loadRegions(parent: string) {
   return request;
 }
 
-/** null selama memuat atau bila `parent` belum dipilih; `failed` bila permintaan gagal. */
+/** null selama memuat atau bila `parent` belum dipilih; `failed` bila permintaan gagal. `retry` memuat ulang tingkat ini. */
 function useRegions(parent: string | null) {
   const [state, setState] = useState<{ parent: string; options: RegionOption[]; failed?: boolean } | null>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (parent === null) return;
     let active = true;
@@ -289,8 +321,13 @@ function useRegions(parent: string | null) {
     return () => {
       active = false;
     };
-  }, [parent]);
-  return parent !== null && state?.parent === parent ? state : null;
+  }, [parent, attempt]);
+  // loadRegions sudah menghapus cache saat gagal, jadi percobaan berikutnya benar-benar meminta ulang.
+  const retry = () => {
+    setState(null);
+    setAttempt((value) => value + 1);
+  };
+  return { regions: parent !== null && state?.parent === parent ? state : null, retry };
 }
 
 function RegionSelect({
@@ -311,9 +348,9 @@ function RegionSelect({
   value: string;
   onChange: (option: RegionOption | undefined) => void;
 }) {
-  const regions = useRegions(parent);
+  const { regions, retry } = useRegions(parent);
   const placeholder =
-    parent === null ? waiting : !regions ? "Memuat…" : regions.failed ? "Gagal memuat, pilih ulang di atas" : `Pilih ${title.toLowerCase()}`;
+    parent === null ? waiting : !regions ? "Memuat…" : regions.failed ? "Gagal memuat" : `Pilih ${title.toLowerCase()}`;
   return (
     <div>
       <label htmlFor={id} className={label}>
@@ -344,6 +381,14 @@ function RegionSelect({
           aria-hidden="true"
         />
       </div>
+      {regions?.failed && (
+        <p role="alert" className="mt-1.5 text-sm text-danger">
+          Daftar {title.toLowerCase()} belum bisa dimuat.{" "}
+          <button type="button" className="text-accent hover:underline" onClick={retry}>
+            Coba lagi
+          </button>
+        </p>
+      )}
     </div>
   );
 }
@@ -354,11 +399,23 @@ function AddressForm({ onSaved, onCancel }: { onSaved: (address: Address) => voi
     if (result.address) onSaved(result.address);
     return result;
   }, {});
+  // Semua isian dikontrol state: React 19 mengosongkan field uncontrolled setelah action selesai, termasuk saat server menolak.
+  const [recipientName, setRecipientName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [street, setStreet] = useState("");
+  const [notes, setNotes] = useState("");
   const [province, setProvince] = useState("");
   const [city, setCity] = useState("");
   const [district, setDistrict] = useState("");
   const [village, setVillage] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  // Aturan yang sama dengan server (lib/phone), jadi browser memblokir submit dan menampilkan pesan di field.
+  const phoneInvalid = phone.trim() !== "" && normalizePhone(phone) === null;
+  useEffect(() => {
+    phoneRef.current?.setCustomValidity(phoneInvalid ? phoneError : "");
+  }, [phoneInvalid]);
 
   return (
     <form action={formAction} className="mt-4 grid gap-x-4 gap-y-5 sm:grid-cols-2">
@@ -367,11 +424,20 @@ function AddressForm({ onSaved, onCancel }: { onSaved: (address: Address) => voi
       )}
       <div>
         <label htmlFor="recipientName" className={label}>Nama penerima</label>
-        <input id="recipientName" name="recipientName" required autoComplete="name" className={field} />
+        <input
+          id="recipientName"
+          name="recipientName"
+          required
+          autoComplete="name"
+          className={field}
+          value={recipientName}
+          onChange={(event) => setRecipientName(event.target.value)}
+        />
       </div>
       <div>
         <label htmlFor="phone" className={label}>Nomor HP</label>
         <input
+          ref={phoneRef}
           id="phone"
           name="phone"
           type="tel"
@@ -380,7 +446,18 @@ function AddressForm({ onSaved, onCancel }: { onSaved: (address: Address) => voi
           autoComplete="tel"
           placeholder="08xxxxxxxxxx"
           className={field}
+          value={phone}
+          aria-invalid={phoneTouched && phoneInvalid}
+          aria-describedby={phoneTouched && phoneInvalid ? "phone-error" : undefined}
+          onChange={(event) => setPhone(event.target.value)}
+          onBlur={() => setPhoneTouched(true)}
+          onInvalid={() => setPhoneTouched(true)}
         />
+        {phoneTouched && phoneInvalid && (
+          <p id="phone-error" role="alert" className="mt-1.5 text-sm text-danger">
+            {phoneError}
+          </p>
+        )}
       </div>
       <RegionSelect
         id="province"
@@ -443,6 +520,8 @@ function AddressForm({ onSaved, onCancel }: { onSaved: (address: Address) => voi
           autoComplete="address-line1"
           placeholder="Nama jalan, nomor rumah, RT/RW"
           className="block w-full rounded-md border border-line bg-transparent px-3 py-2.5 text-[15px] placeholder:text-muted focus:border-accent focus:outline-none"
+          value={street}
+          onChange={(event) => setStreet(event.target.value)}
         />
       </div>
       <div>
@@ -465,7 +544,14 @@ function AddressForm({ onSaved, onCancel }: { onSaved: (address: Address) => voi
         <label htmlFor="notes" className={label}>
           Patokan <span className="font-normal">(opsional)</span>
         </label>
-        <input id="notes" name="notes" placeholder="Mis. pagar hijau" className={field} />
+        <input
+          id="notes"
+          name="notes"
+          placeholder="Mis. pagar hijau"
+          className={field}
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+        />
       </div>
       {state.error && (
         <p role="alert" className="text-sm text-ink sm:col-span-2">
