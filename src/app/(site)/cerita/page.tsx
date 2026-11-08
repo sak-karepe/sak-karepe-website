@@ -6,12 +6,14 @@ import Link from "next/link";
 import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
 import { productImage, runwayImage } from "@/lib/assets";
+import { getBlocks } from "@/lib/page-blocks";
 export const metadata: Metadata = {
   title: "Cerita kami · Sak Karepe",
   description:
     "Perjalanan pendidikan vokasi SLB Khusus Bina Mandiri, dari batik tulis dengan warna alami menuju karya ecoprint Sak Karepe.",
 };
-export default function StoryPage() {
+export default async function StoryPage() {
+  const blocks = await getBlocks();
   return (
     <main id="utama">
       <section className="wrap pt-8 md:pt-10">
@@ -20,20 +22,17 @@ export default function StoryPage() {
           <div>
             <h1 className="page-title">
               <span className="hero-title-line">
-                <span>Dari sekolah.</span>
+                <span>{blocks.story_hero_title_1}</span>
               </span>
               <span className="hero-title-line">
-                <span>Menuju dunia.</span>
+                <span>{blocks.story_hero_title_2}</span>
               </span>
             </h1>
-            <p className="hero-enter mt-7 max-w-[430px] text-lg text-muted">
-              Di balik karya Sak Karepe, ada ruang belajar dan kesempatan untuk
-              mengembangkan potensi setiap anak.
-            </p>
+            <p className="hero-enter mt-7 max-w-[430px] text-lg text-muted">{blocks.story_hero_subtitle}</p>
           </div>
           <div className="hero-images photo aspect-[4/5] max-h-[560px]">
             <Image
-              src={productImage("7e60ced3-8a64-4f26-9237-4cfc0aff6a41")}
+              src={blocks.story_hero_img}
               alt="Busana Sak Karepe tersusun di dekat jendela"
               fill
               preload
@@ -46,29 +45,13 @@ export default function StoryPage() {
       <Reveal className="wrap my-16 md:my-24">
         <section className="grid gap-8 lg:grid-cols-[.7fr_1.3fr] lg:gap-20">
           <div>
-            <p className="text-6xl font-heading tracking-[-.06em] text-accent md:text-8xl">
-              2004
-            </p>
-            <p className="mt-3 text-sm text-muted">
-              Awal pendidikan batik tulis
-            </p>
+            <p className="text-6xl font-heading tracking-[-.06em] text-accent md:text-8xl">{blocks.story_2004_year}</p>
+            <p className="mt-3 text-sm text-muted">{blocks.story_2004_label}</p>
           </div>
           <div className="max-w-[620px]">
-            <h2>
-              Belajar dari
-              <br />
-              warna alami.
-            </h2>
-            <p className="mt-6 text-muted">
-              Sejak 2004, SLB Khusus Bina Mandiri mengenalkan batik tulis dengan
-              pewarnaan alami kepada peserta didik. Kegiatan ini memberi ruang
-              untuk belajar, berekspresi, dan melatih ketekunan.
-            </p>
-            <p className="mt-5 text-muted">
-              Seiring perubahan kemampuan dan karakter anak, teknik jumputan dan
-              shibori ikut diperkenalkan. Cara berkarya disesuaikan dengan
-              kebutuhan peserta didik.
-            </p>
+            <h2 className="whitespace-pre-line">{blocks.story_2004_title}</h2>
+            <p className="mt-6 text-muted">{blocks.story_2004_p1}</p>
+            <p className="mt-5 text-muted">{blocks.story_2004_p2}</p>
           </div>
         </section>
       </Reveal>
