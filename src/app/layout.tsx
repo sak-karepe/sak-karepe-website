@@ -1,4 +1,5 @@
 import { assetPath } from "@/lib/assets";
+import { displayKey } from "@/lib/content";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -16,6 +17,16 @@ const body = localFont({
   variable: "--font-body",
   display: "swap",
 });
+// Hanya diunduh saat pengunjung memilih font disleksia.
+const dyslexic = localFont({
+  src: [
+    { path: "./fonts/opendyslexic-latin-400-normal.woff2", weight: "400" },
+    { path: "./fonts/opendyslexic-latin-700-normal.woff2", weight: "700" },
+  ],
+  variable: "--font-dyslexic",
+  display: "swap",
+  preload: false,
+});
 export const metadata: Metadata = {
   title: "Sak Karepe · Pewarnaan Alami",
   description:
@@ -28,8 +39,17 @@ export default function RootLayout({
   return (
     <html
       lang="id"
-      className={`${display.variable} ${body.variable} antialiased`}
+      className={`${display.variable} ${body.variable} ${dyslexic.variable} antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* Terapkan pengaturan tampilan sebelum render pertama supaya tidak berkedip. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var d=JSON.parse(localStorage.getItem(${JSON.stringify(displayKey)})||"{}");for(var k in d)if(d[k])document.documentElement.dataset[k]=d[k]}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );
