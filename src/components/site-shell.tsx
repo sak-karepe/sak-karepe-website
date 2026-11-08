@@ -12,7 +12,8 @@ import {
   useState,
   useCallback,
 } from "react";
-import { navigation, runwayPhotos } from "@/lib/content";
+import { navigation } from "@/lib/content";
+import type { RunwayPhoto } from "@/lib/runway";
 import { ShoppingCartSimpleIcon, WhatsappLogoIcon } from "@phosphor-icons/react";
 import { SessionProvider } from "next-auth/react";
 import { signInWithGoogle } from "@/lib/auth-actions";
@@ -23,7 +24,7 @@ import { Checkout, type CartItem } from "./checkout";
 type Modal =
   | { kind: "product"; product: { title: string; src: string; description: string } }
   | { kind: "consult"; message: string }
-  | { kind: "gallery"; index: number }
+  | { kind: "gallery"; photos: RunwayPhoto[]; index: number }
   /** `redirectTo`: tujuan setelah login, mis. kembali ke produk untuk melanjutkan pembelian. */
   | { kind: "login"; notice?: string; redirectTo?: string }
   | { kind: "checkout" };
@@ -154,8 +155,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     if (modal?.kind === "gallery")
       setModal({
         kind: "gallery",
+        photos: modal.photos,
         index:
-          (modal.index + delta + runwayPhotos.length) % runwayPhotos.length,
+          (modal.index + delta + modal.photos.length) % modal.photos.length,
       });
   };
   const copy = async () => {
@@ -488,8 +490,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           )}
           {modal?.kind === "gallery" && (
             <GalleryLightbox
+              photos={modal.photos}
               index={modal.index}
-              onChange={(index) => setModal({ kind: "gallery", index })}
+              onChange={(index) => setModal({ kind: "gallery", photos: modal.photos, index })}
             />
           )}
         </div>
