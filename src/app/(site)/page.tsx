@@ -5,8 +5,11 @@ import Link from "next/link";
 import { Collection } from "@/components/collection";
 import { Reveal } from "@/components/reveal";
 import { contact, whatsappUrl } from "@/lib/contact";
+import { getRunwayPhotos } from "@/lib/runway";
 const catalog = assetPath("/documents/katalog-2026.pdf");
-export default function Home() {
+export default async function Home() {
+  // Dua foto pertama (yang tampil) dari menu Fashion show di admin.
+  const featured = await getRunwayPhotos(2);
   return (
     <main id="utama">
       <section
@@ -183,27 +186,21 @@ export default function Home() {
             </div>
           </div>
 
-                    <div className="grid min-w-0 grid-cols-2 items-start gap-3 xl:gap-4">
-                        <div className="photo relative aspect-[2/3] min-w-0">
-              <Image
-                src={runwayImage("76e7b072-10ac-49da-9a8c-47ceb7187ad1")}
-                alt="Model memperagakan busana ecoprint Sak Karepe di runway"
-                fill
-                sizes="(max-width: 768px) 50vw, 33vw"
-                className="object-cover"
-              />
+          {featured.length > 0 && (
+            <div className="grid min-w-0 grid-cols-2 items-start gap-3 xl:gap-4">
+              {featured.map((photo, index) => (
+                <div key={photo.id} className={`photo relative aspect-[2/3] min-w-0 ${index === 1 ? "mt-8 xl:mt-12" : ""}`}>
+                  <Image
+                    src={photo.src}
+                    alt={photo.alt}
+                    fill
+                    sizes="(max-width: 768px) 50vw, 33vw"
+                    className="object-cover"
+                  />
+                </div>
+              ))}
             </div>
-
-                        <div className="photo relative mt-8 aspect-[2/3] min-w-0 xl:mt-12">
-              <Image
-                src={runwayImage("ac8c207d-3ad3-4ffc-9660-d6beaa4e6380")}
-                alt="Koleksi busana fashion show Sak Karepe"
-                fill
-                sizes="(max-width: 768px) 50vw, 33vw"
-                className="object-cover"
-              />
-            </div>
-          </div>
+          )}
         </div>
       </section>
       <Reveal className="wrap mt-16 md:mt-24">
