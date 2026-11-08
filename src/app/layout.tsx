@@ -17,6 +17,7 @@ const body = localFont({
   display: "swap",
 });
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.AUTH_URL || "http://localhost:3000"),
   title: "Sak Karepe · Pewarnaan Alami",
   description:
     "Ecoprint, batik, dan tenun Sak Karepe. Jelajahi koleksi, fashion show, dan perjalanan berkarya dari SLB Khusus Bina Mandiri.",
