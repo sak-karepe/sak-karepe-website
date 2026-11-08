@@ -41,7 +41,7 @@ export default async function AdminPage() {
     .from(payments)
     .where(and(gte(payments.paidAt, month.start), lt(payments.paidAt, month.end)));
 
-  const [total, published, toShip, waiting, userTotal, [revenue], recent, onHold, flagged] = await Promise.all([
+  const [total, , toShip, waiting, userTotal, [revenue], recent, onHold, flagged] = await Promise.all([
     db.$count(products),
     // Stok 0 ikut disembunyikan dari toko (lib/catalog).
     db.$count(products, and(eq(products.published, true), or(isNull(products.stock), ne(products.stock, 0)))),
