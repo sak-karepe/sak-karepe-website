@@ -57,17 +57,20 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
     where: and(eq(orders.code, code), eq(orders.userId, userId)),
     with: {
       items: true,
-      payments: { orderBy: (payment, { desc }) => [desc(payment.id)], limit: 1 },
+      payments: { orderBy: (payment, { asc }) => [asc(payment.id)] },
       // Alasan pembatalan otomatis; catatan admin di riwayat bersifat internal.
       events: { columns: { note: true }, where: (event, { and, eq }) => and(eq(event.toStatus, "dibatalkan"), eq(event.source, "sistem")), limit: 1 },
     },
   });
   if (!order) notFound();
-  const [payment] = order.payments;
+  const paidPayments = order.payments.filter((payment): payment is typeof payment & { paidAt: Date } => payment.paidAt !== null);
+  const totalPaid = paidPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  const activePayment = order.payments.find((payment) => isActivePayment(payment));
+  const latestPayment = order.payments[order.payments.length - 1];
   const waiting = checkoutStatuses.includes(order.status);
-  const payable = order.status === "menunggu_pembayaran" && payment && isActivePayment(payment);
-  // Checkout dibuka lagi bila link DOKU sebelumnya kedaluwarsa atau dibatalkan.
-  const checkout = (order.status === "menunggu_checkout" || order.status === "menunggu_pembayaran") && !payable && !payment?.paidAt;
+  const payable = order.status === "menunggu_pembayaran" && Boolean(activePayment);
+  // Checkout dibuka lagi bila link DOKU sebelumnya kedaluwarsa atau dibatalkan dan belum ada pembayaran yang lunas.
+  const checkout = (order.status === "menunggu_checkout" || order.status === "menunggu_pembayaran") && !payable && paidPayments.length === 0;
   const handedOver = handedOverStatuses.includes(order.shipmentStatus ?? "");
   // Setelah sampai atau dikonfirmasi pembeli, status Biteship terakhir (mis. "picked") tidak lagi relevan.
   const shipmentLabel =
@@ -182,33 +185,58 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
             <section aria-labelledby="checkout" className="rounded-md border border-line p-5">
               <h2 id="checkout" className="text-sm font-medium">Checkout</h2>
               <p className="mt-2 text-[15px] text-muted">
-                {payment ? "Link pembayaran sebelumnya sudah tidak berlaku. Checkout lagi untuk membuat link baru." : "Isi alamat pengiriman, lalu bayar."}
+                {latestPayment ? "Link pembayaran sebelumnya sudah tidak berlaku. Checkout lagi untuk membuat link baru." : "Isi alamat pengiriman, lalu bayar."}
               </p>
               <Link href={`/pesanan/${order.code}/checkout`} className="btn mt-4 w-full">
                 Lanjutkan checkout
               </Link>
             </section>
           )}
-          {payment && !checkout && (
+          {order.payments.length > 0 && !checkout && (
             <section aria-labelledby="pembayaran" className="rounded-md border border-line p-5">
               <h2 id="pembayaran" className="text-sm font-medium">Pembayaran</h2>
-              <p className="mt-2 text-[22px] tabular-nums">{formatRupiah(payment.amount)}</p>
-              {payment.paidAt ? (
-                <p className="text-sm text-accent">
-                  Lunas {formatDateTime(payment.paidAt)}
-                  {payment.channel && ` · ${payment.channel.replaceAll("_", " ")}`}
-                </p>
-              ) : payment.cancelledAt ? (
-                <p className="text-sm text-muted">Link pembayaran dibatalkan {formatDateTime(payment.cancelledAt)}</p>
-              ) : payable ? (
+              {totalPaid > 0 ? (
                 <>
-                  <p className="text-sm text-muted">Bayar sebelum {formatDateTime(payment.expiresAt)} WIB</p>
-                  <a href={payment.url} target="_blank" rel="noopener noreferrer" className="btn mt-4 w-full gap-2">
+                  <p className="mt-2 text-[22px] tabular-nums">{formatRupiah(totalPaid)}</p>
+                  <p className="text-sm text-accent">
+                    Lunas {paidPayments.length > 1 ? `(${paidPayments.length} kali bayar)` : formatDateTime(paidPayments[0].paidAt)}
+                    {paidPayments.length === 1 && paidPayments[0].channel && ` · ${paidPayments[0].channel.replaceAll("_", " ")}`}
+                  </p>
+                  {paidPayments.length > 1 && (
+                    <ul className="mt-3 space-y-1.5 border-t border-line pt-3 text-sm">
+                      {paidPayments.map((p, idx) => (
+                        <li key={p.id} className="flex justify-between text-muted">
+                          <span>{idx === 0 ? "Pembayaran awal" : "Selisih ongkir"}</span>
+                          <span className="tabular-nums font-medium text-ink">{formatRupiah(p.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {activePayment && (
+                    <div className="mt-4 border-t border-line pt-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium text-danger">Tagihan selisih ongkir</span>
+                        <span className="tabular-nums font-medium text-danger">{formatRupiah(activePayment.amount)}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted">Bayar sebelum {formatDateTime(activePayment.expiresAt)} WIB</p>
+                      <a href={activePayment.url} target="_blank" rel="noopener noreferrer" className="btn mt-3 w-full gap-2">
+                        Bayar selisih <ArrowSquareOutIcon size={18} aria-hidden="true" />
+                      </a>
+                    </div>
+                  )}
+                </>
+              ) : activePayment ? (
+                <>
+                  <p className="mt-2 text-[22px] tabular-nums">{formatRupiah(activePayment.amount)}</p>
+                  <p className="text-sm text-muted">Bayar sebelum {formatDateTime(activePayment.expiresAt)} WIB</p>
+                  <a href={activePayment.url} target="_blank" rel="noopener noreferrer" className="btn mt-4 w-full gap-2">
                     Bayar sekarang <ArrowSquareOutIcon size={18} aria-hidden="true" />
                   </a>
                 </>
+              ) : latestPayment?.cancelledAt ? (
+                <p className="mt-2 text-sm text-muted">Link pembayaran dibatalkan {formatDateTime(latestPayment.cancelledAt)}</p>
               ) : (
-                <p className="text-sm text-muted">Link pembayaran kedaluwarsa.</p>
+                <p className="mt-2 text-sm text-muted">Link pembayaran kedaluwarsa.</p>
               )}
             </section>
           )}
@@ -244,7 +272,7 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
           >
             <WhatsappLogoIcon size={18} aria-hidden="true" /> Tanya lewat WhatsApp
           </a>
-          {waiting && <CancelOrder action={cancelOrder.bind(null, order.id)} hasPaymentLink={Boolean(payment && isActivePayment(payment))} />}
+          {waiting && <CancelOrder action={cancelOrder.bind(null, order.id)} hasPaymentLink={Boolean(activePayment)} />}
         </aside>
       </div>
     </main>

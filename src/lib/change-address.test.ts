@@ -213,8 +213,18 @@ test("pembayaran tambahan untuk selisih ongkir pada pesanan yang sudah dibayar d
       })
       .returning();
 
-    // Tambah link pembayaran selisih ongkir
-    const diff = 10000;
+    // Pembayaran awal 200.000
+    const initialAmount = 200000;
+    await db.insert(schema.payments).values({
+      orderId: order.id,
+      invoiceNumber: "SKTEST004P1",
+      amount: initialAmount,
+      paidAt: new Date(),
+      channel: "VIRTUAL_ACCOUNT_BCA",
+    });
+
+    // Tambah link pembayaran selisih ongkir 1.500
+    const diff = 1500;
     const invoiceNumber = "SKTEST004S1";
     const [payment] = await db
       .insert(schema.payments)
@@ -247,11 +257,14 @@ test("pembayaran tambahan untuk selisih ongkir pada pesanan yang sudah dibayar d
 
     const refreshed = await db.query.orders.findFirst({
       where: eq(schema.orders.id, order.id),
-      with: { payments: true, events: true },
+      with: { payments: { orderBy: (p, { asc }) => [asc(p.id)] }, events: true },
     });
 
     assert.equal(refreshed?.status, "dibayar");
-    assert.equal(refreshed?.payments[0].paidAt !== null, true);
+    assert.equal(refreshed?.payments.length, 2);
+    const paidPayments = refreshed?.payments.filter((p) => p.paidAt) ?? [];
+    const totalPaid = paidPayments.reduce((sum, p) => sum + p.amount, 0);
+    assert.equal(totalPaid, 201500, "Total bayar harus akumulasi pembayaran awal dan selisih ongkir");
     assert.equal(refreshed?.events[0].source, "doku");
     assert.ok(refreshed?.events[0].note?.includes("Pembayaran tambahan"));
   } finally {
