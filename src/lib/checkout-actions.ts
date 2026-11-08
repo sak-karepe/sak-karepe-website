@@ -25,15 +25,19 @@ export async function listAddresses(): Promise<Address[]> {
 
 export type AddressFormState = { error?: string; address?: Address };
 
-export async function saveAddress(_state: AddressFormState, formData: FormData): Promise<AddressFormState> {
-  const userId = await currentUserId();
-  if (!userId) return { error: loginRequired };
+/**
+ * Membaca dan memvalidasi isian form alamat, dipakai untuk tambah dan ubah. Nama wilayah diambil dari tabel regions,
+ * bukan dari form.
+ */
+async function readAddressForm(
+  formData: FormData,
+): Promise<{ error: string } | { values: Omit<typeof addresses.$inferInsert, "userId"> }> {
   const value = (name: string) => String(formData.get(name) ?? "").trim();
   const phone = normalizePhone(value("phone"));
   const postalCode = value("postalCode");
   if (!value("recipientName")) return { error: "Isi nama penerima." };
   if (!phone) return { error: phoneError };
-  // Nama wilayah diambil dari tabel regions, bukan dari form: "35.78.08.1001" -> 35, 35.78, 35.78.08, 35.78.08.1001.
+  // "35.78.08.1001" -> 35, 35.78, 35.78.08, 35.78.08.1001.
   const parts = value("villageCode").split(".");
   const codes = parts.map((_, index) => parts.slice(0, index + 1).join("."));
   const found = parts.length === 4 ? await db.select().from(regions).where(inArray(regions.code, codes)) : [];
@@ -41,10 +45,8 @@ export async function saveAddress(_state: AddressFormState, formData: FormData):
   if (!province || !city || !district || !village) return { error: "Pilih provinsi sampai kelurahan/desa." };
   if (!value("street")) return { error: "Isi alamat jalan dan nomor rumah." };
   if (!/^\d{5}$/.test(postalCode)) return { error: "Kode pos terdiri dari 5 angka." };
-  const [address] = await db
-    .insert(addresses)
-    .values({
-      userId,
+  return {
+    values: {
       recipientName: value("recipientName"),
       phone,
       street: value("street"),
@@ -55,9 +57,49 @@ export async function saveAddress(_state: AddressFormState, formData: FormData):
       villageCode: village.code,
       postalCode,
       notes: value("notes"),
-    })
-    .returning();
+    },
+  };
+}
+
+export async function saveAddress(_state: AddressFormState, formData: FormData): Promise<AddressFormState> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const form = await readAddressForm(formData);
+  if ("error" in form) return { error: form.error };
+  const [address] = await db.insert(addresses).values({ userId, ...form.values }).returning();
   return { address };
+}
+
+/**
+ * Mengubah alamat milik pembeli yang sedang masuk (userId ikut di WHERE, jadi alamat orang lain tidak bisa disentuh).
+ * Pesanan lama tidak terpengaruh karena alamatnya sudah disalin ke `orders` saat checkout.
+ */
+export async function updateAddress(id: number, _state: AddressFormState, formData: FormData): Promise<AddressFormState> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const form = await readAddressForm(formData);
+  if ("error" in form) return { error: form.error };
+  const [address] = await db
+    .update(addresses)
+    .set(form.values)
+    .where(and(eq(addresses.id, id), eq(addresses.userId, userId)))
+    .returning();
+  if (!address) return { error: "Alamat tidak ditemukan. Muat ulang halaman lalu coba lagi." };
+  return { address };
+}
+
+export type DeleteAddressResult = { error?: string };
+
+/** Menghapus alamat milik pembeli yang sedang masuk. Pesanan lama tidak terpengaruh (alamatnya sudah disalin). */
+export async function deleteAddress(id: number): Promise<DeleteAddressResult> {
+  const userId = await currentUserId();
+  if (!userId) return { error: loginRequired };
+  const deleted = await db
+    .delete(addresses)
+    .where(and(eq(addresses.id, id), eq(addresses.userId, userId)))
+    .returning({ id: addresses.id });
+  if (!deleted.length) return { error: "Alamat tidak ditemukan. Muat ulang halaman lalu coba lagi." };
+  return {};
 }
 
 /** Kode pendek yang mudah dibaca dan didiktekan, mis. SK-261023-7K2P. */

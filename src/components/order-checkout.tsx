@@ -61,7 +61,7 @@ export function OrderCheckout({ orderId, subtotal }: { orderId: number; subtotal
 
   return (
     <>
-      <AddressPicker selected={selected} onSelect={setSelected} />
+      <AddressPicker selected={selected} onSelect={setSelected} onUpdated={(id) => id === selected && retry()} />
       <section aria-labelledby="kurir" className="mt-10">
         <h2 id="kurir" className="text-[24px] tracking-[-.03em]">Kurir</h2>
         {!selected ? (
