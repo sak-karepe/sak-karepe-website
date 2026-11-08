@@ -1,32 +1,15 @@
 "use server";
-import { and, eq, like, max, ne, notInArray, or } from "drizzle-orm";
+import { and, eq, max, ne, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
 import { categories, productImages, products } from "@/db/schema";
 import { parseAmount } from "@/lib/format";
-import { slugify } from "@/lib/slug";
+import { uniqueSlug } from "@/lib/slug";
 import { checkUpload, removeUpload, saveUpload } from "@/lib/uploads";
 
 export type ProductFormState = { error?: string };
-
-
-/** Slug dari form (atau dari nama bila kosong), diberi akhiran -2, -3, ... bila sudah dipakai produk lain. */
-async function uniqueSlug(input: string, excludeId?: number) {
-  const base = slugify(input);
-  const taken = new Set(
-    (
-      await db
-        .select({ slug: products.slug })
-        .from(products)
-        .where(and(or(eq(products.slug, base), like(products.slug, `${base}-%`)), excludeId ? ne(products.id, excludeId) : undefined))
-    ).map((row) => row.slug),
-  );
-  let slug = base;
-  for (let n = 2; taken.has(slug); n++) slug = `${base}-${n}`;
-  return slug;
-}
 
 async function readForm(formData: FormData, excludeId?: number) {
   const name = String(formData.get("name") ?? "").trim();
@@ -49,7 +32,11 @@ async function readForm(formData: FormData, excludeId?: number) {
     images,
     values: {
       name,
-      slug: await uniqueSlug(String(formData.get("slug") ?? "").trim() || name, excludeId),
+      slug: await uniqueSlug(
+        products.slug,
+        String(formData.get("slug") ?? "").trim() || name,
+        excludeId ? ne(products.id, excludeId) : undefined,
+      ),
       categorySlug,
       description: String(formData.get("description") ?? "").trim(),
       price: parseAmount(formData.get("price")),

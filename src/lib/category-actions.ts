@@ -1,36 +1,15 @@
 "use server";
 
-import { and, eq, like, max, ne, or } from "drizzle-orm";
+import { eq, max, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
 import { categories, products } from "@/db/schema";
-import { slugify } from "@/lib/slug";
+import { uniqueSlug } from "@/lib/slug";
 import { checkUpload, removeUpload, saveUpload } from "@/lib/uploads";
 
 export type CategoryFormState = { error?: string };
-
-/** Slug dari form (atau dari judul bila kosong), diberi akhiran -2, -3, ... bila sudah dipakai koleksi lain. */
-async function uniqueSlug(input: string, excludeSlug?: string) {
-  const base = slugify(input);
-  const taken = new Set(
-    (
-      await db
-        .select({ slug: categories.slug })
-        .from(categories)
-        .where(
-          and(
-            or(eq(categories.slug, base), like(categories.slug, `${base}-%`)),
-            excludeSlug ? ne(categories.slug, excludeSlug) : undefined,
-          ),
-        )
-    ).map((row) => row.slug),
-  );
-  let slug = base;
-  for (let n = 2; taken.has(slug); n++) slug = `${base}-${n}`;
-  return slug;
-}
 
 function parseSortOrder(value: FormDataEntryValue | null): number | null {
   const raw = String(value ?? "").trim();
@@ -80,7 +59,11 @@ async function readForm(formData: FormData, existing?: { slug: string; coverImag
     }
   }
 
-  const slug = await uniqueSlug(rawSlug || title, existing?.slug);
+  const slug = await uniqueSlug(
+    categories.slug,
+    rawSlug || title,
+    existing ? ne(categories.slug, existing.slug) : undefined,
+  );
 
   return {
     uploadedNewCover: Boolean(uploadFile),
@@ -97,23 +80,13 @@ async function readForm(formData: FormData, existing?: { slug: string; coverImag
   } as const;
 }
 
-function refreshCategories(oldSlug?: string, newSlug?: string) {
-  revalidatePath("/", "layout");
-  revalidatePath("/koleksi");
-  revalidatePath("/koleksi/[slug]", "page");
-  if (oldSlug) revalidatePath(`/koleksi/${oldSlug}`);
-  if (newSlug && newSlug !== oldSlug) revalidatePath(`/koleksi/${newSlug}`);
-  revalidatePath("/admin/koleksi");
-  revalidatePath("/admin/produk");
-}
-
 export async function createCategory(_state: CategoryFormState, formData: FormData): Promise<CategoryFormState> {
   await requireAdmin();
   const form = await readForm(formData);
   if ("error" in form) return { error: form.error };
 
   await db.insert(categories).values(form.values);
-  refreshCategories(undefined, form.values.slug);
+  revalidatePath("/", "layout");
   redirect("/admin/koleksi");
 }
 
@@ -135,7 +108,7 @@ export async function updateCategory(
     await removeUpload(existing.coverImage);
   }
 
-  refreshCategories(currentSlug, form.values.slug);
+  revalidatePath("/", "layout");
   redirect("/admin/koleksi");
 }
 
@@ -151,7 +124,7 @@ export async function deleteCategory(slug: string): Promise<CategoryFormState> {
 
   await db.delete(categories).where(eq(categories.slug, slug));
   await removeUpload(existing.coverImage);
-  refreshCategories(slug);
+  revalidatePath("/", "layout");
   redirect("/admin/koleksi");
 }
 

@@ -34,10 +34,7 @@ export function CategoryForm({
   onDelete?: () => Promise<CategoryFormState>;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
-  const [deleteState, deleteAction, deleting] = useActionState(
-    async () => (onDelete ? onDelete() : {}),
-    {},
-  );
+  const [deleteState, deleteAction, deleting] = useActionState<CategoryFormState>(onDelete ?? (async () => ({})), {});
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
 
   useEffect(
