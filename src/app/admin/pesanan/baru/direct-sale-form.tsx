@@ -32,7 +32,9 @@ export function DirectSaleForm({
   productsList: ProductOption[];
   usersList: UserOption[];
 }) {
-  const [customerType, setCustomerType] = useState<"general" | "manual" | "registered">("general");
+  const [customerType, setCustomerType] = useState<
+    "general" | "manual" | "registered"
+  >("general");
   const [isShipping, setIsShipping] = useState(false);
   const [items, setItems] = useState<ItemRow[]>([
     { id: "1", productId: null, productName: "", price: 0, quantity: 1 },
@@ -43,7 +45,13 @@ export function DirectSaleForm({
   const addItemRow = () => {
     setItems((prev) => [
       ...prev,
-      { id: Date.now().toString(), productId: null, productName: "", price: 0, quantity: 1 },
+      {
+        id: Date.now().toString(),
+        productId: null,
+        productName: "",
+        price: 0,
+        quantity: 1,
+      },
     ]);
   };
 
@@ -64,13 +72,22 @@ export function DirectSaleForm({
           price: selected.price || 0,
         };
       } else {
-        next[index] = { ...next[index], productId: null, productName: "", price: 0 };
+        next[index] = {
+          ...next[index],
+          productId: null,
+          productName: "",
+          price: 0,
+        };
       }
       return next;
     });
   };
 
-  const updateItem = (index: number, field: keyof ItemRow, value: any) => {
+  const updateItem = (
+    index: number,
+    field: keyof ItemRow,
+    value: string | number | null,
+  ) => {
     setItems((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
@@ -78,7 +95,10 @@ export function DirectSaleForm({
     });
   };
 
-  const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalAmount = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0,
+  );
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
@@ -109,9 +129,14 @@ export function DirectSaleForm({
         <h2 className="text-lg font-medium">1. Item Penjualan</h2>
         <div className="space-y-3">
           {items.map((item, idx) => (
-            <div key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end border-b border-line pb-4">
+            <div
+              key={item.id}
+              className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end border-b border-line pb-4"
+            >
               <div className="sm:col-span-5">
-                <label className="block text-xs text-muted mb-1">Pilih Produk Katalog atau Item Bebas</label>
+                <label className="block text-xs text-muted mb-1">
+                  Pilih Produk Katalog atau Item Bebas
+                </label>
                 <select
                   value={item.productId || ""}
                   onChange={(e) => handleSelectProduct(idx, e.target.value)}
@@ -128,19 +153,25 @@ export function DirectSaleForm({
                   type="text"
                   placeholder="Nama produk/item"
                   value={item.productName}
-                  onChange={(e) => updateItem(idx, "productName", e.target.value)}
+                  onChange={(e) =>
+                    updateItem(idx, "productName", e.target.value)
+                  }
                   className="mt-1.5 w-full rounded border border-line bg-page px-2 py-1.5 text-sm"
                   required
                 />
               </div>
 
               <div className="sm:col-span-3">
-                <label className="block text-xs text-muted mb-1">Harga Satuan (Rp)</label>
+                <label className="block text-xs text-muted mb-1">
+                  Harga Satuan (Rp)
+                </label>
                 <input
                   type="number"
                   min="0"
                   value={item.price}
-                  onChange={(e) => updateItem(idx, "price", Number(e.target.value))}
+                  onChange={(e) =>
+                    updateItem(idx, "price", Number(e.target.value))
+                  }
                   className="w-full rounded border border-line bg-page px-2 py-1.5 text-sm"
                   required
                 />
@@ -152,7 +183,9 @@ export function DirectSaleForm({
                   type="number"
                   min="1"
                   value={item.quantity}
-                  onChange={(e) => updateItem(idx, "quantity", Number(e.target.value))}
+                  onChange={(e) =>
+                    updateItem(idx, "quantity", Number(e.target.value))
+                  }
                   className="w-full rounded border border-line bg-page px-2 py-1.5 text-sm"
                   required
                 />
@@ -163,7 +196,11 @@ export function DirectSaleForm({
                   Rp {(item.price * item.quantity).toLocaleString("id-ID")}
                 </span>
                 {items.length > 1 && (
-                  <button type="button" onClick={() => removeItemRow(item.id)} className="text-danger p-1 hover:opacity-80">
+                  <button
+                    type="button"
+                    onClick={() => removeItemRow(item.id)}
+                    className="text-danger p-1 hover:opacity-80"
+                  >
                     <TrashIcon size={18} />
                   </button>
                 )}
@@ -182,7 +219,9 @@ export function DirectSaleForm({
           </button>
           <div className="text-right">
             <span className="text-sm text-muted">Total Subtotal: </span>
-            <span className="text-lg font-bold">Rp {totalAmount.toLocaleString("id-ID")}</span>
+            <span className="text-lg font-bold">
+              Rp {totalAmount.toLocaleString("id-ID")}
+            </span>
           </div>
         </div>
       </section>
@@ -190,13 +229,19 @@ export function DirectSaleForm({
       {/* Bagian 2: Pembeli & Waktu Transaksi */}
       <section className="space-y-4 rounded-lg border border-line p-5 bg-surface/40">
         <h2 className="text-lg font-medium">2. Pembeli & Waktu Transaksi</h2>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Tipe Pembeli</label>
+            <label className="block text-sm font-medium mb-1">
+              Tipe Pembeli
+            </label>
             <select
               value={customerType}
-              onChange={(e) => setCustomerType(e.target.value as any)}
+              onChange={(e) =>
+                setCustomerType(
+                  e.target.value as "general" | "manual" | "registered",
+                )
+              }
               className="w-full rounded border border-line bg-page px-3 py-2 text-sm"
             >
               <option value="general">Pembeli Umum</option>
@@ -206,7 +251,9 @@ export function DirectSaleForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Tanggal Transaksi</label>
+            <label className="block text-sm font-medium mb-1">
+              Tanggal Transaksi
+            </label>
             <input
               type="datetime-local"
               name="transactionDate"
@@ -218,8 +265,13 @@ export function DirectSaleForm({
 
         {customerType === "registered" && (
           <div>
-            <label className="block text-sm font-medium mb-1">Pilih Pengguna Terdaftar</label>
-            <select name="userId" className="w-full rounded border border-line bg-page px-3 py-2 text-sm">
+            <label className="block text-sm font-medium mb-1">
+              Pilih Pengguna Terdaftar
+            </label>
+            <select
+              name="userId"
+              className="w-full rounded border border-line bg-page px-3 py-2 text-sm"
+            >
               {usersList.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name || "Tanpa Nama"} ({u.email})
@@ -232,12 +284,26 @@ export function DirectSaleForm({
         {customerType === "manual" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Nama Pembeli</label>
-              <input type="text" name="customerName" className="w-full rounded border border-line bg-page px-3 py-2 text-sm" required />
+              <label className="block text-sm font-medium mb-1">
+                Nama Pembeli
+              </label>
+              <input
+                type="text"
+                name="customerName"
+                className="w-full rounded border border-line bg-page px-3 py-2 text-sm"
+                required
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">No. WhatsApp / HP</label>
-              <input type="text" name="customerPhone" className="w-full rounded border border-line bg-page px-3 py-2 text-sm" required />
+              <label className="block text-sm font-medium mb-1">
+                No. WhatsApp / HP
+              </label>
+              <input
+                type="text"
+                name="customerPhone"
+                className="w-full rounded border border-line bg-page px-3 py-2 text-sm"
+                required
+              />
             </div>
           </div>
         )}
@@ -249,8 +315,13 @@ export function DirectSaleForm({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Metode Pembayaran</label>
-            <select name="paymentMethod" className="w-full rounded border border-line bg-page px-3 py-2 text-sm">
+            <label className="block text-sm font-medium mb-1">
+              Metode Pembayaran
+            </label>
+            <select
+              name="paymentMethod"
+              className="w-full rounded border border-line bg-page px-3 py-2 text-sm"
+            >
               <option value="tunai">Tunai</option>
               <option value="transfer">Transfer Bank</option>
               <option value="qris">QRIS</option>
@@ -259,8 +330,15 @@ export function DirectSaleForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Bukti Pembayaran (Opsional)</label>
-            <input type="file" name="proofFile" accept="image/*" className="w-full text-sm pt-1" />
+            <label className="block text-sm font-medium mb-1">
+              Bukti Pembayaran (Opsional)
+            </label>
+            <input
+              type="file"
+              name="proofFile"
+              accept="image/*"
+              className="w-full text-sm pt-1"
+            />
           </div>
         </div>
 
@@ -279,27 +357,60 @@ export function DirectSaleForm({
         {isShipping && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-line">
             <div>
-              <label className="block text-xs font-medium mb-1">Nama Penerima</label>
-              <input type="text" name="recipientName" className="w-full rounded border border-line bg-page px-3 py-1.5 text-sm" required={isShipping} />
+              <label className="block text-xs font-medium mb-1">
+                Nama Penerima
+              </label>
+              <input
+                type="text"
+                name="recipientName"
+                className="w-full rounded border border-line bg-page px-3 py-1.5 text-sm"
+                required={isShipping}
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">No. HP Penerima</label>
-              <input type="text" name="phone" className="w-full rounded border border-line bg-page px-3 py-1.5 text-sm" required={isShipping} />
+              <label className="block text-xs font-medium mb-1">
+                No. HP Penerima
+              </label>
+              <input
+                type="text"
+                name="phone"
+                className="w-full rounded border border-line bg-page px-3 py-1.5 text-sm"
+                required={isShipping}
+              />
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium mb-1">Alamat Lengkap Pengiriman</label>
-              <textarea name="shippingAddress" rows={2} className="w-full rounded border border-line bg-page px-3 py-1.5 text-sm" required={isShipping} />
+              <label className="block text-xs font-medium mb-1">
+                Alamat Lengkap Pengiriman
+              </label>
+              <textarea
+                name="shippingAddress"
+                rows={2}
+                className="w-full rounded border border-line bg-page px-3 py-1.5 text-sm"
+                required={isShipping}
+              />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">Kode Pos</label>
-              <input type="text" name="postalCode" className="w-full rounded border border-line bg-page px-3 py-1.5 text-sm" required={isShipping} />
+              <input
+                type="text"
+                name="postalCode"
+                className="w-full rounded border border-line bg-page px-3 py-1.5 text-sm"
+                required={isShipping}
+              />
             </div>
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium mb-1">Catatan Transaksi</label>
-          <textarea name="notes" rows={2} placeholder="Catatan tambahan untuk transaksi ini..." className="w-full rounded border border-line bg-page px-3 py-2 text-sm" />
+          <label className="block text-sm font-medium mb-1">
+            Catatan Transaksi
+          </label>
+          <textarea
+            name="notes"
+            rows={2}
+            placeholder="Catatan tambahan untuk transaksi ini..."
+            className="w-full rounded border border-line bg-page px-3 py-2 text-sm"
+          />
         </div>
       </section>
 

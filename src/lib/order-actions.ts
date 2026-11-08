@@ -298,7 +298,11 @@ export async function createDirectSale(_state: DirectSaleFormState, formData: Fo
   const transactionDateRaw = formData.get("transactionDate") as string;
   const transactionDate = transactionDateRaw ? new Date(transactionDateRaw) : new Date();
 
-  const paymentMethod = (formData.get("paymentMethod") as any) || "tunai";
+  const paymentMethod = (formData.get("paymentMethod") as
+    | "tunai"
+    | "transfer"
+    | "qris"
+    | "lainnya") || "tunai";
   const notes = (formData.get("notes") as string) || "";
   const isShipping = formData.get("isShipping") === "true";
 
@@ -312,7 +316,7 @@ export async function createDirectSale(_state: DirectSaleFormState, formData: Fo
   if (proofFile && proofFile.size > 0) {
     try {
       proofUrl = await saveUpload(proofFile);
-    } catch (err) {
+    } catch {
       return { error: "Gagal mengunggah bukti pembayaran." };
     }
   }
@@ -420,9 +424,13 @@ export async function createDirectSale(_state: DirectSaleFormState, formData: Fo
         createdAt: transactionDate,
       });
     });
-  } catch (err: any) {
-    return { error: err.message || "Gagal menyimpan transaksi langsung." };
-  }
+  } catch (err: unknown) {
+  return {
+    error: err instanceof Error
+      ? err.message
+      : "Gagal menyimpan transaksi langsung.",
+  };
+}
 
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
@@ -479,9 +487,13 @@ export async function cancelOrderWithRestock(orderId: number, _state: StatusForm
         createdAt: new Date(),
       });
     });
-  } catch (err: any) {
-    return { error: err.message || "Gagal membatalkan pesanan." };
-  }
+  } catch (err: unknown) {
+  return {
+    error: err instanceof Error
+      ? err.message
+      : "Gagal membatalkan pesanan.",
+  };
+}
 
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
