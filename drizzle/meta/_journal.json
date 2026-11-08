@@ -127,6 +127,13 @@
       "when": 1794104349466,
       "tag": "0017_rare_namor",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1794135348734,
+      "tag": "0018_lyrical_cassandra_nova",
+      "breakpoints": true
     }
   ]
 }

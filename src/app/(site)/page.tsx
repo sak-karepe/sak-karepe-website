@@ -3,7 +3,6 @@ import { LinkIcon } from "@/components/icons";
 import Image from "@/components/site-image";
 import Link from "next/link";
 import { Collection } from "@/components/collection";
-import { RunwayGallery } from "@/components/runway-gallery";
 import { Reveal } from "@/components/reveal";
 import { contact, whatsappUrl } from "@/lib/contact";
 import { getRunwayPhotos } from "@/lib/runway";

@@ -280,6 +280,11 @@ export const runwayPhotos = sqliteTable("runway_photos", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
 export const productsRelations = relations(products, ({ many, one }) => ({
   images: many(productImages),
   category: one(categories, { fields: [products.categorySlug], references: [categories.slug] }),

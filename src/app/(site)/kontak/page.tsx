@@ -5,13 +5,20 @@ import Link from "next/link";
 import { runwayPhotos } from "@/lib/content";
 import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
-import { contact, whatsappUrl } from "@/lib/contact";
+import { getContactSettings } from "@/lib/contact";
+
 export const metadata: Metadata = {
   title: "Kontak & kunjungan · Sak Karepe",
   description:
     "Hubungi Sak Karepe melalui WhatsApp dan temukan lokasi SLB Khusus Bina Mandiri di Surabaya.",
 };
-export default function ContactPage() {
+
+export default async function ContactPage() {
+  const contact = await getContactSettings();
+  const waUrl = `https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(
+    "Halo Sak Karepe, saya ingin berkonsultasi tentang produk ecoprint."
+  )}`;
+
   return (
     <main id="utama">
       <section className="wrap pt-8 md:pt-10">
@@ -62,6 +69,11 @@ export default function ContactPage() {
           <address className="mt-4 not-italic">
             <p className="font-medium">{contact.location}</p>
             <p className="mt-2 text-muted">{contact.address}</p>
+            {contact.openingHours && (
+              <p className="mt-2 text-sm text-muted">
+                Jam Buka: {contact.openingHours}
+              </p>
+            )}
           </address>
           <a
             className="text-link mt-5"
@@ -76,14 +88,14 @@ export default function ContactPage() {
           </p>
           <a
             className="mt-3 block text-[28px] font-heading tracking-[-.04em] text-accent"
-            href={whatsappUrl()}
+            href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
           >
             {contact.phone}
           </a>
           <a
-            href={whatsappUrl()}
+            href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-outline mt-5"
