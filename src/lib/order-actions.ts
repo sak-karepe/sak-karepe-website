@@ -279,7 +279,7 @@ export async function createCheckoutLink(
   if (!checkoutStatuses.includes(order.status) || order.payments.some((payment) => payment.paidAt))
     return { error: "Link checkout hanya bisa dibuat untuk pesanan yang belum dibayar." };
   const prices = order.items.map((item) => parseAmount(formData.get(`price-${item.id}`)));
-  if (prices.some((price) => !price)) return { error: "Isi harga setiap produk." };
+  if (prices.some((price) => price === null || price <= 0)) return { error: "Isi harga setiap produk dengan nilai lebih dari Rp0." };
   const subtotal = order.items.reduce((sum, item, index) => sum + prices[index]! * item.quantity, 0);
   if (subtotal > 999_999_999_999) return { error: "Total terlalu besar." };
   const cancelError = await cancelActivePayments(order.payments, `Harga diubah admin (${order.code})`);

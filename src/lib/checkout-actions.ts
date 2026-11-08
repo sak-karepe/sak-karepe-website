@@ -9,6 +9,7 @@ import { formatAddress } from "@/lib/address";
 import { cancelCheckout, createCheckout } from "@/lib/doku";
 import { whatsappUrl } from "@/lib/contact";
 import { formatRupiah } from "@/lib/format";
+import { normalizePhone, phoneError } from "@/lib/phone";
 import { checkoutStatuses } from "@/lib/order-status";
 import { cancelActivePayments, isActivePayment } from "@/lib/payments";
 import { quoteShipping, type ShippingOption } from "@/lib/shipping";
@@ -24,12 +25,6 @@ export async function listAddresses(): Promise<Address[]> {
 
 export type AddressFormState = { error?: string; address?: Address };
 
-/** "0812-3456 789" atau "+62 812..." menjadi 08123456789; null bila bukan nomor Indonesia yang wajar. */
-function normalizePhone(value: string) {
-  const digits = value.replace(/\D/g, "").replace(/^62/, "0");
-  return /^0\d{8,13}$/.test(digits) ? digits : null;
-}
-
 export async function saveAddress(_state: AddressFormState, formData: FormData): Promise<AddressFormState> {
   const userId = await currentUserId();
   if (!userId) return { error: loginRequired };
@@ -37,7 +32,7 @@ export async function saveAddress(_state: AddressFormState, formData: FormData):
   const phone = normalizePhone(value("phone"));
   const postalCode = value("postalCode");
   if (!value("recipientName")) return { error: "Isi nama penerima." };
-  if (!phone) return { error: "Nomor HP tidak valid. Contoh: 081234567890." };
+  if (!phone) return { error: phoneError };
   // Nama wilayah diambil dari tabel regions, bukan dari form: "35.78.08.1001" -> 35, 35.78, 35.78.08, 35.78.08.1001.
   const parts = value("villageCode").split(".");
   const codes = parts.map((_, index) => parts.slice(0, index + 1).join("."));
@@ -77,7 +72,10 @@ async function newOrderCode() {
   }
 }
 
-export type PlaceOrderResult = { error: string } | { code: string; whatsapp: string };
+/** `stock`: produk yang stoknya kurang beserta sisa stoknya, agar keranjang di browser bisa menandai dan menyesuaikannya. */
+export type PlaceOrderResult =
+  | { error: string; stock?: { productId: number; available: number }[] }
+  | { code: string; whatsapp: string };
 
 /**
  * Mencatat isi keranjang sebagai satu pesanan berstatus "menunggu_konfirmasi" lalu mengembalikan tautan WhatsApp
@@ -96,13 +94,23 @@ export async function placeOrder(input: { items: { productId: number; quantity: 
     where: and(inArray(products.id, requested.map((item) => item.productId)), eq(products.published, true)),
   });
   const lines: { product: (typeof found)[number]; quantity: number }[] = [];
+  const shortages: { productId: number; available: number; message: string }[] = [];
   for (const item of requested) {
     const product = found.find((product) => product.id === item.productId);
     if (!product) return { error: "Ada produk yang sudah tidak dijual. Hapus dari keranjang lalu coba lagi." };
     if (product.stock !== null && item.quantity > product.stock)
-      return { error: product.stock > 0 ? `Stok ${product.name} tersisa ${product.stock}.` : `Stok ${product.name} sedang kosong.` };
+      shortages.push({
+        productId: product.id,
+        available: product.stock,
+        message: product.stock > 0 ? `Stok ${product.name} tersisa ${product.stock}.` : `Stok ${product.name} sedang kosong.`,
+      });
     lines.push({ product, quantity: item.quantity });
   }
+  if (shortages.length)
+    return {
+      error: shortages.length === 1 ? shortages[0].message : `Stok ${shortages.length} produk berkurang. Periksa item yang ditandai di keranjang.`,
+      stock: shortages.map(({ productId, available }) => ({ productId, available })),
+    };
 
   const notes = String(input.notes ?? "").trim().slice(0, 500);
   const subtotal = lines.some((line) => line.product.price === null)

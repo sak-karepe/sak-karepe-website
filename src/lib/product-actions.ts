@@ -1,15 +1,27 @@
 "use server";
-import { and, eq, like, max, ne, notInArray, or } from "drizzle-orm";
+import { and, asc, eq, like, max, ne, notInArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
 import { categories, productImages, products } from "@/db/schema";
 import { parseAmount } from "@/lib/format";
+import { contains, searchLimit } from "@/lib/search";
 import { slugify } from "@/lib/slug";
 import { checkUpload, removeUpload, saveUpload } from "@/lib/uploads";
 
 export type ProductFormState = { error?: string };
+
+/** Pencarian koleksi untuk dropdown form produk; dicari di server supaya client tidak memuat semua koleksi. */
+export async function searchCategories(query: string) {
+  await requireAdmin();
+  return db
+    .select({ value: categories.slug, label: categories.title })
+    .from(categories)
+    .where(contains(categories.title, String(query ?? "").slice(0, 100)))
+    .orderBy(asc(categories.sortOrder), asc(categories.title))
+    .limit(searchLimit);
+}
 
 
 /** Slug dari form (atau dari nama bila kosong), diberi akhiran -2, -3, ... bila sudah dipakai produk lain. */
