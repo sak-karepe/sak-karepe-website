@@ -1,11 +1,11 @@
-import { assetPath, productImage, runwayImage } from "@/lib/assets";
+import { assetPath, productImage } from "@/lib/assets";
 import { LinkIcon } from "@/components/icons";
 import Image from "@/components/site-image";
 import Link from "next/link";
 import { Collection } from "@/components/collection";
 import { Reveal } from "@/components/reveal";
 import { contact, whatsappUrl } from "@/lib/contact";
-import { getBlock } from "@/lib/page-blocks";
+import { getBlocks } from "@/lib/page-blocks";
 import { getRunwayPhotos } from "@/lib/runway";
 
 const catalog = assetPath("/documents/katalog-2026.pdf");
@@ -13,38 +13,7 @@ const catalog = assetPath("/documents/katalog-2026.pdf");
 export default async function Home() {
   // Dua foto pertama (yang tampil) dari menu Fashion show di admin.
   const featured = await getRunwayPhotos(2);
-  // Ambil konten dinamis dengan fallback ke nilai default saat ini
-  const heroTitle1 = await getBlock("home_hero_title_1", "Ecoprint dari");
-  const heroTitle2 = await getBlock("home_hero_title_2", "ruang belajar.");
-  const heroSubtitle = await getBlock(
-    "home_hero_subtitle",
-    "Busana, tas, kain, dan sepatu bermotif daun dari pendidikan vokasi SLB Khusus Bina Mandiri, Surabaya. Karyanya telah tampil di panggung Jakarta, Yogyakarta, dan Surabaya.",
-  );
-  const heroImage = await getBlock(
-    "home_hero_image",
-    runwayImage("8a672849-8119-4b5d-9aa4-181c2a4badf5"),
-  );
-
-  const storyImgMain = await getBlock(
-    "home_story_img_main",
-    productImage("7e60ced3-8a64-4f26-9237-4cfc0aff6a41"),
-  );
-  const storyImgSmall = await getBlock(
-    "home_story_img_small",
-    productImage("3ff6a2dc-af7f-47d0-8014-986368cfbe6c"),
-  );
-  const storyTitle = await getBlock(
-    "home_story_title",
-    "Dimulai dari batik tulis.",
-  );
-  const storyP1 = await getBlock(
-    "home_story_p1",
-    "Sak Karepe tumbuh dari pendidikan vokasi di SLB Khusus Bina Mandiri. Sejak 2004, peserta didik diperkenalkan pada batik tulis dengan pewarnaan alami.",
-  );
-  const storyP2 = await getBlock(
-    "home_story_p2",
-    "Jumputan, shibori, lalu ecoprint membuka cara berkarya yang disesuaikan dengan kemampuan setiap anak. Setiap potensi mendapat ruang untuk tumbuh.",
-  );
+  const blocks = await getBlocks();
 
   return (
     <main id="utama">
@@ -58,13 +27,13 @@ export default async function Home() {
             className="mb-7 text-[clamp(42px,10.8vw,70px)] leading-[1.04] tracking-[-.065em] lg:text-[clamp(56px,7.4vw,112px)]"
           >
             <span className="hero-title-line">
-              <span>{heroTitle1}</span>
+              <span>{blocks.home_hero_title_1}</span>
             </span>
             <span className="hero-title-line">
-              <span>{heroTitle2}</span>
+              <span>{blocks.home_hero_title_2}</span>
             </span>
           </h1>
-          <p className="hero-enter max-w-[460px]">{heroSubtitle}</p>
+          <p className="hero-enter max-w-[460px]">{blocks.home_hero_subtitle}</p>
           <div className="hero-enter mt-8 flex flex-wrap items-center gap-5 xl:gap-7">
             <Link className="btn btn-outline px-5 xl:px-6" href="/koleksi">
               Jelajahi koleksi <LinkIcon />
@@ -76,7 +45,7 @@ export default async function Home() {
         </div>
         <div className="hero-images photo aspect-[4/5] lg:aspect-auto lg:h-[min(780px,calc(100svh-120px))] lg:min-h-[560px]">
           <Image
-            src={heroImage}
+            src={blocks.home_hero_image}
             alt="Model memperagakan busana dan luaran ecoprint bernuansa hijau di depan lengkung taman"
             fill
             preload
@@ -94,7 +63,7 @@ export default async function Home() {
         <Reveal className="relative pr-7 pb-7 xl:pr-14 xl:pb-12">
           <div className="photo aspect-[1/1.15] md:h-[420px] md:aspect-auto xl:h-[500px]">
             <Image
-              src={storyImgMain}
+              src={blocks.home_story_img_main}
               alt="Koleksi busana Sak Karepe di dekat jendela"
               fill
               sizes="(max-width: 768px) 80vw, 40vw"
@@ -103,7 +72,7 @@ export default async function Home() {
           </div>
           <div className="photo absolute right-0 bottom-0 h-[190px] w-[34%] border-[6px] border-page xl:h-[240px] xl:border-8">
             <Image
-              src={storyImgSmall}
+              src={blocks.home_story_img_small}
               alt="Kain bermotif daun dengan kombinasi tepi bergaris"
               fill
               sizes="(max-width: 768px) 30vw, 16vw"
@@ -114,13 +83,12 @@ export default async function Home() {
         <Reveal>
           <h2
             id="story-title"
-            className="max-w-[440px]"
-            dangerouslySetInnerHTML={{
-              __html: storyTitle.replace("\n", "<br />"),
-            }}
-          />
-          <p className="mt-6 max-w-[520px] text-muted">{storyP1}</p>
-          <p className="my-6 max-w-[520px] text-muted">{storyP2}</p>
+            className="max-w-[440px] whitespace-pre-line"
+          >
+            {blocks.home_story_title}
+          </h2>
+          <p className="mt-6 max-w-[520px] text-muted">{blocks.home_story_p1}</p>
+          <p className="my-6 max-w-[520px] text-muted">{blocks.home_story_p2}</p>
           <Link className="text-link" href="/cerita">
             Baca cerita lengkapnya <LinkIcon />
           </Link>

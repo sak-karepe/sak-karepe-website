@@ -1,40 +1,19 @@
+import { assetPath } from "@/lib/assets";
+import { LinkIcon } from "@/components/icons";
 import type { Metadata } from "next";
 import Image from "@/components/site-image";
+import Link from "next/link";
 import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
-import { productImage } from "@/lib/assets";
-import { getBlock } from "@/lib/page-blocks";
-
+import { productImage, runwayImage } from "@/lib/assets";
+import { getBlocks } from "@/lib/page-blocks";
 export const metadata: Metadata = {
   title: "Cerita kami · Sak Karepe",
   description:
     "Perjalanan pendidikan vokasi SLB Khusus Bina Mandiri, dari batik tulis dengan warna alami menuju karya ecoprint Sak Karepe.",
 };
-
 export default async function StoryPage() {
-  const title1 = await getBlock("story_hero_title_1", "Dari sekolah.");
-  const title2 = await getBlock("story_hero_title_2", "Menuju dunia.");
-  const subtitle = await getBlock(
-    "story_hero_subtitle",
-    "Di balik karya Sak Karepe, ada ruang belajar dan kesempatan untuk mengembangkan potensi setiap anak."
-  );
-  const heroImg = await getBlock(
-    "story_hero_img",
-    productImage("7e60ced3-8a64-4f26-9237-4cfc0aff6a41")
-  );
-
-  const year2004 = await getBlock("story_2004_year", "2004");
-  const label2004 = await getBlock("story_2004_label", "Awal pendidikan batik tulis");
-  const title2004 = await getBlock("story_2004_title", "Belajar dari warna alami.");
-  const p2004_1 = await getBlock(
-    "story_2004_p1",
-    "Sejak 2004, SLB Khusus Bina Mandiri mengenalkan batik tulis dengan pewarnaan alami kepada peserta didik. Kegiatan ini memberi ruang untuk belajar, berekspresi, dan melatih ketekunan."
-  );
-  const p2004_2 = await getBlock(
-    "story_2004_p2",
-    "Seiring perubahan kemampuan dan karakter anak, teknik jumputan dan shibori ikut diperkenalkan. Cara berkarya disesuaikan dengan kebutuhan peserta didik."
-  );
-
+  const blocks = await getBlocks();
   return (
     <main id="utama">
       <section className="wrap pt-8 md:pt-10">
@@ -43,17 +22,17 @@ export default async function StoryPage() {
           <div>
             <h1 className="page-title">
               <span className="hero-title-line">
-                <span>{title1}</span>
+                <span>{blocks.story_hero_title_1}</span>
               </span>
               <span className="hero-title-line">
-                <span>{title2}</span>
+                <span>{blocks.story_hero_title_2}</span>
               </span>
             </h1>
-            <p className="hero-enter mt-7 max-w-[430px] text-lg text-muted">{subtitle}</p>
+            <p className="hero-enter mt-7 max-w-[430px] text-lg text-muted">{blocks.story_hero_subtitle}</p>
           </div>
           <div className="hero-images photo aspect-[4/5] max-h-[560px]">
             <Image
-              src={heroImg}
+              src={blocks.story_hero_img}
               alt="Busana Sak Karepe tersusun di dekat jendela"
               fill
               preload
@@ -63,23 +42,98 @@ export default async function StoryPage() {
           </div>
         </div>
       </section>
-
       <Reveal className="wrap my-16 md:my-24">
         <section className="grid gap-8 lg:grid-cols-[.7fr_1.3fr] lg:gap-20">
           <div>
-            <p className="text-6xl font-heading tracking-[-.06em] text-accent md:text-8xl">
-              {year2004}
-            </p>
-            <p className="mt-3 text-sm text-muted">{label2004}</p>
+            <p className="text-6xl font-heading tracking-[-.06em] text-accent md:text-8xl">{blocks.story_2004_year}</p>
+            <p className="mt-3 text-sm text-muted">{blocks.story_2004_label}</p>
           </div>
           <div className="max-w-[620px]">
-            <h2 dangerouslySetInnerHTML={{ __html: title2004.replace("\n", "<br />") }} />
-            <p className="mt-6 text-muted">{p2004_1}</p>
-            <p className="mt-5 text-muted">{p2004_2}</p>
+            <h2 className="whitespace-pre-line">{blocks.story_2004_title}</h2>
+            <p className="mt-6 text-muted">{blocks.story_2004_p1}</p>
+            <p className="mt-5 text-muted">{blocks.story_2004_p2}</p>
           </div>
         </section>
       </Reveal>
-      {/* Sisa section cerita lainnya bisa ditambahkan dengan pola getBlock yang sama */}
+      <section className="bg-surface py-12 md:py-20">
+        <Reveal className="wrap grid gap-9 lg:grid-cols-[1.2fr_.8fr] lg:gap-16">
+          <div className="photo aspect-[4/3]">
+            <Image
+              src={productImage("8804e501-4559-4aa9-9848-df5476f1c64d")}
+              alt="Jejak daun berwarna hijau dan ungu pada kain ecoprint"
+              fill
+              sizes="(max-width: 768px) 90vw, 50vw"
+              className="object-cover object-[center_35%]"
+            />
+          </div>
+          <div className="self-center">
+            <h2>
+              Bertemu daun.
+              <br />
+              Menemukan bentuk.
+            </h2>
+            <p className="mt-6 text-muted">
+              Ecoprint membuka pengalaman baru: melihat warna dan bentuk daun
+              berpindah ke kain melalui teknik pounding. Pengembangan teknik
+              steam kemudian memperluas media berkarya.
+            </p>
+            <p className="mt-5 text-muted">
+              Dari tote bag dan kaos, karya berkembang menjadi kain, tas,
+              sepatu, kemeja, dress, aksesori, dan homeware.
+            </p>
+          </div>
+        </Reveal>
+      </section>
+      <Reveal className="wrap py-14 md:py-24">
+        <section className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+          <div>
+          <h2>Ruang untuk tumbuh.</h2>
+          <p className="mt-7 max-w-[700px] text-xl leading-relaxed text-muted">
+            Sak Karepe lahir dari perjalanan pendidikan vokasi. Setiap karya
+            membawa proses belajar, keberanian mencoba, dan kesempatan membangun
+            kemandirian.
+          </p>
+          <p className="mt-6 max-w-[650px] text-muted">
+            Motif ecoprint kini juga dipadukan dengan tenun ikat, lurik, dan
+            batik. Karya dari ruang belajar mendapat kesempatan hadir di pameran
+            dan panggung fashion.
+          </p>
+          <Link href="/fashion-show" className="text-link mt-7">
+            Lihat karya di panggung <LinkIcon />
+          </Link>
+          </div>
+          <div className="grid grid-cols-2 items-start gap-3 xl:gap-4">
+            <div className="photo aspect-[2/3]">
+              <Image
+                src={runwayImage("76e7b072-10ac-49da-9a8c-47ceb7187ad1")}
+                alt="Dress panjang bermotif daun di panggung dengan latar tanaman"
+                fill
+                sizes="(max-width: 1024px) 45vw, 25vw"
+                className="object-cover"
+              />
+            </div>
+            <div className="photo mt-10 aspect-[2/3]">
+              <Image
+                src={productImage("3ff6a2dc-af7f-47d0-8014-986368cfbe6c")}
+                alt="Kain bermotif daun dengan kombinasi tepi bergaris"
+                fill
+                sizes="(max-width: 1024px) 45vw, 25vw"
+                className="object-cover"
+              />
+            </div>
+          </div>
+        </section>
+        <div className="mt-12">
+          <a
+            href={assetPath("/documents/katalog-2026.pdf")}
+            target="_blank"
+            rel="noopener"
+            className="text-link"
+          >
+            Baca katalog Sak Karepe 2026 <LinkIcon />
+          </a>
+        </div>
+      </Reveal>
     </main>
   );
 }
