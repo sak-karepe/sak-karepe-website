@@ -9,6 +9,7 @@ import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } 
 import { cancelActivePayments, isActivePayment } from "@/lib/payments";
 import { saveResend } from "@/lib/shipments";
 import { createShipment, lowBalance, quotaReached, unreachable } from "@/lib/shipping";
+import { returnStock } from "@/lib/stock";
 
 export type StatusFormState = { error?: string };
 
@@ -25,9 +26,10 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
     return {
       error: `Status "${orderStatusLabels[order.status]}" tidak bisa diubah ke "${isOrderStatus(status) ? orderStatusLabels[status] : status}" dari sini.`,
     };
-  if (status === "dibatalkan") {
-    if (order.payments.some((payment) => payment.paidAt)) return { error: "Pesanan ini sudah dibayar; pembatalan harus lewat refund." };
-    // Link DOKU yang masih berlaku dibatalkan dulu agar pembeli tidak membayar pesanan yang sudah batal.
+  if (status === "dibatalkan" || status === "refund") {
+    if (status === "dibatalkan" && order.status !== "refund" && order.payments.some((payment) => payment.paidAt))
+      return { error: "Pesanan ini sudah dibayar; pembatalan harus lewat refund." };
+    // Link DOKU yang masih berlaku dibatalkan dulu agar pembeli tidak membayar pesanan yang sudah batal/refund.
     const cancelError = await cancelActivePayments(order.payments, `Dibatalkan admin (${order.code})`);
     if (cancelError) return { error: `Pesanan tidak dibatalkan. ${cancelError}` };
   }
@@ -37,8 +39,10 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
       .set({ status, updatedAt: new Date(), ...(status === "sampai" && { deliveredAt: new Date() }) })
       .where(and(eq(orders.id, id), eq(orders.status, order.status)))
       .returning({ id: orders.id });
-    if (saved)
+    if (saved) {
+      if (order.status === "refund" && status === "dibatalkan") await returnStock(tx, id);
       await tx.insert(orderEvents).values({ orderId: id, fromStatus: order.status, toStatus: status, source: "admin", userId: Number(admin.id) });
+    }
     return saved;
   });
   revalidatePath("/admin", "layout");

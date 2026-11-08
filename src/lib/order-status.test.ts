@@ -8,7 +8,10 @@ const allowed = (from: Order["status"], to: Order["status"]) => orderTransitions
 test("pesanan dibayar hanya batal lewat refund", () => {
   assert.ok(!allowed("dibayar", "dibatalkan"));
   assert.ok(allowed("dibayar", "refund") && allowed("refund", "dibatalkan"));
-  for (const from of orderStatuses) assert.ok(!adminTransitions[from]?.includes("refund"));
+  assert.ok(!adminTransitions.dibayar?.includes("dibatalkan"));
+  assert.ok(adminTransitions.dibayar?.includes("refund"));
+  assert.ok(adminTransitions.retur?.includes("refund"));
+  assert.ok(adminTransitions.refund?.includes("dibatalkan"));
 });
 
 test("dikirim hanya dari booking kurir, tidak dari dropdown admin", () => {

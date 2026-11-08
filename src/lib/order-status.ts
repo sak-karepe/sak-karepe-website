@@ -8,9 +8,9 @@ export const orderStatusLabels: Record<Order["status"], string> = {
   dikirim: "Dalam pengiriman",
   gagal_kirim: "Gagal kirim",
   sampai: "Pesanan sampai",
-  retur: "Retur",
+  retur: "Proses retur",
   selesai: "Selesai",
-  refund: "Proses refund",
+  refund: "Refund",
   dibatalkan: "Dibatalkan",
 };
 
@@ -71,8 +71,11 @@ export const adminTransitions: Partial<Record<Order["status"], Order["status"][]
   menunggu_konfirmasi: ["dibatalkan"],
   menunggu_checkout: ["dibatalkan"],
   menunggu_pembayaran: ["dibatalkan"],
+  dibayar: ["refund"],
   dikirim: ["sampai"],
-  sampai: ["selesai"],
+  sampai: ["selesai", "retur"],
+  retur: ["sampai", "refund"],
+  refund: ["dibatalkan"],
 };
 
 /** Pesanan aktif berupa garis, yang sudah berjalan diberi warna, yang batal dibuat redup. */
