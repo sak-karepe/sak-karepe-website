@@ -219,8 +219,21 @@ export const payments = sqliteTable("payments", {
   requestId: text("request_id"),
   /** Diisi setelah DOKU menerima pembatalan link. */
   cancelledAt: integer("cancelled_at", { mode: "timestamp" }),
+  /** Alamat & kurir baru dari pembeli yang baru diterapkan ke pesanan setelah tagihan selisih ongkir ini lunas. */
+  pendingChange: text("pending_change", { mode: "json" }).$type<PendingOrderChange>(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
+
+export type PendingOrderChange = {
+  recipientName: string;
+  phone: string;
+  shippingAddress: string;
+  postalCode: string;
+  courierCode: string;
+  courierServiceCode: string;
+  courierName: string;
+  shippingCost: number;
+};
 
 /** Resi lama yang gagal kirim, disimpan saat admin mengirim ulang; resi yang berlaku tetap di `orders`. */
 export const shipmentHistory = sqliteTable("shipment_history", {

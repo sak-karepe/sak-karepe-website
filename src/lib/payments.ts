@@ -70,16 +70,25 @@ export async function applyPayment(data: PaymentStatus) {
 
     // Pembayaran tambahan (mis. selisih ongkir saat ubah alamat) untuk pesanan yang sudah dibayar.
     if (order.status === "dibayar") {
-      await tx
-        .insert(orderEvents)
-        .values({
-          orderId: payment.orderId,
-          fromStatus: "dibayar",
-          toStatus: "dibayar",
-          source: "doku",
-          note: `Pembayaran tambahan ${invoiceNumber} sebesar ${formatRupiah(payment.amount)} lunas.`,
-        });
-      return { paid: true, short: [] };
+      const change = payment.pendingChange;
+      // Alamat baru diterapkan hanya selama kurir belum dipesan; bila sudah, admin yang menangani (refund/kirim ulang).
+      const [changed] = change
+        ? await tx
+            .update(orders)
+            .set({ ...change, updatedAt: new Date() })
+            .where(and(eq(orders.id, payment.orderId), eq(orders.status, "dibayar"), isNull(orders.shipmentId)))
+            .returning({ id: orders.id })
+        : [];
+      await tx.insert(orderEvents).values({
+        orderId: payment.orderId,
+        fromStatus: "dibayar",
+        toStatus: "dibayar",
+        source: "doku",
+        note: changed
+          ? `Selisih ongkir ${invoiceNumber} sebesar ${formatRupiah(payment.amount)} lunas. Alamat diubah ke ${change!.recipientName}, ${change!.shippingAddress} (${change!.courierName}).`
+          : `Pembayaran tambahan ${invoiceNumber} sebesar ${formatRupiah(payment.amount)} lunas.`,
+      });
+      return { paid: true, short: [], changeRejected: !!change && !changed };
     }
 
     // Status yang sudah diubah admin (dikirim, selesai, dibatalkan) tidak ditimpa.
@@ -95,8 +104,10 @@ export async function applyPayment(data: PaymentStatus) {
     // Stok diambil hanya saat status benar-benar berpindah ke "dibayar", jadi notifikasi ulang tidak mengurangi lagi.
     return { paid: !!updated, short: updated ? await takeStock(tx, payment.orderId) : [] };
   });
+  if ("changeRejected" in result && result.changeRejected)
+    await flagOrders(eq(orders.id, payment.orderId), `Selisih ongkir ${invoiceNumber} lunas, tapi kurir sudah dipesan sehingga alamat tidak diubah.`);
   // Uang masuk tapi pesanan sudah tidak menunggu pembayaran (mis. dibatalkan).
-  if (!result.paid)
+  else if (!result.paid)
     await flagOrders(eq(orders.id, payment.orderId), `Invoice ${invoiceNumber} lunas, tapi pesanan tidak sedang menunggu pembayaran.`);
   else if (result.short.length)
     await flagOrders(eq(orders.id, payment.orderId), `Pesanan sudah dibayar, tapi stok ${result.short.join(", ")} tidak cukup.`);
@@ -106,7 +117,7 @@ export async function applyPayment(data: PaymentStatus) {
 const recentlyExpiredMs = 24 * 60 * 60 * 1000;
 
 /**
- * Mengecek ke DOKU link yang belum lunas untuk pesanan "menunggu_pembayaran", bila HTTP Notification tidak sampai.
+ * Mengecek ke DOKU link yang belum lunas untuk pesanan "menunggu_pembayaran" (dan link selisih ongkir), bila HTTP Notification tidak sampai.
  * Mengembalikan jumlah link yang gagal dicek.
  */
 export async function reconcilePayments(now = new Date()) {
@@ -116,7 +127,8 @@ export async function reconcilePayments(now = new Date()) {
     .innerJoin(orders, eq(orders.id, payments.orderId))
     .where(
       and(
-        eq(orders.status, "menunggu_pembayaran"),
+        // Termasuk link selisih ongkir untuk pesanan yang sudah dibayar, agar perubahan alamat tetap diterapkan.
+        or(eq(orders.status, "menunggu_pembayaran"), and(eq(orders.status, "dibayar"), isNotNull(payments.pendingChange))),
         isNotNull(payments.invoiceNumber),
         isNull(payments.paidAt),
         isNull(payments.cancelledAt),

@@ -179,7 +179,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <div className="mt-2">
                   <p className="text-lg tabular-nums">{formatRupiah(totalPaid)}</p>
                   <p className="text-sm text-accent">
-                    Lunas {paidPayments.length > 1 ? `(${paidPayments.length} kali bayar)` : formatDateTime(paidPayments[0].paidAt)}
+                    Lunas {paidPayments.length > 1 ? `(${paidPayments.length} kali bayar)` : formatDateTime(paidPayments[0].paidAt!)}
                     {paidPayments.length === 1 && (
                       paidPayments[0].method === "doku"
                         ? paidPayments[0].channel && ` · ${paidPayments[0].channel.replaceAll("_", " ")}`

@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { orderEvents, orderItems, orders, type Order, type OrderItem } from "@/db/schema";
 import { parseAmount } from "@/lib/format";
 import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } from "@/lib/order-status";
-import { cancelActivePayments } from "@/lib/payments";
+import { cancelActivePayments, isActivePayment } from "@/lib/payments";
 import { saveResend } from "@/lib/shipments";
 import { createShipment, lowBalance, quotaReached, unreachable } from "@/lib/shipping";
 
@@ -83,9 +83,11 @@ export async function bookShipment(orderId: number, _state: ShipmentFormState, f
   if (method !== "pickup" && method !== "drop_off") return { error: "Pilih cara penyerahan paket ke kurir." };
   const order = await db.query.orders.findFirst({
     where: eq(orders.id, orderId),
-    with: { items: { with: { product: { columns: { weight: true } } } } },
+    with: { items: { with: { product: { columns: { weight: true } } } }, payments: true },
   });
   if (!order || order.status !== "dibayar" || order.shipmentId) return { error: "Resi hanya bisa dibuat sekali untuk pesanan yang sudah dibayar." };
+  if (order.payments.some((payment) => payment.pendingChange && isActivePayment(payment)))
+    return { error: "Pembeli sedang membayar selisih ongkir untuk alamat baru. Tunggu sampai lunas atau link kedaluwarsa." };
   if (!order.courierCode || !order.courierServiceCode || !order.shippingAddress || !order.postalCode)
     return { error: "Pesanan ini belum punya alamat atau kurir pilihan pembeli." };
   const result = await bookCourier(order, method);
