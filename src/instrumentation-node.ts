@@ -13,6 +13,15 @@ async function completeOrders() {
 void completeOrders();
 setInterval(completeOrders, 60 * 60 * 1000).unref();
 
+// Pesanan belum dibayar yang kedaluwarsa dibatalkan (lib/payments); dicek tiap jam.
+async function cancelOrders() {
+  const { cancelExpiredOrders } = await import("@/lib/payments");
+  const cancelled = await cancelExpiredOrders().catch((error) => console.warn("[pesanan] Gagal membatalkan otomatis", error));
+  if (cancelled?.length) console.info(`[pesanan] ${cancelled.length} pesanan kedaluwarsa otomatis dibatalkan`);
+}
+void cancelOrders();
+setInterval(cancelOrders, 60 * 60 * 1000).unref();
+
 // Webhook DOKU/Biteship bisa tidak sampai (server mati, timeout); status dicek ulang langsung ke API-nya.
 // Pembayaran tiap 15 menit agar tercatat < 1 jam, pengiriman tiap jam.
 async function reconcilePayments() {

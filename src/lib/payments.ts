@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, lte, notExists, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { orderEvents, orders, payments, type Payment } from "@/db/schema";
 import { cancelCheckout, checkStatus, type PaymentStatus } from "@/lib/doku";
@@ -115,3 +115,51 @@ export async function reconcilePayments(now = new Date()) {
   }
   return failed;
 }
+
+/** Pesanan "menunggu_pembayaran" dibatalkan bila semua link DOKU-nya sudah kedaluwarsa selama ini. */
+export const unpaidExpiryMs = 3 * 24 * 60 * 60 * 1000;
+/** Pesanan "menunggu_konfirmasi"/"menunggu_checkout" dibatalkan bila tidak berubah selama ini. */
+export const idleOrderMs = 7 * 24 * 60 * 60 * 1000;
+export const expiredNote = "Dibatalkan otomatis: kedaluwarsa";
+
+/**
+ * Membatalkan pesanan belum dibayar yang kedaluwarsa (lihat `unpaidExpiryMs` dan `idleOrderMs`). Pesanan yang punya
+ * pembayaran lunas, link yang belum lama kedaluwarsa, atau tanda "Perlu dicek" dilewati, jadi pembayaran di menit terakhir yang baru tercatat
+ * lewat notifikasi atau `reconcilePayments` tidak ikut terbatalkan. Aman dijalankan berulang.
+ */
+export const cancelExpiredOrders = (now = new Date()) =>
+  db.transaction(
+    async (tx) => {
+      const expired = and(
+        // Pesanan "Perlu dicek" (mis. uang masuk dengan nominal salah) menunggu admin, tidak dibatalkan.
+        isNull(orders.reviewNote),
+        or(
+          and(eq(orders.status, "menunggu_pembayaran"), lte(orders.updatedAt, new Date(now.getTime() - unpaidExpiryMs))),
+          and(inArray(orders.status, ["menunggu_konfirmasi", "menunggu_checkout"]), lte(orders.updatedAt, new Date(now.getTime() - idleOrderMs))),
+        ),
+        notExists(
+          tx
+            .select({ id: payments.id })
+            .from(payments)
+            .where(
+              and(
+                eq(payments.orderId, orders.id),
+                or(isNotNull(payments.paidAt), gt(payments.expiresAt, new Date(now.getTime() - unpaidExpiryMs))),
+              ),
+            ),
+        ),
+      )!;
+      // Status lama dibaca untuk riwayat; kunci tulis "immediate" membuat baca dan ubah tidak disela notifikasi DOKU.
+      const list = await tx.select({ id: orders.id, status: orders.status }).from(orders).where(expired);
+      if (!list.length) return list;
+      await tx
+        .update(orders)
+        .set({ status: "dibatalkan", updatedAt: now })
+        .where(and(inArray(orders.id, list.map(({ id }) => id)), expired));
+      await tx.insert(orderEvents).values(
+        list.map(({ id, status }): typeof orderEvents.$inferInsert => ({ orderId: id, fromStatus: status, toStatus: "dibatalkan", source: "sistem", note: expiredNote })),
+      );
+      return list;
+    },
+    { behavior: "immediate" },
+  );

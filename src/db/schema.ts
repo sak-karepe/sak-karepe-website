@@ -138,6 +138,8 @@ export const orders = sqliteTable(
     recordedBy: integer("recorded_by").references(() => users.id),
     /** Nomor nota/referensi lama; unik per sumber agar import tidak ganda. */
     externalRef: text("external_ref"),
+    /** Satu unggahan CSV historis; dipakai untuk membatalkan seluruh hasil import. */
+    importBatchId: text("import_batch_id"),
     status: text("status", { enum: orderStatuses }).notNull().default("menunggu_konfirmasi"),
     // Salinan alamat saat pembeli checkout, agar pesanan tidak berubah bila alamat diedit/dihapus. Kosong sebelum checkout.
     recipientName: text("recipient_name"),
@@ -173,7 +175,10 @@ export const orders = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   },
-  (table) => [uniqueIndex("orders_source_external_ref_unique").on(table.source, table.externalRef)],
+  (table) => [
+    uniqueIndex("orders_source_external_ref_unique").on(table.source, table.externalRef),
+    index("orders_import_batch_idx").on(table.importBatchId),
+  ],
 );
 
 export const orderItems = sqliteTable("order_items", {

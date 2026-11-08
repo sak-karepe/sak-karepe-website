@@ -1,14 +1,13 @@
 "use server";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
 import { orderEvents, orderItems, orders, type Order, type OrderItem } from "@/db/schema";
 import { parseAmount } from "@/lib/format";
 import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } from "@/lib/order-status";
-import { checkStatus } from "@/lib/doku";
-import { applyPayment, cancelActivePayments } from "@/lib/payments";
-import { refreshShipment, saveResend } from "@/lib/shipments";
+import { cancelActivePayments } from "@/lib/payments";
+import { saveResend } from "@/lib/shipments";
 import { createShipment, lowBalance, quotaReached, unreachable } from "@/lib/shipping";
 
 export type StatusFormState = { error?: string };
@@ -177,30 +176,6 @@ export async function refundFailedShipment(orderId: number): Promise<ShipmentFor
   return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
 }
 
-/**
- * Cek ulang status pembayaran (DOKU) dan pengiriman (Biteship) bila webhook tidak sampai. Semua link yang belum lunas
- * dicek, termasuk yang sudah kedaluwarsa atau dibatalkan, karena pembayaran bisa masuk tepat sebelumnya.
- */
-export async function recheckOrder(orderId: number): Promise<StatusFormState> {
-  await requireAdmin();
-  const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { payments: true } });
-  if (!order) return { error: "Pesanan tidak ditemukan." };
-  const errors: string[] = [];
-  for (const payment of order.payments) {
-    if (payment.paidAt || !payment.invoiceNumber) continue;
-    const result = await checkStatus(payment.invoiceNumber);
-    if (result.ok) await applyPayment(result.status);
-    else errors.push(`${payment.invoiceNumber}: ${result.error}`);
-  }
-  if (order.shipmentId) {
-    const result = await refreshShipment(order);
-    if (!result.ok) errors.push(`Biteship: ${result.error}`);
-  }
-  // Seluruh situs: pembayaran yang baru tercatat bisa menghabiskan stok produk di etalase.
-  revalidatePath("/", "layout");
-  return errors.length ? { error: `Sebagian status belum bisa dicek. ${errors.join(" · ")}` } : {};
-}
-
 export type NoteFormState = { error?: string };
 
 /** Catatan internal admin di riwayat pesanan; tidak pernah ditampilkan ke pembeli. */
@@ -210,6 +185,9 @@ export async function addOrderNote(orderId: number, _state: NoteFormState, formD
   if (!note) return { error: "Tulis catatannya dulu." };
   if (note.length > 2000) return { error: "Catatan maksimal 2000 karakter." };
   await db.insert(orderEvents).values({ orderId, source: "admin", userId: Number(admin.id), note });
+  // Catatan dihitung aktivitas agar pesanan yang masih dibahas tidak dibatalkan otomatis (cancelExpiredOrders). Hanya
+  // pesanan belum dibayar: updatedAt pesanan "dikirim" menandai awal on_hold (stuckOnHoldOrders).
+  await db.update(orders).set({ updatedAt: new Date() }).where(and(eq(orders.id, orderId), inArray(orders.status, checkoutStatuses)));
   revalidatePath(`/admin/pesanan/${orderId}`);
   return {};
 }

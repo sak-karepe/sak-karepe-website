@@ -1,0 +1,17 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Summarize Graphify Outputs",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Get-ChildItem graphify-out -File | Select-Object Name,Length; Write-Output '---REPORT HEADINGS---'; Select-String -Path graphify-out\\GRAPH_REPORT.md -Pattern '^## ' | ForEach-Object { $_.Line }"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

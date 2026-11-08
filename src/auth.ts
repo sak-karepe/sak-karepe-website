@@ -87,6 +87,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const user = await upsertUser(token.email, token.name, token.picture);
         token.uid = user.id;
         token.role = user.role;
+      } else if (typeof token.uid === "number") {
+        // Role dibaca ulang agar admin yang baru ditambah/dicabut dari dashboard melihat menu yang benar tanpa login ulang.
+        // Gangguan database tidak membuat sesi gagal; role lama dipakai sampai pengecekan berikutnya.
+        const user = await db.query.users.findFirst({ columns: { role: true }, where: eq(users.id, token.uid) }).catch(() => undefined);
+        if (user) token.role = user.role;
       }
       return token;
     },
