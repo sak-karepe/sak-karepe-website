@@ -15,46 +15,52 @@ import {
 import { navigation } from "@/lib/content";
 import type { RunwayPhoto } from "@/lib/runway";
 import { ShoppingCartSimpleIcon, WhatsappLogoIcon } from "@phosphor-icons/react";
-import { SessionProvider } from "next-auth/react";
+import { SessionProvider, useSession } from "next-auth/react";
 import { signInWithGoogle } from "@/lib/auth-actions";
 import { AccountMenu } from "./account-menu";
 import { whatsappUrl } from "@/lib/contact";
 import { GalleryLightbox } from "./gallery-lightbox";
 import { Checkout, type CartItem } from "./checkout";
-import { DisplayMenu } from "./display-menu";
+
 type Modal =
   | { kind: "product"; product: { title: string; src: string; description: string } }
   | { kind: "consult"; message: string }
   | { kind: "gallery"; photos: RunwayPhoto[]; index: number }
-  /** `redirectTo`: tujuan setelah login, mis. kembali ke produk untuk melanjutkan pembelian. */
   | { kind: "login"; notice?: string; redirectTo?: string }
   | { kind: "checkout" };
+
 const loginNotices: Record<string, string> = {
   AccessDenied: "Login ditolak. Pastikan email akun Google sudah terverifikasi.",
   SessionRequired: "Masuk dengan akun admin untuk membuka dashboard.",
 };
+
 const SiteContext = createContext<{
   open: (modal: Modal) => void;
   cart: CartItem[];
   updateCart: (change: (items: CartItem[]) => CartItem[]) => void;
 } | null>(null);
-/** Keranjang disimpan di browser; harga dan stok dicek ulang di server saat memesan. */
+
 const cartKey = "sak-karepe-cart";
-/** Penanda di URL untuk membuka keranjang lagi setelah login Google. */
 const cartParam = "keranjang";
+
 export function useSite() {
   const value = useContext(SiteContext);
   if (!value) throw new Error("SiteProvider missing");
   return value;
 }
+
 const initialMessage =
   "Halo Sak Karepe, saya ingin berkonsultasi tentang produk ecoprint.";
-export function SiteShell({ children }: { children: React.ReactNode }) {
+
+// 1. Pindahkan seluruh isi logika ke dalam komponen internal ini agar berada di bawah SessionProvider
+function SiteContent({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession(); // Aman dipanggil di sini karena di bawah SessionProvider
   const currentPath = usePathname();
   const pathname = basePath && currentPath.startsWith(`${basePath}/`)
     ? currentPath.slice(basePath.length) : currentPath;
   const [modal, setModal] = useState<Modal | null>(null),
     [menu, setMenu] = useState(false),
+    [dark, setDark] = useState(false),
     [message, setMessage] = useState(""),
     [status, setStatus] = useState(""),
     [cart, setCart] = useState<CartItem[]>([]);
@@ -62,6 +68,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     textarea = useRef<HTMLTextAreaElement>(null),
     animation = useRef<Animation | null>(null),
     opener = useRef<HTMLElement | null>(null);
+
   const open = useCallback((next: Modal) => {
     if (!dialog.current?.open)
       opener.current = document.activeElement as HTMLElement;
@@ -71,6 +78,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     if (next.kind === "consult") setMessage(next.message);
     setModal(next);
   }, []);
+
   const updateCart = useCallback((change: (items: CartItem[]) => CartItem[]) => {
     setCart((items) => {
       const next = change(items);
@@ -80,10 +88,10 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       return next;
     });
   }, []);
+
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(cartKey) ?? "[]");
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- membaca localStorage sekali saat mount
       if (Array.isArray(saved)) setCart(saved);
     } catch {}
     const url = new URL(window.location.href);
@@ -92,6 +100,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     window.history.replaceState(null, "", url);
     open({ kind: "checkout" });
   }, [open]);
+
   const close = useCallback(() => {
     const element = dialog.current;
     if (!element || animation.current) return;
@@ -101,7 +110,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       opener.current?.focus();
       animation.current = null;
     };
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       finish();
       return;
     }
@@ -114,9 +123,11 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     );
     animation.current.onfinish = finish;
   }, []);
+
   useEffect(() => {
     if (modal && !dialog.current?.open) dialog.current?.showModal();
   }, [modal]);
+
   const modalKind = modal?.kind;
   useEffect(() => {
     if (!modalKind) return;
@@ -126,21 +137,27 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       document.body.style.overflow = previous;
     };
   }, [modalKind]);
+
   useEffect(() => {
     if (modalKind === "consult") textarea.current?.focus();
     else if (modalKind) dialog.current?.querySelector("button")?.focus();
   }, [modalKind]);
+
   useEffect(() => () => animation.current?.cancel(), []);
+
   useEffect(() => {
-    // Auth.js mengarahkan error login ke beranda dengan ?error=...
     const url = new URL(window.location.href);
     const error = url.searchParams.get("error");
     if (!error) return;
     url.searchParams.delete("error");
     window.history.replaceState(null, "", url);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- membaca URL sekali saat mount
     open({ kind: "login", notice: loginNotices[error] ?? "Login gagal. Silakan coba lagi." });
   }, [open]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  }, [dark]);
+
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setMenu(false);
@@ -148,15 +165,16 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, []);
+
   const changePhoto = (delta: number) => {
     if (modal?.kind === "gallery")
       setModal({
         kind: "gallery",
         photos: modal.photos,
-        index:
-          (modal.index + delta + modal.photos.length) % modal.photos.length,
+        index: (modal.index + delta + modal.photos.length) % modal.photos.length,
       });
   };
+
   const copy = async () => {
     if (!message.trim()) {
       setStatus("Tulis pesan terlebih dahulu.");
@@ -172,6 +190,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       setStatus("Pilih teks pesan, lalu salin secara manual.");
     }
   };
+
   const title =
     modal?.kind === "product"
       ? `${modal.product.title} ecoprint`
@@ -182,8 +201,8 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           : modal?.kind === "checkout"
             ? "Keranjang"
             : "Fashion show Sak Karepe";
+
   return (
-    <SessionProvider basePath={`${basePath}/api/auth`}>
     <SiteContext.Provider value={{ open, cart, updateCart }}>
       <a
         href="#utama"
@@ -228,18 +247,20 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <button
-              className="relative grid size-10 place-items-center rounded-full text-ink transition-colors hover:bg-surface hover:text-accent"
-              aria-label={`Keranjang, ${cart.length} produk`}
-              onClick={() => open({ kind: "checkout" })}
-            >
-              <ShoppingCartSimpleIcon size={24} aria-hidden="true" />
-              {cart.length > 0 && (
-                <span className="absolute top-0.5 right-0 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-button-ink tabular-nums ring-2 ring-page">
-                  {cart.length}
-                </span>
-              )}
-            </button>
+            {!session?.user?.isAdmin && (
+              <button
+                className="relative grid size-10 place-items-center rounded-full text-ink transition-colors hover:bg-surface hover:text-accent"
+                aria-label={`Keranjang, ${cart.length} produk`}
+                onClick={() => open({ kind: "checkout" })}
+              >
+                <ShoppingCartSimpleIcon size={24} aria-hidden="true" />
+                {cart.length > 0 && (
+                  <span className="absolute top-0.5 right-0 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-button-ink tabular-nums ring-2 ring-page">
+                    {cart.length}
+                  </span>
+                )}
+              </button>
+            )}
             <AccountMenu onLogin={() => open({ kind: "login" })} />
             <button
               className="rounded-md bg-surface px-3 py-2 text-sm lg:hidden"
@@ -268,6 +289,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             <p className="text-[13px] text-muted">Ecoprint · Surabaya</p>
           </div>
           <div className="flex flex-wrap gap-5 text-[15px]">
+            <button aria-pressed={dark} onClick={() => setDark(!dark)}>
+              {dark ? "Tema terang" : "Tema gelap"}
+            </button>
             {navigation.map((link) => (
               <Link
                 className="hover:text-accent"
@@ -281,7 +305,6 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         </div>
         <p className="pb-6 text-[13px] text-muted">Sak Karepe · Pewarnaan Alami</p>
       </footer>
-      <DisplayMenu />
       <a
         href={whatsappUrl()}
         target="_blank"
@@ -493,6 +516,14 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         </div>
       </dialog>
     </SiteContext.Provider>
+  );
+}
+
+// 2. SiteShell bertindak sebagai pembungkus <SessionProvider> di level paling luar
+export function SiteShell({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionProvider basePath={`${basePath}/api/auth`}>
+      <SiteContent>{children}</SiteContent>
     </SessionProvider>
   );
 }

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { ArrowSquareOutIcon, WhatsappLogoIcon } from "@phosphor-icons/react/dist/ssr";
-import { currentUserId } from "@/auth";
+import { currentUserId, auth, isAdmin } from "@/auth";
 import { db } from "@/db";
 import { orders, type Order } from "@/db/schema";
 import { CancelOrder } from "@/components/cancel-order";
@@ -22,6 +22,7 @@ import {
   shipmentStatusLabels,
 } from "@/lib/order-status";
 import { isActivePayment } from "@/lib/payments";
+
 export const metadata: Metadata = { title: "Detail pesanan · Sak Karepe", robots: { index: false } };
 
 const statusHints: Record<Order["status"], string> = {
@@ -39,6 +40,10 @@ const statusHints: Record<Order["status"], string> = {
 };
 
 export default async function MyOrderPage({ params }: { params: Promise<{ code: string }> }) {
+  const session = await auth();
+  if (session?.user && (await isAdmin(session.user))) {
+    redirect("/admin/pesanan");
+  }
   const code = decodeURIComponent((await params).code).toUpperCase();
   const userId = await currentUserId();
   if (!userId)
