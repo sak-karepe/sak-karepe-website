@@ -16,7 +16,7 @@ import {
   bookShipment,
   createCheckoutLink,
   markReviewed,
-  refundFailedShipment,
+  refundOrder,
   resendShipment,
   updateOrderAddress,
   updateOrderStatus,
@@ -300,6 +300,39 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               )}
             </section>
           )}
+          {order.status === "dibayar" && !order.shipmentId && (
+            <section aria-labelledby="batal-refund" className="rounded-md border border-danger p-5">
+              <h2 id="batal-refund" className="text-sm font-medium">Batalkan & refund</h2>
+              <p className="mt-2 text-[15px] text-muted">
+                Pembeli sudah membayar {formatRupiah(totalPaid)}. Gunakan bila pembeli meminta pembatalan lewat WhatsApp: stok dikembalikan dan
+                pesanan masuk proses refund. Transfer dana secara manual, lalu ubah status menjadi Dibatalkan.
+              </p>
+              <div className="mt-3">
+                <RefundButton action={refundOrder.bind(null, order.id)} />
+              </div>
+            </section>
+          )}
+          {order.status === "refund" && (
+            <section aria-labelledby="proses-refund" className="rounded-md border border-danger p-5">
+              <h2 id="proses-refund" className="text-sm font-medium">Proses refund</h2>
+              <p className="mt-2 text-[15px] text-muted">
+                Kembalikan {formatRupiah(totalPaid)} ke pembeli secara manual. Catat nominal, rekening, dan bukti transfer lewat catatan
+                pesanan, lalu ubah status menjadi Dibatalkan. Stok sudah dikembalikan.
+              </p>
+            </section>
+          )}
+          {order.status === "retur" && (
+            <section aria-labelledby="komplain" className="rounded-md border border-danger p-5">
+              <h2 id="komplain" className="text-sm font-medium">Komplain pembeli</h2>
+              <p className="mt-2 text-[15px] text-muted">
+                Tinjau komplain lewat WhatsApp. Bila ditolak, ubah status kembali ke Pesanan sampai. Bila disetujui, refund{" "}
+                {formatRupiah(totalPaid)}; stok tidak dikembalikan otomatis, sesuaikan di produk bila barangnya layak dijual lagi.
+              </p>
+              <div className="mt-3">
+                <RefundButton action={refundOrder.bind(null, order.id)} />
+              </div>
+            </section>
+          )}
           {order.status === "gagal_kirim" && (
             <section aria-labelledby="gagal-kirim" className="rounded-md border border-danger p-5">
               <h2 id="gagal-kirim" className="text-sm font-medium">Paket dikembalikan kurir</h2>
@@ -316,7 +349,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 }}
               />
               <div className="mt-3">
-                <RefundButton action={refundFailedShipment.bind(null, order.id)} />
+                <RefundButton action={refundOrder.bind(null, order.id)} />
               </div>
             </section>
           )}

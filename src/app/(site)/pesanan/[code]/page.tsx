@@ -295,22 +295,34 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
               </div>
             </section>
           )}
-          {order.status !== "selesai" && (
-            <a
-              href={
-                order.status === "sampai" || order.status === "retur"
-                  ? complaintUrl
-                  : whatsappUrl(`Halo Sak Karepe, saya ingin bertanya tentang pesanan ${order.code} (ID pesanan ${order.id}).`)
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line px-4 text-[15px] transition-colors hover:border-accent hover:text-accent"
-            >
-              <WhatsappLogoIcon size={18} aria-hidden="true" />
-              {order.status === "sampai" ? "Laporkan masalah di WhatsApp" : "Tanya lewat WhatsApp"}
-            </a>
-          )}
+          <a
+            href={
+              order.status === "sampai" || order.status === "retur"
+                ? complaintUrl
+                : whatsappUrl(`Halo Sak Karepe, saya ingin bertanya tentang pesanan ${order.code} (ID pesanan ${order.id}).`)
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line px-4 text-[15px] transition-colors hover:border-accent hover:text-accent"
+          >
+            <WhatsappLogoIcon size={18} aria-hidden="true" />
+            {order.status === "sampai" ? "Laporkan masalah di WhatsApp" : "Tanya lewat WhatsApp"}
+          </a>
           {waiting && <CancelOrder action={cancelOrder.bind(null, order.id)} hasPaymentLink={Boolean(activePayment)} />}
+          {order.status === "dibayar" && !order.shipmentId && (
+            <p className="text-sm text-muted">
+              Ingin membatalkan pesanan yang sudah dibayar? Hubungi Sak Karepe lewat{" "}
+              <a
+                href={whatsappUrl(`Halo Sak Karepe, saya ingin membatalkan pesanan ${order.code} (ID pesanan ${order.id}) dan meminta refund.`)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent underline"
+              >
+                WhatsApp
+              </a>
+              . Admin akan membatalkan pesanan dan mengembalikan dana.
+            </p>
+          )}
         </aside>
       </div>
     </main>

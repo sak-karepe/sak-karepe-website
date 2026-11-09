@@ -71,10 +71,11 @@ export const adminTransitions: Partial<Record<Order["status"], Order["status"][]
   menunggu_konfirmasi: ["dibatalkan"],
   menunggu_checkout: ["dibatalkan"],
   menunggu_pembayaran: ["dibatalkan"],
-  dibayar: ["refund"],
   dikirim: ["sampai"],
   sampai: ["selesai", "retur"],
-  retur: ["sampai", "refund"],
+  // Komplain ditolak kembali ke "sampai"; disetujui lewat tombol refund (refundOrder) atau kirim pengganti.
+  retur: ["sampai"],
+  // Dana sudah ditransfer manual ke pembeli: refund selesai. Masuk ke "refund" sendiri lewat tombol Batalkan & refund.
   refund: ["dibatalkan"],
 };
 
