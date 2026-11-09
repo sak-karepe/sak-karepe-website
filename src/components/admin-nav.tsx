@@ -1,14 +1,16 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ImagesIcon, PackageIcon, ReceiptIcon, SquaresFourIcon, UsersIcon, GearSixIcon } from "@phosphor-icons/react";
+import { FoldersIcon, ImagesIcon, NotePencilIcon, PackageIcon, ReceiptIcon, SquaresFourIcon, UsersIcon, GearSixIcon } from "@phosphor-icons/react";
 const menu = [
   { label: "Dashboard", href: "/admin", icon: SquaresFourIcon },
   { label: "Produk", href: "/admin/produk", icon: PackageIcon },
+  { label: "Koleksi", href: "/admin/koleksi", icon: FoldersIcon },
   { label: "Fashion show", href: "/admin/fashion-show", icon: ImagesIcon },
   { label: "Pesanan", href: "/admin/pesanan", icon: ReceiptIcon },
   { label: "Pengguna", href: "/admin/pengguna", icon: UsersIcon },
   { label: "Pengaturan", href: "/admin/pengaturan", icon: GearSixIcon },
+  { label: "Konten", href: "/admin/konten", icon: NotePencilIcon },
 ];
 
 export function AdminNav() {

@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { orders, type OrderEvent } from "@/db/schema";
 import { AdminBack } from "@/components/admin-back";
 import { CheckoutLinkDialog, CopyCheckoutLink } from "@/components/checkout-link-dialog";
+import { EditAddressDialog } from "@/components/edit-address-dialog";
 import { ActionButton, NoteForm, RefundButton, ResendShipmentForm, ShipmentForm, StatusForm } from "@/components/shipment-forms";
 import { formatDateTime, formatRupiah } from "@/lib/format";
 import {
@@ -17,6 +18,7 @@ import {
   markReviewed,
   refundFailedShipment,
   resendShipment,
+  updateOrderAddress,
   updateOrderStatus,
 } from "@/lib/order-actions";
 import {
@@ -44,15 +46,19 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (!Number.isInteger(id)) notFound();
   const order = await db.query.orders.findFirst({
     where: eq(orders.id, id),
-    with: { user: true, items: true, payments: { orderBy: (payment, { desc }) => [desc(payment.id)], limit: 1 },
+    with: { user: true, items: true,
+      payments: { orderBy: (payment, { asc }) => [asc(payment.id)] },
       shipmentHistory: { orderBy: (history, { desc }) => [desc(history.id)] },
       events: { orderBy: (event, { desc }) => [desc(event.id)], with: { user: { columns: { name: true, email: true } } } },
     },
   });
   if (!order) notFound();
-  const [payment] = order.payments;
-  // Harga bisa diubah selama belum dibayar; link DOKU yang masih berlaku ikut dibatalkan.
-  const canPrice = checkoutStatuses.includes(order.status) && !payment?.paidAt;
+  const paidPayments = order.payments.filter((payment) => payment.paidAt);
+  const totalPaid = paidPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  const activePayment = order.payments.find((payment) => isActivePayment(payment));
+  const latestPayment = order.payments[order.payments.length - 1];
+  // Harga bisa diubah selama belum ada pembayaran lunas; link DOKU yang masih berlaku ikut dibatalkan.
+  const canPrice = checkoutStatuses.includes(order.status) && paidPayments.length === 0;
   const total = order.subtotal === null ? null : order.subtotal + (order.shippingCost ?? 0);
   // Nomor disimpan sebagai 08..., wa.me butuh 628...; kosong sebelum pembeli checkout.
   const buyerWhatsapp =
@@ -147,7 +153,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                         {event.fromStatus ? orderStatusLabels[event.fromStatus] : "—"} → {orderStatusLabels[event.toStatus]}
                       </p>
                     ) : (
-                      <p className="text-sm font-medium">Catatan internal</p>
+                      <p className="text-sm font-medium">{event.source === "pembeli" ? "Perubahan oleh pembeli" : "Catatan internal"}</p>
                     )}
                     {event.note && <p className={event.toStatus ? "text-sm text-muted" : "whitespace-pre-line"}>{event.note}</p>}
                     <p className="text-sm text-muted">
@@ -164,31 +170,63 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </section>
         </div>
         <aside className="grid content-start gap-8">
-          {(canPrice || payment) && (
+          {(canPrice || order.payments.length > 0) && (
             <section aria-labelledby="pembayaran" className="rounded-md border border-line p-5">
               <h2 id="pembayaran" className="text-sm font-medium">Checkout & pembayaran</h2>
               {order.status === "menunggu_checkout" ? (
                 <p className="mt-2 text-[15px] text-muted">Link checkout sudah dibuat. Menunggu pembeli mengisi alamat dan membuat pembayaran.</p>
-              ) : payment ? (
+              ) : totalPaid > 0 ? (
                 <div className="mt-2">
-                  <p className="text-lg tabular-nums">{formatRupiah(payment.amount)}</p>
-                  {payment.paidAt ? (
-                    <p className="text-sm text-accent">
-                      Lunas {formatDateTime(payment.paidAt)}
-                      {payment.method === "doku"
-                        ? payment.channel && ` · ${payment.channel.replaceAll("_", " ")}`
-                        : ` · ${paymentMethodLabels[payment.method]}`}
-                    </p>
-                  ) : payment.cancelledAt ? (
-                    <p className="text-sm text-muted">Link dibatalkan {formatDateTime(payment.cancelledAt)}</p>
-                  ) : payment.expiresAt ? (
-                    <p className="text-sm text-muted">
-                      {payment.expiresAt < new Date() ? "Link kedaluwarsa" : "Link berlaku sampai"} {formatDateTime(payment.expiresAt)}
-                    </p>
-                  ) : null}
-                  {payment.url && (
+                  <p className="text-lg tabular-nums">{formatRupiah(totalPaid)}</p>
+                  <p className="text-sm text-accent">
+                    Lunas {paidPayments.length > 1 ? `(${paidPayments.length} kali bayar)` : formatDateTime(paidPayments[0].paidAt!)}
+                    {paidPayments.length === 1 && (
+                      paidPayments[0].method === "doku"
+                        ? paidPayments[0].channel && ` · ${paidPayments[0].channel.replaceAll("_", " ")}`
+                        : ` · ${paymentMethodLabels[paidPayments[0].method]}`
+                    )}
+                  </p>
+                  {paidPayments.length > 1 && (
+                    <ul className="mt-3 space-y-1.5 border-t border-line pt-3 text-sm">
+                      {paidPayments.map((p, idx) => (
+                        <li key={p.id} className="flex justify-between text-muted">
+                          <span>
+                            {idx === 0 ? "Pembayaran utama" : "Selisih ongkir"}
+                            {p.method !== "doku" ? ` (${paymentMethodLabels[p.method]})` : p.channel ? ` (${p.channel.replaceAll("_", " ")})` : ""}
+                          </span>
+                          <span className="tabular-nums font-medium text-ink">{formatRupiah(p.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {activePayment && (
+                    <div className="mt-4 border-t border-line pt-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium text-danger">Selisih ongkir belum dibayar</span>
+                        <span className="tabular-nums font-medium text-danger">{formatRupiah(activePayment.amount)}</span>
+                      </div>
+                      {activePayment.url && (
+                        <a
+                          href={activePayment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1.5 text-[15px] text-accent hover:underline"
+                        >
+                          Buka link DOKU <ArrowSquareOutIcon size={16} aria-hidden="true" />
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : activePayment ? (
+                <div className="mt-2">
+                  <p className="text-lg tabular-nums">{formatRupiah(activePayment.amount)}</p>
+                  <p className="text-sm text-muted">
+                    {activePayment.expiresAt && activePayment.expiresAt < new Date() ? "Link kedaluwarsa" : "Link berlaku sampai"} {formatDateTime(activePayment.expiresAt)}
+                  </p>
+                  {activePayment.url && (
                     <a
-                      href={payment.url}
+                      href={activePayment.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-2 inline-flex items-center gap-1.5 text-[15px] text-accent hover:underline"
@@ -197,6 +235,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                     </a>
                   )}
                 </div>
+              ) : latestPayment?.cancelledAt ? (
+                <p className="mt-2 text-sm text-muted">Link dibatalkan {formatDateTime(latestPayment.cancelledAt)}</p>
               ) : (
                 <p className="mt-2 text-[15px] text-muted">
                   Buat link checkout setelah harga disepakati. Pembeli mengisi alamat di sana, lalu link DOKU dibuat otomatis.
@@ -204,7 +244,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               )}
               {canPrice && (
                 <div className="mt-4 grid gap-2">
-                  {(order.status === "menunggu_checkout" || (order.status === "menunggu_pembayaran" && !(payment && isActivePayment(payment)))) && (
+                  {(order.status === "menunggu_checkout" || (order.status === "menunggu_pembayaran" && !activePayment)) && (
                     <CopyCheckoutLink code={order.code} />
                   )}
                   <CheckoutLinkDialog
@@ -306,7 +346,20 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             />
           )}
           <section aria-labelledby="pengiriman">
-            <h2 id="pengiriman" className="text-sm font-medium">Kirim ke</h2>
+            <div className="flex items-center justify-between">
+              <h2 id="pengiriman" className="text-sm font-medium">Kirim ke</h2>
+              {!order.shipmentId && (
+                <EditAddressDialog
+                  action={updateOrderAddress.bind(null, order.id)}
+                  address={{
+                    recipientName: order.recipientName ?? "",
+                    phone: order.phone ?? "",
+                    shippingAddress: order.shippingAddress ?? "",
+                    postalCode: order.postalCode ?? "",
+                  }}
+                />
+              )}
+            </div>
             {buyerWhatsapp ? (
               <>
                 <p className="mt-2">{order.recipientName}</p>

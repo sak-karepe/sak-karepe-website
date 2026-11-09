@@ -48,7 +48,8 @@ export async function updateSettings(_prevState: SettingsState, formData: FormDa
 
     revalidatePath("/", "layout");
     return { success: "Pengaturan kontak dan toko berhasil diperbarui!" };
-  } catch {
+  } catch (error) {
+    console.log(error)
     return { error: "Terjadi kesalahan saat menyimpan ke database." };
   }
 }

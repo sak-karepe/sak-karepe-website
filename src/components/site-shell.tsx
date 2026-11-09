@@ -21,6 +21,7 @@ import { AccountMenu } from "./account-menu";
 import { whatsappUrl } from "@/lib/contact";
 import { GalleryLightbox } from "./gallery-lightbox";
 import { Checkout, type CartItem } from "./checkout";
+import { DisplayMenu } from "./display-menu";
 type Modal =
   | { kind: "product"; product: { title: string; src: string; description: string } }
   | { kind: "consult"; message: string }
@@ -54,7 +55,6 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     ? currentPath.slice(basePath.length) : currentPath;
   const [modal, setModal] = useState<Modal | null>(null),
     [menu, setMenu] = useState(false),
-    [dark, setDark] = useState(false),
     [message, setMessage] = useState(""),
     [status, setStatus] = useState(""),
     [cart, setCart] = useState<CartItem[]>([]);
@@ -101,7 +101,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       opener.current?.focus();
       animation.current = null;
     };
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion) {
       finish();
       return;
     }
@@ -141,9 +141,6 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- membaca URL sekali saat mount
     open({ kind: "login", notice: loginNotices[error] ?? "Login gagal. Silakan coba lagi." });
   }, [open]);
-  useEffect(() => {
-    document.documentElement.dataset.theme = dark ? "dark" : "light";
-  }, [dark]);
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setMenu(false);
@@ -271,9 +268,6 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             <p className="text-[13px] text-muted">Ecoprint · Surabaya</p>
           </div>
           <div className="flex flex-wrap gap-5 text-[15px]">
-            <button aria-pressed={dark} onClick={() => setDark(!dark)}>
-              {dark ? "Tema terang" : "Tema gelap"}
-            </button>
             {navigation.map((link) => (
               <Link
                 className="hover:text-accent"
@@ -287,6 +281,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         </div>
         <p className="pb-6 text-[13px] text-muted">Sak Karepe · Pewarnaan Alami</p>
       </footer>
+      <DisplayMenu />
       <a
         href={whatsappUrl()}
         target="_blank"

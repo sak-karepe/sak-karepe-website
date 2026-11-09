@@ -16,6 +16,7 @@ const doku: Payment = {
   channel: null,
   requestId: null,
   cancelledAt: null,
+  pendingChange: null,
   createdAt: now,
 };
 

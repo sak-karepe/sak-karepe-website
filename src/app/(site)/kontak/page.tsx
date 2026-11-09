@@ -5,7 +5,7 @@ import Link from "next/link";
 import { runwayPhotos } from "@/lib/content";
 import { Breadcrumb } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
-import { getContactSettings } from "@/lib/contact";
+import { getContactSettings } from "@/lib/contact-settings";
 
 export const metadata: Metadata = {
   title: "Kontak & kunjungan · Sak Karepe",

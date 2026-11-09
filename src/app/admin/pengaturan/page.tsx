@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireAdminPage } from "@/auth";
-import { getContactSettings } from "@/lib/contact";
+import { getContactSettings } from "@/lib/contact-settings";
 import { AdminBack } from "@/components/admin-back";
 import { SettingsForm } from "@/components/settings-form";
 

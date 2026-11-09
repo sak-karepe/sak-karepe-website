@@ -90,8 +90,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       } else if (typeof token.uid === "number") {
         // Role dibaca ulang agar admin yang baru ditambah/dicabut dari dashboard melihat menu yang benar tanpa login ulang.
         // Gangguan database tidak membuat sesi gagal; role lama dipakai sampai pengecekan berikutnya.
-        const user = await db.query.users.findFirst({ columns: { role: true }, where: eq(users.id, token.uid) }).catch(() => undefined);
+        const user = await db.query.users.findFirst({ columns: { role: true }, where: eq(users.id, token.uid) }).catch(() => null);
         if (user) token.role = user.role;
+        else if (user === undefined && token.email) {
+          // Baris user hilang (mis. database direset) padahal cookie masih memegang id lama: buat ulang agar FK user_id tidak gagal.
+          const fresh = await upsertUser(token.email, token.name, token.picture);
+          token.uid = fresh.id;
+          token.role = fresh.role;
+        }
       }
       return token;
     },

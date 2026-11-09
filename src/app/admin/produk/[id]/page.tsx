@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
-import { categories, products } from "@/db/schema";
+import { products } from "@/db/schema";
 import { ProductForm } from "@/components/product-form";
 import { deleteProduct, updateProduct } from "@/lib/product-actions";
 import { AdminBack } from "@/components/admin-back";
@@ -14,13 +14,13 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   await requireAdminPage();
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
-  const [options, product] = await Promise.all([
-    db.select({ slug: categories.slug, title: categories.title }).from(categories).orderBy(asc(categories.sortOrder)),
-    db.query.products.findFirst({
-      where: eq(products.id, id),
-      with: { images: { orderBy: (image, { asc }) => [asc(image.sortOrder), asc(image.id)] } },
-    }),
-  ]);
+  const product = await db.query.products.findFirst({
+    where: eq(products.id, id),
+    with: {
+      category: { columns: { slug: true, title: true } },
+      images: { orderBy: (image, { asc }) => [asc(image.sortOrder), asc(image.id)] },
+    },
+  });
   if (!product) notFound();
   // Sama dengan syarat tampil di getProducts: ditampilkan dan punya foto.
   const live = product.published && product.images.length > 0;
@@ -47,7 +47,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
       <ProductForm
         action={updateProduct.bind(null, id)}
         onDelete={deleteProduct.bind(null, id)}
-        categories={options}
+        category={product.category && { value: product.category.slug, label: product.category.title }}
         product={{
           ...product,
           images: product.images.map(({ id, src, alt }) => ({ id, src, alt })),
