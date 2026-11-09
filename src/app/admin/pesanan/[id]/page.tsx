@@ -321,6 +321,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </p>
             </section>
           )}
+          {order.status === "retur" && (
+            <section aria-labelledby="komplain" className="rounded-md border border-danger p-5">
+              <h2 id="komplain" className="text-sm font-medium">Komplain pembeli</h2>
+              <p className="mt-2 text-[15px] text-muted">
+                Tinjau komplain lewat WhatsApp. Bila ditolak, ubah status kembali ke Pesanan sampai. Bila disetujui, refund{" "}
+                {formatRupiah(totalPaid)}; stok tidak dikembalikan otomatis, sesuaikan di produk bila barangnya layak dijual lagi.
+              </p>
+              <div className="mt-3">
+                <RefundButton action={refundOrder.bind(null, order.id)} />
+              </div>
+            </section>
+          )}
           {order.status === "gagal_kirim" && (
             <section aria-labelledby="gagal-kirim" className="rounded-md border border-danger p-5">
               <h2 id="gagal-kirim" className="text-sm font-medium">Paket dikembalikan kurir</h2>

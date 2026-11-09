@@ -37,7 +37,7 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
   const saved = await db.transaction(async (tx) => {
     const [saved] = await tx
       .update(orders)
-      .set({ status, updatedAt: new Date(), ...(status === "sampai" && { deliveredAt: new Date() }) })
+      .set({ status, updatedAt: new Date(), ...(status === "sampai" && order.status !== "retur" && { deliveredAt: new Date() }) })
       .where(and(eq(orders.id, id), eq(orders.status, order.status)))
       .returning({ id: orders.id });
     if (saved)

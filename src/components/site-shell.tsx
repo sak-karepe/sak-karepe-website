@@ -14,7 +14,7 @@ import {
 } from "react";
 import { navigation } from "@/lib/content";
 import type { RunwayPhoto } from "@/lib/runway";
-import { ShoppingCartSimpleIcon, WhatsappLogoIcon } from "@phosphor-icons/react";
+import { ShoppingCartSimpleIcon } from "@phosphor-icons/react";
 import { SessionProvider } from "next-auth/react";
 import { signInWithGoogle } from "@/lib/auth-actions";
 import { AccountMenu } from "./account-menu";
@@ -282,16 +282,6 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         <p className="pb-6 text-[13px] text-muted">Sak Karepe · Pewarnaan Alami</p>
       </footer>
       <DisplayMenu />
-      <a
-        href={whatsappUrl()}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Hubungi Sak Karepe lewat WhatsApp"
-        className="whatsapp-float group"
-      >
-        <WhatsappLogoIcon size={27} weight="light" aria-hidden="true" />
-        <span className="whatsapp-tooltip">Chat dengan Sak Karepe</span>
-      </a>
       <dialog
         className={
           modal?.kind === "gallery"
