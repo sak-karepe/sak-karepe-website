@@ -163,13 +163,17 @@ export async function resendShipment(orderId: number, _state: ShipmentFormState,
   return {};
 }
 
+/** Pesanan yang bisa di-refund admin: dibayar (kurir belum dipesan), gagal kirim, atau retur yang komplainnya disetujui. */
+const refundable = (order: Pick<Order, "status" | "shipmentId">) =>
+  order.status === "gagal_kirim" || order.status === "retur" || (order.status === "dibayar" && !order.shipmentId);
+
 /**
- * Admin membatalkan pesanan yang sudah dibayar lewat refund. Hanya untuk "dibayar" (kurir belum dipesan) dan "gagal_kirim"
- * (paket dikembalikan kurir); pesanan "dikirim" tidak bisa di-refund dari sini. Dana dikembalikan manual oleh admin, lalu
- * status diubah ke "dibatalkan" lewat dropdown (refund -> dibatalkan).
+ * Admin membatalkan pesanan yang sudah dibayar lewat refund (lihat `refundable`); pesanan "dikirim" tidak bisa di-refund dari
+ * sini. Dana dikembalikan manual oleh admin, lalu status diubah ke "dibatalkan" lewat dropdown (refund -> dibatalkan).
  *
  * Status dibaca dan diubah di satu transaksi "immediate", dan stok dikembalikan di transaksi yang sama hanya bila status
  * benar-benar berpindah ke "refund". Klik ganda atau dua tab yang bersamaan karenanya tidak mengembalikan stok dua kali.
+ * Stok retur tidak dikembalikan otomatis karena barangnya belum tentu layak dijual lagi; admin menyesuaikannya di produk.
  * Link DOKU yang masih berlaku (mis. tagihan selisih ongkir) dibatalkan lebih dulu agar pembeli tidak membayar pesanan
  * yang sudah di-refund.
  */
@@ -177,8 +181,8 @@ export async function refundOrder(orderId: number): Promise<ShipmentFormState> {
   const admin = await requireAdmin();
   const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { payments: true } });
   if (!order) return { error: "Pesanan tidak ditemukan." };
-  if (!(order.status === "gagal_kirim" || (order.status === "dibayar" && !order.shipmentId)))
-    return { error: "Refund hanya untuk pesanan yang sudah dibayar dan belum dikirim, atau yang paketnya gagal kirim." };
+  if (!refundable(order))
+    return { error: "Refund hanya untuk pesanan yang sudah dibayar dan belum dikirim, yang paketnya gagal kirim, atau retur." };
   const cancelError = await cancelActivePayments(order.payments, `Pesanan di-refund admin (${order.code})`);
   if (cancelError) return { error: `Pesanan belum di-refund. ${cancelError}` };
   const paid = order.payments.filter((payment) => payment.paidAt).reduce((sum, payment) => sum + payment.amount, 0);
@@ -186,7 +190,7 @@ export async function refundOrder(orderId: number): Promise<ShipmentFormState> {
   const saved = await db.transaction(
     async (tx) => {
       const current = await tx.query.orders.findFirst({ columns: { status: true, shipmentId: true }, where: eq(orders.id, orderId) });
-      if (!current || !(current.status === "gagal_kirim" || (current.status === "dibayar" && !current.shipmentId))) return false;
+      if (!current || !refundable(current)) return false;
       const [updated] = await tx
         .update(orders)
         .set({ status: "refund", updatedAt: new Date() })
@@ -199,9 +203,9 @@ export async function refundOrder(orderId: number): Promise<ShipmentFormState> {
         toStatus: "refund",
         source: "admin",
         userId: Number(admin.id),
-        note: `Dana ${formatRupiah(paid)} perlu dikembalikan ke pembeli. Stok dikembalikan.`,
+        note: `Dana ${formatRupiah(paid)} perlu dikembalikan ke pembeli. ${current.status === "retur" ? "Stok retur tidak dikembalikan otomatis." : "Stok dikembalikan."}`,
       });
-      await returnStock(tx, orderId);
+      if (current.status !== "retur") await returnStock(tx, orderId);
       return true;
     },
     { behavior: "immediate" },
