@@ -1,18 +1,13 @@
 import { and, eq, like, or, type SQL } from "drizzle-orm";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { db } from "../db";
+import { sanitizeSlugInput } from "./format";
+
+export { sanitizeSlugInput };
 
 /** "Tote Bag, Daun Jati!" menjadi "tote-bag-daun-jati". */
 export function slugify(value: string) {
-  return (
-    value
-      .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .slice(0, 80)
-      .replace(/^-+|-+$/g, "") || "produk"
-  );
+  return sanitizeSlugInput(value).replace(/-+$/g, "") || "produk";
 }
 
 /** Slug dari `input`, diberi akhiran -2, -3, ... bila sudah dipakai baris lain. `exclude` menyaring baris yang sedang diubah. */

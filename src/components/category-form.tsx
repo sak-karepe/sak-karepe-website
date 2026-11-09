@@ -5,6 +5,7 @@ import { startTransition, useActionState, useEffect, useState } from "react";
 import { ImageIcon, TrashIcon } from "@phosphor-icons/react";
 import Image from "@/components/site-image";
 import type { CategoryFormState } from "@/lib/category-actions";
+import { sanitizeSlugInput } from "@/lib/format";
 
 export type CategoryFormValues = {
   slug: string;
@@ -76,17 +77,23 @@ export function CategoryForm({
             <label htmlFor="slug" className={label}>
               Permalink <span className="font-normal text-muted">(opsional)</span>
             </label>
-            <div className="flex min-h-12 items-center rounded-md border border-line bg-page focus-within:border-accent">
-              <span className="pl-3.5 text-muted">/koleksi/</span>
-              <input
-                id="slug"
-                name="slug"
-                defaultValue={category?.slug}
-                placeholder="dibuat otomatis dari judul"
-                aria-describedby="slug-help"
-                className="min-h-12 min-w-0 flex-1 bg-transparent pr-3.5 text-base focus:outline-none"
-              />
-            </div>
+            <input
+              id="slug"
+              name="slug"
+              defaultValue={category?.slug}
+              placeholder="dibuat otomatis dari judul"
+              aria-describedby="slug-help"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              onChange={(event) => {
+                event.currentTarget.value = sanitizeSlugInput(event.currentTarget.value);
+              }}
+              onBlur={(event) => {
+                event.currentTarget.value = event.currentTarget.value.replace(/-+$/g, "");
+              }}
+              className={field}
+            />
             <p id="slug-help" className="mt-2 text-sm text-muted">
               {category
                 ? "Mengubah permalink akan otomatis memperbarui seluruh produk di koleksi ini."
@@ -268,7 +275,14 @@ export function CategoryForm({
           </button>
           {!canDelete && (
             <p className="mt-2 text-sm text-muted">
-              Koleksi ini berisi {productCount} produk dan tidak bisa dihapus. Pindahkan atau hapus produknya terlebih dahulu.
+              Koleksi ini berisi {productCount} produk dan tidak bisa dihapus.{" "}
+              <Link
+                href={`/admin/produk?koleksi=${encodeURIComponent(category.slug)}`}
+                className="text-accent hover:underline"
+              >
+                Lihat produk di koleksi ini
+              </Link>{" "}
+              untuk memindahkan atau menghapus produknya terlebih dahulu.
             </p>
           )}
           {deleteState.error && (

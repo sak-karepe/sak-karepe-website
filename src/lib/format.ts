@@ -7,3 +7,15 @@ export function parseAmount(value: FormDataEntryValue | null) {
   const digits = String(value ?? "").trim().replace(/,\d{1,2}$/, "").replace(/\D/g, "");
   return digits ? Number(digits) : null;
 }
+
+/** Ubah karakter selain huruf kecil, angka, dan tanda hubung menjadi `-` saat mengetik permalink. */
+export function sanitizeSlugInput(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 80)
+    .replace(/^-+/, "");
+}
