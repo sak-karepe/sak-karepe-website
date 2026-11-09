@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { asc, count } from "drizzle-orm";
-import { PlusIcon } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRightIcon, PlusIcon } from "@phosphor-icons/react/dist/ssr";
 import Image from "@/components/site-image";
 import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
@@ -37,12 +37,15 @@ export default async function AdminCategoriesPage() {
           {rows.map((category) => {
             const totalProducts = productCountOf(category.slug);
             return (
-              <li key={category.slug}>
+              <li
+                key={category.slug}
+                className="flex flex-wrap items-center justify-between gap-4 py-4 transition-colors hover:bg-surface/60 md:grid md:grid-cols-[minmax(0,1fr)_160px_140px_110px] md:items-center md:px-2"
+              >
                 <Link
                   href={`/admin/koleksi/${category.slug}`}
-                  className="grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-4 py-4 transition-colors hover:bg-surface/60 md:grid-cols-[64px_minmax(0,1fr)_160px_130px_110px] md:px-2"
+                  className="flex min-w-0 flex-1 items-center gap-4"
                 >
-                  <div className="photo size-14 md:size-16">
+                  <div className="photo size-14 shrink-0 md:size-16">
                     <Image
                       src={category.coverImage}
                       alt=""
@@ -52,22 +55,30 @@ export default async function AdminCategoriesPage() {
                     />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{category.title}</p>
+                    <p className="truncate font-medium hover:text-accent">{category.title}</p>
                     <p className="mt-0.5 truncate text-sm text-muted">
                       {category.subtitle}
-                      <span className="md:hidden"> · {totalProducts} produk</span>
                     </p>
                   </div>
-                  <p className="hidden truncate font-mono text-sm text-muted md:block">
-                    /koleksi/{category.slug}
-                  </p>
-                  <p className="hidden text-[15px] text-muted md:block">
+                </Link>
+                <Link
+                  href={`/admin/koleksi/${category.slug}`}
+                  className="hidden truncate font-mono text-sm text-muted hover:text-ink md:block"
+                >
+                  /koleksi/{category.slug}
+                </Link>
+                <div className="flex items-center gap-3 md:contents">
+                  <Link
+                    href={`/admin/produk?koleksi=${encodeURIComponent(category.slug)}`}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline md:text-[15px]"
+                  >
                     {totalProducts} produk
-                  </p>
+                    <ArrowRightIcon size={14} aria-hidden="true" />
+                  </Link>
                   <span className="justify-self-end rounded-full bg-surface px-2.5 py-1 text-xs tabular-nums text-muted">
                     Urutan {category.sortOrder}
                   </span>
-                </Link>
+                </div>
               </li>
             );
           })}

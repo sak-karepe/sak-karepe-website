@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { ArrowDownIcon, ArrowUpIcon, ImageIcon, TrashIcon } from "@phosphor-icons/react";
 import Image from "@/components/site-image";
 import { SearchableSelect, type SearchOption } from "@/components/searchable-select";
+import { sanitizeSlugInput } from "@/lib/format";
 import { searchCategories, type ProductFormState } from "@/lib/product-actions";
 
 type ExistingImage = { id: number; src: string; alt: string };
@@ -35,6 +36,9 @@ export function ProductForm({
   onDelete?: () => Promise<void>;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
+  const [name, setName] = useState(product?.name ?? "");
+  const [slug, setSlug] = useState(product?.slug ?? "");
+  const [slugEdited, setSlugEdited] = useState(Boolean(product));
   const [category, setCategory] = useState(initialCategory ?? null);
   const [images, setImages] = useState(product?.images ?? []);
   const [previews, setPreviews] = useState<{ url: string; name: string }[]>([]);
@@ -52,27 +56,56 @@ export function ProductForm({
         <div className="space-y-6">
           <div>
             <label htmlFor="name" className={label}>Nama produk</label>
-            <input id="name" name="name" required defaultValue={product?.name} className={field} />
+            <input
+              id="name"
+              name="name"
+              required
+              value={name}
+              onChange={(event) => {
+                const nextName = event.currentTarget.value;
+                setName(nextName);
+                if (!product && !slugEdited) {
+                  setSlug(sanitizeSlugInput(nextName).replace(/-+$/g, ""));
+                }
+              }}
+              className={field}
+            />
           </div>
           <div>
             <label htmlFor="slug" className={label}>
               Permalink <span className="font-normal text-muted">(opsional)</span>
             </label>
-            <div className="flex min-h-12 items-center rounded-md border border-line bg-page focus-within:border-accent">
-              <span className="pl-3.5 text-muted">/produk/</span>
-              <input
-                id="slug"
-                name="slug"
-                defaultValue={product?.slug}
-                placeholder="dibuat otomatis dari nama"
-                aria-describedby="slug-help"
-                className="min-h-12 min-w-0 flex-1 bg-transparent pr-3.5 text-base focus:outline-none"
-              />
-            </div>
+            <input
+              id="slug"
+              name="slug"
+              value={slug}
+              placeholder="dibuat otomatis dari nama"
+              aria-describedby="slug-help"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              onChange={(event) => {
+                const nextSlug = sanitizeSlugInput(event.currentTarget.value);
+                setSlug(nextSlug);
+                if (!product) {
+                  setSlugEdited(nextSlug.length > 0);
+                }
+              }}
+              onBlur={() => {
+                const trimmed = slug.replace(/-+$/g, "");
+                if (!product && !trimmed) {
+                  setSlugEdited(false);
+                  setSlug(sanitizeSlugInput(name).replace(/-+$/g, ""));
+                } else {
+                  setSlug(trimmed);
+                }
+              }}
+              className={field}
+            />
             <p id="slug-help" className="mt-2 text-sm text-muted">
               {product
                 ? "Mengubah permalink membuat tautan lama yang sudah dibagikan tidak berlaku."
-                : "Huruf kecil, angka, dan tanda hubung. Kosongkan agar dibuat dari nama produk."}
+                : "Terisi otomatis dari nama produk. Ubah bila ingin memakai permalink sendiri, atau kosongkan agar kembali mengikuti nama."}
             </p>
           </div>
           <div>
