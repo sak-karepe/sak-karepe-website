@@ -273,6 +273,20 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
             <WhatsappLogoIcon size={18} aria-hidden="true" /> Tanya lewat WhatsApp
           </a>
           {waiting && <CancelOrder action={cancelOrder.bind(null, order.id)} hasPaymentLink={Boolean(activePayment)} />}
+          {order.status === "dibayar" && !order.shipmentId && (
+            <p className="text-sm text-muted">
+              Ingin membatalkan pesanan yang sudah dibayar? Hubungi Sak Karepe lewat{" "}
+              <a
+                href={whatsappUrl(`Halo Sak Karepe, saya ingin membatalkan pesanan ${order.code} (ID pesanan ${order.id}) dan meminta refund.`)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent underline"
+              >
+                WhatsApp
+              </a>
+              . Admin akan membatalkan pesanan dan mengembalikan dana.
+            </p>
+          )}
         </aside>
       </div>
     </main>

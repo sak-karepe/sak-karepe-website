@@ -73,6 +73,8 @@ export const adminTransitions: Partial<Record<Order["status"], Order["status"][]
   menunggu_pembayaran: ["dibatalkan"],
   dikirim: ["sampai"],
   sampai: ["selesai"],
+  // Dana sudah ditransfer manual ke pembeli: refund selesai. Masuk ke "refund" sendiri lewat tombol Batalkan & refund.
+  refund: ["dibatalkan"],
 };
 
 /** Pesanan aktif berupa garis, yang sudah berjalan diberi warna, yang batal dibuat redup. */

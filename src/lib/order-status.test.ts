@@ -50,3 +50,9 @@ test("status awal per sumber", () => {
 test("setiap status punya baris transisi", () => {
   for (const from of orderStatuses) for (const to of orderTransitions[from]) assert.ok(orderStatuses.includes(to));
 });
+
+test("refund hanya dari dibayar, gagal_kirim, dan retur; selesai lewat dropdown admin", () => {
+  assert.deepEqual(orderStatuses.filter((from) => allowed(from, "refund")), ["dibayar", "gagal_kirim", "retur"]);
+  assert.ok(!allowed("dikirim", "refund"), "pesanan yang sudah dikirim tidak bisa di-refund");
+  assert.deepEqual(adminTransitions.refund, ["dibatalkan"]);
+});

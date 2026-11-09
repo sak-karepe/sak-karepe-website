@@ -36,8 +36,9 @@ export async function takeStock(tx: Tx, orderId: number) {
 }
 
 /**
- * Mengembalikan stok pesanan yang sudah dibayar lalu dibatalkan. Panggil di transaksi yang sama dengan perubahan status
- * ke "dibatalkan" (status lama dicek di WHERE) agar hanya terjadi sekali.
+ * Mengembalikan stok pesanan yang sudah dibayar lalu di-refund. Panggil di transaksi yang sama dengan perubahan status
+ * ke "refund" (status lama dicek di WHERE) agar hanya terjadi sekali; perpindahan "refund" -> "dibatalkan" tidak
+ * memanggilnya lagi (lihat refundOrder di lib/order-actions).
  * shortcut: jumlah penuh dikembalikan walau takeStock dulu kekurangan stok; catat jumlah yang benar-benar diambil bila oversell sering terjadi.
  */
 export async function returnStock(tx: Tx, orderId: number) {
