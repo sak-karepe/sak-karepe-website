@@ -36,6 +36,9 @@ export function CategoryForm({
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const [deleteState, deleteAction, deleting] = useActionState<CategoryFormState>(onDelete ?? (async () => ({})), {});
+  const [title, setTitle] = useState(category?.title ?? "");
+  const [slug, setSlug] = useState(category?.slug ?? "");
+  const [slugEdited, setSlugEdited] = useState(Boolean(category));
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
 
   useEffect(
@@ -67,7 +70,14 @@ export function CategoryForm({
               id="title"
               name="title"
               required
-              defaultValue={category?.title}
+              value={title}
+              onChange={(event) => {
+                const nextTitle = event.currentTarget.value;
+                setTitle(nextTitle);
+                if (!category && !slugEdited) {
+                  setSlug(sanitizeSlugInput(nextTitle).replace(/-+$/g, ""));
+                }
+              }}
               placeholder="Mis. Busana, Tas, Kain"
               className={field}
             />
@@ -80,24 +90,34 @@ export function CategoryForm({
             <input
               id="slug"
               name="slug"
-              defaultValue={category?.slug}
+              value={slug}
               placeholder="dibuat otomatis dari judul"
               aria-describedby="slug-help"
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
               onChange={(event) => {
-                event.currentTarget.value = sanitizeSlugInput(event.currentTarget.value);
+                const nextSlug = sanitizeSlugInput(event.currentTarget.value);
+                setSlug(nextSlug);
+                if (!category) {
+                  setSlugEdited(nextSlug.length > 0);
+                }
               }}
-              onBlur={(event) => {
-                event.currentTarget.value = event.currentTarget.value.replace(/-+$/g, "");
+              onBlur={() => {
+                const trimmed = slug.replace(/-+$/g, "");
+                if (!category && !trimmed) {
+                  setSlugEdited(false);
+                  setSlug(sanitizeSlugInput(title).replace(/-+$/g, ""));
+                } else {
+                  setSlug(trimmed);
+                }
               }}
               className={field}
             />
             <p id="slug-help" className="mt-2 text-sm text-muted">
               {category
                 ? "Mengubah permalink akan otomatis memperbarui seluruh produk di koleksi ini."
-                : "Huruf kecil, angka, dan tanda hubung. Kosongkan agar dibuat dari judul koleksi."}
+                : "Terisi otomatis dari judul koleksi. Ubah bila ingin memakai permalink sendiri, atau kosongkan agar kembali mengikuti judul."}
             </p>
           </div>
 
