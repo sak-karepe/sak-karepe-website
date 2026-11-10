@@ -3,13 +3,13 @@ import { requireAdmin } from "@/auth";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 import { parseOrderFilter } from "@/lib/order-filter";
-import { ordersToCsv } from "@/lib/orders-csv";
+import { ordersToXlsx } from "@/lib/orders-xlsx";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Export pesanan ke CSV mengikuti filter yang sama dengan daftar /admin/pesanan (status, q) serta sumber, dari, dan
- * sampai bila diberikan. Hanya admin; selain itu 401.
+ * Export pesanan ke Excel (.xlsx) mengikuti filter yang sama dengan daftar /admin/pesanan (status, q) serta sumber, dari,
+ * sampai, dan tanpaBatal bila diberikan. Hanya admin; selain itu 401.
  */
 export async function GET(request: Request) {
   try {
@@ -30,10 +30,10 @@ export async function GET(request: Request) {
   });
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
   const name = ["pesanan", today, filter.status].filter(Boolean).join("-");
-  return new Response(ordersToCsv(rows), {
+  return new Response(new Uint8Array(ordersToXlsx(rows)), {
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${name}.csv"`,
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="${name}.xlsx"`,
       "Cache-Control": "no-store",
     },
   });

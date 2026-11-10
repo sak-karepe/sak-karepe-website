@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Pesanan" };
 export default async function AdminOrdersPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string }> }) {
   await requireAdminPage();
   const { status: param, q = "" } = await searchParams;
-  // Filter yang sama dipakai export CSV (lib/order-filter), jadi file export selalu mengikuti daftar ini.
+  // Filter yang sama dipakai export Excel (lib/order-filter), jadi file export selalu mengikuti daftar ini.
   const { status, query, base: search } = parseOrderFilter({ status: param, q });
   const [counts, rows] = await Promise.all([
     db.select({ status: orders.status, total: count() }).from(orders).where(search).groupBy(orders.status),
@@ -46,7 +46,7 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
         </div>
         {/* <a>, bukan <Link>: tujuannya route handler yang mengunduh file, jangan di-prefetch. */}
         <a href={exportHref} download className="btn btn-outline min-h-11 gap-2 px-4 text-[15px]">
-          <DownloadSimpleIcon size={18} aria-hidden="true" /> Export CSV
+          <DownloadSimpleIcon size={18} aria-hidden="true" /> Export Excel
         </a>
       </div>
       <form action="/admin/pesanan" role="search" className="mt-6 flex max-w-md items-center gap-2">

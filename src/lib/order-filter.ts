@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { orderSources, orders, payments } from "@/db/schema";
 import { isOrderStatus } from "@/lib/order-status";
 
-export type OrderFilterParams = { status?: string; q?: string; sumber?: string; dari?: string; sampai?: string };
+export type OrderFilterParams = { status?: string; q?: string; sumber?: string; dari?: string; sampai?: string; tanpaBatal?: string };
 
 const WIB = 7 * 60 * 60 * 1000;
 
@@ -18,11 +18,12 @@ function dayStartWIB(value: string | undefined) {
 }
 
 /**
- * Filter pesanan yang dipakai bersama oleh daftar /admin/pesanan dan export CSV, supaya export selalu mengikuti filter yang
+ * Filter pesanan yang dipakai bersama oleh daftar /admin/pesanan dan export Excel, supaya export selalu mengikuti filter yang
  * sedang aktif di daftar.
  * - `status`: satu status valid (isOrderStatus), yang lain diabaikan.
  * - `q`: angka saja dicocokkan persis ke ID pesanan; selain itu ke potongan kode, mis. "Y7D3" atau "SK-261023".
  * - `sumber`: online | langsung | historis.
+ * - `tanpaBatal=1`: sembunyikan pesanan dibatalkan (dipakai tombol export di /admin/laporan agar total sama dengan laporan).
  * - `dari` / `sampai` (YYYY-MM-DD, inklusif, WIB): tanggal transaksi = tanggal bayar untuk pesanan online, tanggal dibuat
  *   untuk langsung/historis.
  * `base` = semua filter kecuali status (untuk menghitung jumlah per tab); `where` = base + status.
@@ -46,6 +47,6 @@ export function parseOrderFilter(params: OrderFilterParams) {
         )
       : undefined;
 
-  const base = and(search, source ? eq(orders.source, source) : undefined, date);
+  const base = and(search, source ? eq(orders.source, source) : undefined, params.tanpaBatal === "1" ? ne(orders.status, "dibatalkan") : undefined, date);
   return { status, query, source, base, where: and(status ? eq(orders.status, status) : undefined, base) };
 }
