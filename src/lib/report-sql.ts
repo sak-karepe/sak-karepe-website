@@ -5,7 +5,7 @@
  * Aturan hitung (juga ditulis di halaman /admin/laporan):
  * - Transaksi = pesanan selain "dibatalkan" yang punya tanggal transaksi dalam periode. Tanggal transaksi = tanggal bayar
  *   pertama untuk sumber online (belum dibayar = belum ada tanggal, jadi tidak ikut), dan tanggal dibuat untuk
- *   langsung/historis. Aturan yang sama dipakai export CSV (lib/order-filter), jadi total Subtotal CSV = omzet laporan.
+ *   langsung/historis. Aturan yang sama dipakai export Excel (lib/order-filter), jadi total kolom Subtotal export = omzet laporan.
  * - Omzet = jumlah subtotal (tanpa ongkir). Pesanan berstatus "refund" tetap ada di omzet lalu dikurangkan: omzet bersih
  *   = omzet - nilai refund. Jumlah transaksi, rata-rata, dan semua rincian tidak menghitung pesanan refund.
  */

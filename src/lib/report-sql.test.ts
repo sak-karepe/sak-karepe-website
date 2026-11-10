@@ -83,10 +83,10 @@ test("ringkasan: omzet kotor, refund, ongkir, dan transaksi mengikuti aturan tan
   assert.equal((row.gross as number) - (row.refund_value as number), 510000); // omzet bersih
 });
 
-test("omzet kotor laporan = jumlah Subtotal pesanan yang diexport CSV untuk periode itu", { skip: !sqlite }, () => {
+test("omzet kotor laporan = jumlah Subtotal pesanan yang diexport (Excel) untuk periode itu", { skip: !sqlite }, () => {
   const db = seed();
   // Mereplikasi aturan filter export (lib/order-filter): online = ada pembayaran lunas dalam periode, selain itu = createdAt; tanpa dibatalkan.
-  const [csv] = db
+  const [exported] = db
     .prepare(
       `SELECT SUM(COALESCE(subtotal,0)) AS total FROM orders WHERE status <> 'dibatalkan' AND (
         (source = 'online' AND id IN (SELECT order_id FROM payments WHERE paid_at >= ? AND paid_at < ?))
@@ -94,7 +94,7 @@ test("omzet kotor laporan = jumlah Subtotal pesanan yang diexport CSV untuk peri
     )
     .all(nov.from, nov.to, nov.from, nov.to) as { total: number }[];
   const [report] = run(db, summaryQuery(undefined, nov));
-  assert.equal(report.gross, csv.total);
+  assert.equal(report.gross, exported.total);
 });
 
 test("filter sumber hanya menghitung sumber itu", { skip: !sqlite }, () => {

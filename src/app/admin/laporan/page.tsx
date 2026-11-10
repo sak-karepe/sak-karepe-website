@@ -38,7 +38,7 @@ export default async function AdminReportPage({ searchParams }: { searchParams: 
     return `/admin/laporan?${query}`;
   };
   const periodHref = (key: PeriodKey) => href({ periode: key, dari: key === "rentang" ? period.fromDay : undefined, sampai: key === "rentang" ? period.toDay : undefined });
-  // Export membawa periode, sumber, dan "tanpa dibatalkan" yang sama dengan aturan laporan, jadi total Subtotal CSV = omzet.
+  // Export membawa periode, sumber, dan "tanpa dibatalkan" yang sama dengan aturan laporan, jadi total Subtotal export = omzet.
   const exportHref = `/admin/pesanan/export?${new URLSearchParams({ dari: period.fromDay, sampai: period.toDay, tanpaBatal: "1", ...(source && { sumber: source }) })}`;
 
   const change = percentChange(totals.net, previous.net);
@@ -68,7 +68,7 @@ export default async function AdminReportPage({ searchParams }: { searchParams: 
         </div>
         {/* <a>, bukan <Link>: tujuannya route handler yang mengunduh file, jangan di-prefetch. */}
         <a href={exportHref} download className="btn btn-outline min-h-11 gap-2 px-4 text-[15px]">
-          <DownloadSimpleIcon size={18} aria-hidden="true" /> Export CSV periode ini
+          <DownloadSimpleIcon size={18} aria-hidden="true" /> Export Excel periode ini
         </a>
       </div>
 
@@ -181,7 +181,7 @@ export default async function AdminReportPage({ searchParams }: { searchParams: 
           <li>Jumlah transaksi, rata-rata, ongkir terkumpul, dan semua rincian tidak menghitung pesanan refund.</li>
           <li>Pesanan yang paketnya gagal kirim atau diretur tetap dihitung sampai statusnya menjadi refund.</li>
           <li>Hari dan bulan memakai zona waktu WIB. Pembanding = periode sebelumnya dengan panjang yang sama.</li>
-          <li>Omzet di halaman ini sama dengan jumlah kolom Subtotal pada file Export CSV periode ini.</li>
+          <li>Omzet di halaman ini sama dengan jumlah kolom Subtotal pada file Export Excel periode ini.</li>
         </ul>
       </section>
     </main>
