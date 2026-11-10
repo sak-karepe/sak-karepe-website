@@ -7,7 +7,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr";
 import type { CatalogProduct } from "@/lib/catalog";
 import { ProductCard } from "./product-card";
 
-const DEBOUNCE_MS = 300;
+const DEBOUNCE_MS = 1000;
 
 export function CollectionFilter({
   products,
@@ -27,6 +27,7 @@ export function CollectionFilter({
   const syncUrl = !limit;
   const [filter, setFilter] = useState(initialKoleksi);
   const [query, setQuery] = useState(initialQ);
+  const [appliedQuery, setAppliedQuery] = useState(initialQ);
   const [pending, startTransition] = useTransition();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPushed = useRef({ koleksi: initialKoleksi, q: initialQ });
@@ -45,37 +46,41 @@ export function CollectionFilter({
     });
   }
 
+  function applySearch(nextKoleksi: string, nextQuery: string) {
+    setAppliedQuery(nextQuery);
+    pushUrl(nextKoleksi, nextQuery);
+  }
+
   function handleQueryChange(next: string) {
     setQuery(next);
-    if (!syncUrl) return;
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => pushUrl(filter, next), DEBOUNCE_MS);
+    timer.current = setTimeout(() => applySearch(filter, next), DEBOUNCE_MS);
   }
 
   function handleFilterChange(nextFilter: string) {
     setFilter(nextFilter);
-    if (!syncUrl) return;
     if (timer.current) clearTimeout(timer.current);
-    pushUrl(nextFilter, query);
+    applySearch(nextFilter, query);
   }
 
   function resetQuery() {
     if (timer.current) clearTimeout(timer.current);
     setQuery("");
-    pushUrl(filter, "");
+    applySearch(filter, "");
   }
 
   function resetAll() {
     if (timer.current) clearTimeout(timer.current);
     setQuery("");
     setFilter("all");
-    pushUrl("all", "");
+    applySearch("all", "");
   }
 
   useEffect(() => {
     if (initialQ !== lastPushed.current.q) {
       lastPushed.current.q = initialQ;
       setQuery(initialQ);
+      setAppliedQuery(initialQ);
     }
   }, [initialQ]);
 
@@ -93,7 +98,7 @@ export function CollectionFilter({
     [],
   );
 
-  const trimmedQuery = query.trim();
+  const trimmedQuery = appliedQuery.trim();
   const normalizedQuery = trimmedQuery.toLowerCase();
   const activeCategory = categories.find((category) => category.slug === filter);
 
@@ -119,7 +124,7 @@ export function CollectionFilter({
           onSubmit={(event) => {
             event.preventDefault();
             if (timer.current) clearTimeout(timer.current);
-            pushUrl(filter, query);
+            applySearch(filter, query);
           }}
         >
           {filter !== "all" && <input type="hidden" name="koleksi" value={filter} />}
