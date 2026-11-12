@@ -5,19 +5,25 @@ import { AddressPicker } from "@/components/checkout";
 import { checkoutOrder, quoteOrderShipping, type ShippingQuoteResult } from "@/lib/checkout-actions";
 import { formatRupiah } from "@/lib/format";
 
+/** Server action yang tidak pernah selesai (jaringan menggantung) dianggap gagal, agar tombol "Coba lagi" muncul. */
+const withTimeout = <T,>(promise: Promise<T>, ms = 30_000) =>
+  Promise.race([promise, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))]);
+
 /** Bagian interaktif halaman checkout: pilih alamat dan kurir, lalu buat link DOKU dan pindah ke halaman bayar. */
 export function OrderCheckout({ orderId, subtotal }: { orderId: number; subtotal: number }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [quote, setQuote] = useState<{ addressId: number; result: ShippingQuoteResult } | null>(null);
   /** "kurir:layanan", mis. "jnt:ez". */
   const [service, setService] = useState("");
+  /** Dinaikkan oleh tombol "Coba lagi" untuk menghitung ulang ongkir. */
+  const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!selected) return;
     let active = true;
-    quoteOrderShipping(orderId, selected)
+    withTimeout(quoteOrderShipping(orderId, selected))
       // Tanpa ini kerangka ongkir terus berputar bila server action gagal (mis. koneksi putus).
       .catch((): ShippingQuoteResult => ({ error: "Ongkos kirim belum bisa dihitung. Coba lagi sebentar." }))
       .then((result) => {
@@ -29,25 +35,33 @@ export function OrderCheckout({ orderId, subtotal }: { orderId: number; subtotal
     return () => {
       active = false;
     };
-  }, [orderId, selected]);
+  }, [orderId, selected, attempt]);
 
   // Pilihan kurir alamat sebelumnya tidak dipakai selama alamat baru masih dihitung.
   const result = selected && quote?.addressId === selected ? quote.result : null;
   const options = result && "options" in result ? result.options : [];
   const option = options.find((option) => `${option.courierCode}:${option.serviceCode}` === service);
+  const retry = () => {
+    setQuote(null);
+    setAttempt((value) => value + 1);
+  };
   const submit = () => {
     if (!selected || !option) return;
     setError("");
     startTransition(async () => {
-      const response = await checkoutOrder(orderId, selected, { courierCode: option.courierCode, serviceCode: option.serviceCode });
-      if ("error" in response) setError(response.error);
-      else window.location.assign(response.url);
+      try {
+        const response = await checkoutOrder(orderId, selected, { courierCode: option.courierCode, serviceCode: option.serviceCode });
+        if ("error" in response) setError(response.error);
+        else window.location.assign(response.url);
+      } catch {
+        setError("Link pembayaran belum bisa dibuat. Periksa koneksi internet lalu coba lagi.");
+      }
     });
   };
 
   return (
     <>
-      <AddressPicker selected={selected} onSelect={setSelected} />
+      <AddressPicker selected={selected} onSelect={setSelected} onUpdated={(id) => id === selected && retry()} />
       <section aria-labelledby="kurir" className="mt-10">
         <h2 id="kurir" className="text-[24px] tracking-[-.03em]">Kurir</h2>
         {!selected ? (
@@ -55,9 +69,14 @@ export function OrderCheckout({ orderId, subtotal }: { orderId: number; subtotal
         ) : !result ? (
           <div className="mt-3 h-32 animate-pulse rounded-md bg-surface" aria-label="Menghitung ongkos kirim" />
         ) : "error" in result ? (
-          <p role="alert" className="mt-3 text-[15px] text-danger">
-            {result.error}
-          </p>
+          <div className="mt-3">
+            <p role="alert" className="text-[15px] text-danger">
+              {result.error}
+            </p>
+            <button type="button" className="mt-2 text-sm text-accent hover:underline" onClick={retry}>
+              Coba lagi
+            </button>
+          </div>
         ) : (
           <fieldset className="mt-3 space-y-2">
             <legend className="sr-only">Pilih layanan kurir</legend>

@@ -4,14 +4,22 @@ import { setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";
 // gagal dengan ETIMEDOUT padahal servernya bisa dijangkau.
 setDefaultAutoSelectFamilyAttemptTimeout(2000);
 
+let maintenanceQueue = Promise.resolve();
+
+function scheduleMaintenance(name: string, job: () => Promise<void>) {
+  maintenanceQueue = maintenanceQueue
+    .then(job)
+    .catch((error) => console.warn(`[maintenance] Gagal menjalankan ${name}`, error));
+}
+
 // Pesanan "sampai" yang tidak dikonfirmasi pembeli selama 2 hari menjadi "selesai"; dicek tiap jam selama server hidup.
 async function completeOrders() {
   const { completeDeliveredOrders } = await import("@/lib/shipments");
   const done = await completeDeliveredOrders().catch((error) => console.warn("[pesanan] Gagal menyelesaikan otomatis", error));
   if (done?.length) console.info(`[pesanan] ${done.length} pesanan otomatis selesai`);
 }
-void completeOrders();
-setInterval(completeOrders, 60 * 60 * 1000).unref();
+scheduleMaintenance("penyelesaian pesanan", completeOrders);
+setInterval(() => scheduleMaintenance("penyelesaian pesanan", completeOrders), 60 * 60 * 1000).unref();
 
 // Pesanan belum dibayar yang kedaluwarsa dibatalkan (lib/payments); dicek tiap jam.
 async function cancelOrders() {
@@ -19,8 +27,8 @@ async function cancelOrders() {
   const cancelled = await cancelExpiredOrders().catch((error) => console.warn("[pesanan] Gagal membatalkan otomatis", error));
   if (cancelled?.length) console.info(`[pesanan] ${cancelled.length} pesanan kedaluwarsa otomatis dibatalkan`);
 }
-void cancelOrders();
-setInterval(cancelOrders, 60 * 60 * 1000).unref();
+scheduleMaintenance("pembatalan pesanan", cancelOrders);
+setInterval(() => scheduleMaintenance("pembatalan pesanan", cancelOrders), 60 * 60 * 1000).unref();
 
 // Webhook DOKU/Biteship bisa tidak sampai (server mati, timeout); status dicek ulang langsung ke API-nya.
 // Pembayaran tiap 15 menit agar tercatat < 1 jam, pengiriman tiap jam.
@@ -34,7 +42,7 @@ async function reconcileShipments() {
   const failed = await reconcileShipments().catch((error) => console.warn("[biteship] Rekonsiliasi pengiriman gagal", error));
   if (failed) console.warn(`[biteship] ${failed} pengiriman gagal dicek ke Biteship`);
 }
-void reconcilePayments();
-void reconcileShipments();
-setInterval(reconcilePayments, 15 * 60 * 1000).unref();
-setInterval(reconcileShipments, 60 * 60 * 1000).unref();
+scheduleMaintenance("rekonsiliasi pembayaran", reconcilePayments);
+scheduleMaintenance("rekonsiliasi pengiriman", reconcileShipments);
+setInterval(() => scheduleMaintenance("rekonsiliasi pembayaran", reconcilePayments), 15 * 60 * 1000).unref();
+setInterval(() => scheduleMaintenance("rekonsiliasi pengiriman", reconcileShipments), 60 * 60 * 1000).unref();

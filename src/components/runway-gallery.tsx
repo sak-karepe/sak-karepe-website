@@ -2,9 +2,9 @@
 import { LinkIcon, PreviousIcon, NextIcon, PlaybackIcon } from "@/components/icons";
 import Image from "@/components/site-image";
 import { useState, useEffect, useRef } from "react";
-import { runwayPhotos } from "@/lib/content";
+import type { RunwayPhoto } from "@/lib/runway";
 import { useSite } from "./site-shell";
-export function RunwayGallery() {
+export function RunwayGallery({ photos }: { photos: RunwayPhoto[] }) {
   const [page, setPage] = useState(0);
   const { open } = useSite();
   const [auto, setAuto] = useState(true);
@@ -49,7 +49,7 @@ export function RunwayGallery() {
         !document.hidden &&
         !document.querySelector("dialog[open]")
       )
-        setPage((value) => (value + 1) % Math.ceil(runwayPhotos.length / 4));
+        setPage((value) => (value + 1) % Math.ceil(photos.length / 4));
     }, 5500);
     return () => {
       observer.disconnect();
@@ -59,8 +59,10 @@ export function RunwayGallery() {
       element.removeEventListener("focusin", focus);
       element.removeEventListener("focusout", blur);
     };
-  }, [auto]);
-  const start = page * 4;
+  }, [auto, photos.length]);
+  // Foto bisa berkurang (disembunyikan/dihapus admin) selagi halaman terbuka.
+  const start = Math.min(page, Math.max(Math.ceil(photos.length / 4) - 1, 0)) * 4;
+  if (photos.length === 0) return null;
   return (
     <div ref={region}>
       <div
@@ -68,12 +70,12 @@ export function RunwayGallery() {
         className="stagger mt-9 grid grid-cols-2 items-start gap-x-4 gap-y-6 md:grid-cols-4 md:gap-6"
         aria-label="Dokumentasi fashion show"
       >
-        {runwayPhotos.slice(start, start + 4).map((photo, offset) => (
+        {photos.slice(start, start + 4).map((photo, offset) => (
           <button
             className="group w-full text-left even:mt-8 md:even:mt-[54px]"
             key={photo.src}
             aria-label={`Perbesar foto ${start + offset + 1}: ${photo.alt}`}
-            onClick={() => open({ kind: "gallery", index: start + offset })}
+            onClick={() => open({ kind: "gallery", photos, index: start + offset })}
           >
             <div className="photo aspect-[2/3] transition-transform duration-300 group-hover:-translate-y-1">
               <Image
@@ -92,8 +94,8 @@ export function RunwayGallery() {
       </div>
       <div className="flex items-center justify-between pt-7">
         <p className="text-sm text-muted" aria-live={auto ? "off" : "polite"}>
-          Foto {start + 1}–{Math.min(start + 4, runwayPhotos.length)} dari{" "}
-          {runwayPhotos.length}
+          Foto {start + 1}–{Math.min(start + 4, photos.length)} dari{" "}
+          {photos.length}
         </p>
         <div className="flex items-center gap-3">
           <button
@@ -117,7 +119,7 @@ export function RunwayGallery() {
           </button>
           <button
             className="square"
-            disabled={start + 4 >= runwayPhotos.length}
+            disabled={start + 4 >= photos.length}
             aria-label="Foto fashion show berikutnya"
             onClick={() => {
               setAuto(false);

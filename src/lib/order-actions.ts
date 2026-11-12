@@ -1,16 +1,16 @@
 "use server";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
-import { orderEvents, orderItems, orders, payments, products, type Order, type OrderItem } from "@/db/schema";
-import { parseAmount } from "@/lib/format";
+import { orderEvents, orderItems, orders, paymentMethods, payments, products, type Order, type OrderItem } from "@/db/schema";
+import { formatRupiah, parseAmount } from "@/lib/format";
 import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } from "@/lib/order-status";
-import { checkStatus } from "@/lib/doku";
-import { applyPayment, cancelActivePayments } from "@/lib/payments";
-import { refreshShipment, saveResend } from "@/lib/shipments";
+import { cancelActivePayments, isActivePayment } from "@/lib/payments";
+import { saveResend } from "@/lib/shipments";
 import { createShipment, lowBalance, quotaReached, unreachable } from "@/lib/shipping";
-import { saveUpload } from "@/lib/uploads";
+import { returnStock, takeStock } from "@/lib/stock";
+import { checkUpload, removeUpload, saveUpload } from "@/lib/uploads";
 
 export type StatusFormState = { error?: string };
 
@@ -44,7 +44,9 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
       error: `Status "${orderStatusLabels[order.status]}" tidak bisa diubah ke "${isOrderStatus(status) ? orderStatusLabels[status] : status}" dari sini.`,
     };
   if (status === "dibatalkan") {
-    if (order.payments.some((payment) => payment.paidAt)) return { error: "Pesanan ini sudah dibayar; pembatalan harus lewat refund." };
+    // Pesanan yang sudah dibayar hanya bisa dibatalkan lewat refund. Dari status "refund" (dana sudah dikembalikan) boleh.
+    if (order.status !== "refund" && order.payments.some((payment) => payment.paidAt))
+      return { error: "Pesanan ini sudah dibayar; pembatalan harus lewat refund." };
     // Link DOKU yang masih berlaku dibatalkan dulu agar pembeli tidak membayar pesanan yang sudah batal.
     const cancelError = await cancelActivePayments(order.payments, `Dibatalkan admin (${order.code})`);
     if (cancelError) return { error: `Pesanan tidak dibatalkan. ${cancelError}` };
@@ -52,7 +54,7 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
   const saved = await db.transaction(async (tx) => {
     const [saved] = await tx
       .update(orders)
-      .set({ status, updatedAt: new Date(), ...(status === "sampai" && { deliveredAt: new Date() }) })
+      .set({ status, updatedAt: new Date(), ...(status === "sampai" && order.status !== "retur" && { deliveredAt: new Date() }) })
       .where(and(eq(orders.id, id), eq(orders.status, order.status)))
       .returning({ id: orders.id });
     if (saved)
@@ -101,9 +103,11 @@ export async function bookShipment(orderId: number, _state: ShipmentFormState, f
   if (method !== "pickup" && method !== "drop_off") return { error: "Pilih cara penyerahan paket ke kurir." };
   const order = await db.query.orders.findFirst({
     where: eq(orders.id, orderId),
-    with: { items: { with: { product: { columns: { weight: true } } } } },
+    with: { items: { with: { product: { columns: { weight: true } } } }, payments: true },
   });
   if (!order || order.status !== "dibayar" || order.shipmentId) return { error: "Resi hanya bisa dibuat sekali untuk pesanan yang sudah dibayar." };
+  if (order.payments.some((payment) => payment.pendingChange && isActivePayment(payment)))
+    return { error: "Pembeli sedang membayar selisih ongkir untuk alamat baru. Tunggu sampai lunas atau link kedaluwarsa." };
   if (!order.courierCode || !order.courierServiceCode || !order.shippingAddress || !order.postalCode)
     return { error: "Pesanan ini belum punya alamat atau kurir pilihan pembeli." };
   const result = await bookCourier(order, method);
@@ -176,46 +180,58 @@ export async function resendShipment(orderId: number, _state: ShipmentFormState,
   return {};
 }
 
-/** Pesanan gagal kirim yang tidak dikirim ulang dibatalkan dan masuk alur refund. */
-export async function refundFailedShipment(orderId: number): Promise<ShipmentFormState> {
-  const admin = await requireAdmin();
-  const saved = await db.transaction(async (tx) => {
-    const [saved] = await tx
-      .update(orders)
-      .set({ status: "refund", updatedAt: new Date() })
-      .where(and(eq(orders.id, orderId), eq(orders.status, "gagal_kirim")))
-      .returning({ id: orders.id });
-    if (saved)
-      await tx.insert(orderEvents).values({ orderId, fromStatus: "gagal_kirim", toStatus: "refund", source: "admin", userId: Number(admin.id) });
-    return saved;
-  });
-  revalidatePath("/admin", "layout");
-  revalidatePath("/pesanan", "layout");
-  return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
-}
+/** Pesanan yang bisa di-refund admin: dibayar (kurir belum dipesan), gagal kirim, atau retur yang komplainnya disetujui. */
+const refundable = (order: Pick<Order, "status" | "shipmentId">) =>
+  order.status === "gagal_kirim" || order.status === "retur" || (order.status === "dibayar" && !order.shipmentId);
 
 /**
- * Cek ulang status pembayaran (DOKU) dan pengiriman (Biteship) bila webhook tidak sampai. Semua link yang belum lunas
- * dicek, termasuk yang sudah kedaluwarsa atau dibatalkan, karena pembayaran bisa masuk tepat sebelumnya.
+ * Admin membatalkan pesanan yang sudah dibayar lewat refund (lihat `refundable`); pesanan "dikirim" tidak bisa di-refund dari
+ * sini. Dana dikembalikan manual oleh admin, lalu status diubah ke "dibatalkan" lewat dropdown (refund -> dibatalkan).
+ *
+ * Status dibaca dan diubah di satu transaksi "immediate", dan stok dikembalikan di transaksi yang sama hanya bila status
+ * benar-benar berpindah ke "refund". Klik ganda atau dua tab yang bersamaan karenanya tidak mengembalikan stok dua kali.
+ * Stok retur tidak dikembalikan otomatis karena barangnya belum tentu layak dijual lagi; admin menyesuaikannya di produk.
+ * Link DOKU yang masih berlaku (mis. tagihan selisih ongkir) dibatalkan lebih dulu agar pembeli tidak membayar pesanan
+ * yang sudah di-refund.
  */
-export async function recheckOrder(orderId: number): Promise<StatusFormState> {
-  await requireAdmin();
+export async function refundOrder(orderId: number): Promise<ShipmentFormState> {
+  const admin = await requireAdmin();
   const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { payments: true } });
   if (!order) return { error: "Pesanan tidak ditemukan." };
-  const errors: string[] = [];
-  for (const payment of order.payments) {
-    if (payment.paidAt || !payment.invoiceNumber) continue;
-    const result = await checkStatus(payment.invoiceNumber);
-    if (result.ok) await applyPayment(result.status);
-    else errors.push(`${payment.invoiceNumber}: ${result.error}`);
-  }
-  if (order.shipmentId) {
-    const result = await refreshShipment(order);
-    if (!result.ok) errors.push(`Biteship: ${result.error}`);
-  }
-  // Seluruh situs: pembayaran yang baru tercatat bisa menghabiskan stok produk di etalase.
+  if (!refundable(order))
+    return { error: "Refund hanya untuk pesanan yang sudah dibayar dan belum dikirim, yang paketnya gagal kirim, atau retur." };
+  const cancelError = await cancelActivePayments(order.payments, `Pesanan di-refund admin (${order.code})`);
+  if (cancelError) return { error: `Pesanan belum di-refund. ${cancelError}` };
+  const paid = order.payments.filter((payment) => payment.paidAt).reduce((sum, payment) => sum + payment.amount, 0);
+
+  const saved = await db.transaction(
+    async (tx) => {
+      const current = await tx.query.orders.findFirst({ columns: { status: true, shipmentId: true }, where: eq(orders.id, orderId) });
+      if (!current || !refundable(current)) return false;
+      const [updated] = await tx
+        .update(orders)
+        .set({ status: "refund", updatedAt: new Date() })
+        .where(and(eq(orders.id, orderId), eq(orders.status, current.status)))
+        .returning({ id: orders.id });
+      if (!updated) return false;
+      await tx.insert(orderEvents).values({
+        orderId,
+        fromStatus: current.status,
+        toStatus: "refund",
+        source: "admin",
+        userId: Number(admin.id),
+        note: `Dana ${formatRupiah(paid)} perlu dikembalikan ke pembeli. ${current.status === "retur" ? "Stok retur tidak dikembalikan otomatis." : "Stok dikembalikan."}`,
+      });
+      if (current.status !== "retur") await returnStock(tx, orderId);
+      return true;
+    },
+    { behavior: "immediate" },
+  );
+  // Stok kembali tersedia di etalase.
   revalidatePath("/", "layout");
-  return errors.length ? { error: `Sebagian status belum bisa dicek. ${errors.join(" · ")}` } : {};
+  revalidatePath("/admin", "layout");
+  revalidatePath("/pesanan", "layout");
+  return saved ? {} : { error: "Status pesanan baru saja berubah, atau paketnya sudah dikirim. Muat ulang halaman lalu coba lagi." };
 }
 
 export type NoteFormState = { error?: string };
@@ -242,6 +258,66 @@ export async function markReviewed(orderId: number): Promise<StatusFormState> {
   return {};
 }
 
+export type UpdateAddressFormState = { error?: string; saved?: boolean };
+
+/**
+ * Admin mengubah alamat tujuan pengiriman sebelum kurir dipesan (sebelum `shipmentId` terisi).
+ * Perubahan dicatat di riwayat pesanan (orderEvents).
+ */
+export async function updateOrderAddress(
+  orderId: number,
+  _state: UpdateAddressFormState,
+  formData: FormData,
+): Promise<UpdateAddressFormState> {
+  const admin = await requireAdmin();
+  const [recipientName, rawPhone, shippingAddress, postalCode] = [
+    "recipientName",
+    "phone",
+    "shippingAddress",
+    "postalCode",
+  ].map((key) => String(formData.get(key) ?? "").trim());
+  const phone = rawPhone.replace(/\D/g, "").replace(/^62/, "0");
+  if (!recipientName || !shippingAddress) return { error: "Isi nama penerima dan alamat." };
+  if (!/^0\d{8,13}$/.test(phone)) return { error: "Nomor HP tidak valid. Contoh: 081234567890." };
+  if (!/^\d{5}$/.test(postalCode)) return { error: "Kode pos terdiri dari 5 angka." };
+
+  const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
+  if (!order) return { error: "Pesanan tidak ditemukan." };
+  if (order.shipmentId) return { error: "Alamat tidak bisa diubah setelah booking kurir." };
+
+  const oldAddress = [order.recipientName, order.phone, order.shippingAddress, order.postalCode].filter(Boolean).join(", ");
+  const newAddress = `${recipientName} (${phone}) - ${shippingAddress} ${postalCode}`;
+
+  const saved = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(orders)
+      .set({
+        recipientName,
+        phone,
+        shippingAddress,
+        postalCode,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(orders.id, orderId), isNull(orders.shipmentId)))
+      .returning({ id: orders.id });
+    if (updated) {
+      await tx.insert(orderEvents).values({
+        orderId,
+        source: "admin",
+        userId: Number(admin.id),
+        note: `Alamat pengiriman diubah oleh admin.\nDari: ${oldAddress || "—"}\nMenjadi: ${newAddress}`,
+      });
+    }
+    return updated;
+  });
+
+  if (!saved) return { error: "Pesanan sudah berubah atau resi sudah dibuat dari tab lain." };
+
+  revalidatePath("/admin", "layout");
+  revalidatePath("/pesanan", "layout");
+  return { saved: true };
+}
+
 export type CheckoutLinkFormState = { error?: string; saved?: boolean };
 
 
@@ -261,7 +337,7 @@ export async function createCheckoutLink(
   if (!checkoutStatuses.includes(order.status) || order.payments.some((payment) => payment.paidAt))
     return { error: "Link checkout hanya bisa dibuat untuk pesanan yang belum dibayar." };
   const prices = order.items.map((item) => parseAmount(formData.get(`price-${item.id}`)));
-  if (prices.some((price) => !price)) return { error: "Isi harga setiap produk." };
+  if (prices.some((price) => price === null || price <= 0)) return { error: "Isi harga setiap produk dengan nilai lebih dari Rp0." };
   const subtotal = order.items.reduce((sum, item, index) => sum + prices[index]! * item.quantity, 0);
   if (subtotal > 999_999_999_999) return { error: "Total terlalu besar." };
   const cancelError = await cancelActivePayments(order.payments, `Harga diubah admin (${order.code})`);
@@ -295,14 +371,14 @@ export async function createDirectSale(_state: DirectSaleFormState, formData: Fo
   const customerName = (formData.get("customerName") as string) || null;
   const customerPhone = (formData.get("customerPhone") as string) || null;
 
-  const transactionDateRaw = formData.get("transactionDate") as string;
-  const transactionDate = transactionDateRaw ? new Date(transactionDateRaw) : new Date();
+  // Input datetime-local tanpa zona waktu; admin mengisi jam WIB.
+  const transactionDateRaw = String(formData.get("transactionDate") ?? "");
+  const transactionDate = transactionDateRaw ? new Date(`${transactionDateRaw}+07:00`) : new Date();
+  if (Number.isNaN(transactionDate.getTime()) || transactionDate.getTime() > Date.now() + 60_000)
+    return { error: "Tanggal transaksi tidak valid atau di masa depan." };
 
-  const paymentMethod = (formData.get("paymentMethod") as
-    | "tunai"
-    | "transfer"
-    | "qris"
-    | "lainnya") || "tunai";
+  const paymentMethod = paymentMethods.find((method) => method !== "doku" && method === (formData.get("paymentMethod") || "tunai"));
+  if (!paymentMethod) return { error: "Metode pembayaran tidak valid." };
   const notes = (formData.get("notes") as string) || "";
   const isShipping = formData.get("isShipping") === "true";
 
@@ -311,15 +387,10 @@ export async function createDirectSale(_state: DirectSaleFormState, formData: Fo
   const shippingAddress = (formData.get("shippingAddress") as string) || null;
   const postalCode = (formData.get("postalCode") as string) || null;
 
-  const proofFile = formData.get("proofFile") as File | null;
-  let proofUrl: string | null = null;
-  if (proofFile && proofFile.size > 0) {
-    try {
-      proofUrl = await saveUpload(proofFile);
-    } catch {
-      return { error: "Gagal mengunggah bukti pembayaran." };
-    }
-  }
+  const rawProof = formData.get("proofFile");
+  const proofFile = rawProof instanceof File && rawProof.size > 0 ? rawProof : null;
+  const proofError = proofFile && checkUpload(proofFile);
+  if (proofError) return { error: proofError };
 
   const rawItems = formData.get("items") as string;
   let itemsList: DirectSaleItemInput[] = [];
@@ -329,16 +400,42 @@ export async function createDirectSale(_state: DirectSaleFormState, formData: Fo
     return { error: "Format item produk tidak valid." };
   }
 
+  if (!Array.isArray(itemsList) || itemsList.length > 50) return { error: "Format item produk tidak valid." };
   if (itemsList.length === 0) {
     return { error: "Minimal harus ada satu item dalam transaksi." };
   }
 
   let calculatedSubtotal = 0;
   for (const item of itemsList) {
-    if (!item.productName || item.price < 0 || item.quantity < 1) {
+    const name = typeof item.productName === "string" ? item.productName.trim() : "";
+    if (
+      !name ||
+      name.length > 200 ||
+      !Number.isInteger(item.price) ||
+      item.price < 0 ||
+      !Number.isInteger(item.quantity) ||
+      item.quantity < 1 ||
+      item.quantity > 999 ||
+      (item.productId != null && !Number.isInteger(item.productId))
+    ) {
       return { error: "Data item produk, harga, atau kuantitas tidak valid." };
     }
+    item.productName = name;
     calculatedSubtotal += item.price * item.quantity;
+  }
+  const productIds = [...new Set(itemsList.flatMap((item) => (item.productId ? [item.productId] : [])))];
+  if (productIds.length) {
+    const found = await db.select({ id: products.id }).from(products).where(inArray(products.id, productIds));
+    if (found.length !== productIds.length) return { error: "Ada produk yang sudah tidak ada di katalog." };
+  }
+
+  let proofUrl: string | null = null;
+  if (proofFile) {
+    try {
+      proofUrl = await saveUpload(proofFile);
+    } catch {
+      return { error: "Gagal mengunggah bukti pembayaran." };
+    }
   }
 
   const initialStatus = isShipping ? "dibayar" : "selesai";
@@ -347,29 +444,6 @@ export async function createDirectSale(_state: DirectSaleFormState, formData: Fo
 
   try {
     await db.transaction(async (tx) => {
-      // 1. Kurangi stok produk katalog jika productId ada
-      for (const item of itemsList) {
-        if (item.productId) {
-          const [prod] = await tx
-            .select({ stock: products.stock })
-            .from(products)
-            .where(eq(products.id, item.productId));
-
-          if (prod && prod.stock !== null) {
-            if (prod.stock < item.quantity) {
-              throw new Error(`Stok produk "${item.productName}" tidak mencukupi (sisa ${prod.stock}).`);
-            }
-            await tx
-              .update(products)
-              .set({
-                stock: sql`${products.stock} - ${item.quantity}`,
-                updatedAt: new Date(),
-              })
-              .where(eq(products.id, item.productId));
-          }
-        }
-      }
-
       // 2. Buat record Order dengan sumber "langsung" dan recordedBy terisi
       const [insertedOrder] = await tx
         .insert(orders)
@@ -386,7 +460,7 @@ export async function createDirectSale(_state: DirectSaleFormState, formData: Fo
           shippingAddress: isShipping ? shippingAddress : null,
           postalCode: isShipping ? postalCode : null,
           subtotal: calculatedSubtotal,
-          notes: proofUrl ? `${notes}\nBukti Bayar: ${proofUrl}`.trim() : notes,
+          notes,
           createdAt: transactionDate,
           updatedAt: transactionDate,
         })
@@ -405,6 +479,10 @@ export async function createDirectSale(_state: DirectSaleFormState, formData: Fo
         });
       }
 
+      // Stok diambil dengan helper yang sama seperti pembayaran DOKU (dikembalikan lewat refund/returnStock).
+      const short = await takeStock(tx, createdOrderId);
+      if (short.length) throw new Error(`Stok tidak mencukupi untuk: ${short.join(", ")}.`);
+
       // 4. Masukkan record Payment
       await tx.insert(payments).values({
         orderId: createdOrderId,
@@ -420,82 +498,17 @@ export async function createDirectSale(_state: DirectSaleFormState, formData: Fo
         toStatus: initialStatus,
         source: "admin",
         userId: Number(admin.id),
-        note: `Penjualan langsung dicatat oleh admin (Sumber: Langsung, Metode: ${paymentMethod}).`,
+        note: `Penjualan langsung dicatat oleh admin (Sumber: Langsung, Metode: ${paymentMethod}).${proofUrl ? ` Bukti bayar: ${proofUrl}` : ""}`,
         createdAt: transactionDate,
       });
-    });
+    }, { behavior: "immediate" });
   } catch (err: unknown) {
-  return {
-    error: err instanceof Error
-      ? err.message
-      : "Gagal menyimpan transaksi langsung.",
-  };
-}
+    if (proofUrl) await removeUpload(proofUrl);
+    return { error: err instanceof Error ? err.message : "Gagal menyimpan transaksi langsung." };
+  }
 
-  revalidatePath("/admin", "layout");
-  revalidatePath("/pesanan", "layout");
+  // Stok berubah, jadi katalog publik ikut disegarkan.
+  revalidatePath("/", "layout");
   return { redirectTo: `/admin/pesanan/${createdOrderId}` };
 }
 
-/**
- * Membatalkan transaksi (baik online maupun langsung) dengan menyertakan alasan
- * serta mengembalikan stok produk katalog secara otomatis (restock).
- */
-export async function cancelOrderWithRestock(orderId: number, _state: StatusFormState, formData: FormData): Promise<StatusFormState> {
-  const admin = await requireAdmin();
-  const reason = String(formData.get("reason") ?? "").trim();
-  if (!reason) return { error: "Berikan alasan pembatalan transaksi." };
-
-  try {
-    await db.transaction(async (tx) => {
-      const [order] = await tx.select().from(orders).where(eq(orders.id, orderId));
-      if (!order) throw new Error("Pesanan tidak ditemukan.");
-      if (order.status === "dibatalkan") throw new Error("Pesanan sudah dibatalkan sebelumnya.");
-
-      const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
-
-      // Kembalikan stok produk jika item terhubung ke produk katalog
-      for (const item of items) {
-        if (item.productId) {
-          await tx
-            .update(products)
-            .set({
-              stock: sql`${products.stock} + ${item.quantity}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(products.id, item.productId));
-        }
-      }
-
-      // Ubah status order menjadi dibatalkan
-      await tx
-        .update(orders)
-        .set({
-          status: "dibatalkan",
-          updatedAt: new Date(),
-        })
-        .where(eq(orders.id, orderId));
-
-      // Catat event perubahan status & alasan pembatalan
-      await tx.insert(orderEvents).values({
-        orderId,
-        fromStatus: order.status,
-        toStatus: "dibatalkan",
-        source: "admin",
-        userId: Number(admin.id),
-        note: `Dibatalkan & stok dikembalikan. Alasan: ${reason}`,
-        createdAt: new Date(),
-      });
-    });
-  } catch (err: unknown) {
-  return {
-    error: err instanceof Error
-      ? err.message
-      : "Gagal membatalkan pesanan.",
-  };
-}
-
-  revalidatePath("/admin", "layout");
-  revalidatePath("/pesanan", "layout");
-  return {};
-}

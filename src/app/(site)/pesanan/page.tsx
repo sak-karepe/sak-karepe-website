@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
-import { currentUserId } from "@/auth";
+import { currentUserId, auth, isAdmin  } from "@/auth";
 import { db } from "@/db";
 import { orders, orderStatuses } from "@/db/schema";
 import { LinkIcon } from "@/components/icons";
@@ -10,6 +10,7 @@ import { OrdersSearch } from "@/components/orders-search";
 import { Breadcrumb } from "@/components/page-intro";
 import { formatDateTime, formatRupiah } from "@/lib/format";
 import { isOrderStatus, orderStatusClass, orderStatusLabels } from "@/lib/order-status";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = { title: "Pesanan saya · Sak Karepe", robots: { index: false } };
 
@@ -34,6 +35,10 @@ function tabHref(key: string, q: string) {
 }
 
 export default async function MyOrdersPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string }> }) {
+  const session = await auth();
+  if (session?.user && (await isAdmin(session.user))) {
+    redirect("/admin/pesanan");
+  }
   const { status: param, q: rawQ } = await searchParams;
   // Cegah nilai non-string (mis. ?q=a&q=b) dan batasi panjang.
   const q = (typeof rawQ === "string" ? rawQ : "").trim().slice(0, 80);

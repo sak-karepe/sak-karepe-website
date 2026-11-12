@@ -113,6 +113,41 @@
       "when": 1793325041568,
       "tag": "0015_order_events",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1793371263566,
+      "tag": "0016_historical_import_batch",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1794104349466,
+      "tag": "0017_rare_namor",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1794111408211,
+      "tag": "0018_page_blocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1794114671280,
+      "tag": "0019_ambiguous_selene",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1794215978381,
+      "tag": "0020_store_settings",
+      "breakpoints": true
     }
   ]
 }

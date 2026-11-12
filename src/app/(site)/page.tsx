@@ -1,12 +1,20 @@
-import { assetPath, productImage, runwayImage } from "@/lib/assets";
+import { assetPath, productImage } from "@/lib/assets";
 import { LinkIcon } from "@/components/icons";
 import Image from "@/components/site-image";
 import Link from "next/link";
 import { Collection } from "@/components/collection";
 import { Reveal } from "@/components/reveal";
 import { contact, whatsappUrl } from "@/lib/contact";
+import { getBlocks } from "@/lib/page-blocks";
+import { getRunwayPhotos } from "@/lib/runway";
+
 const catalog = assetPath("/documents/katalog-2026.pdf");
-export default function Home() {
+
+export default async function Home() {
+  // Dua foto pertama (yang tampil) dari menu Fashion show di admin.
+  const featured = await getRunwayPhotos(2);
+  const blocks = await getBlocks();
+
   return (
     <main id="utama">
       <section
@@ -19,22 +27,15 @@ export default function Home() {
             className="mb-7 text-[clamp(42px,10.8vw,70px)] leading-[1.04] tracking-[-.065em] lg:text-[clamp(56px,7.4vw,112px)]"
           >
             <span className="hero-title-line">
-              <span>Ecoprint dari</span>
+              <span>{blocks.home_hero_title_1}</span>
             </span>
             <span className="hero-title-line">
-              <span>ruang belajar.</span>
+              <span>{blocks.home_hero_title_2}</span>
             </span>
           </h1>
-          <p className="hero-enter max-w-[460px]">
-            Busana, tas, kain, dan sepatu bermotif daun dari pendidikan vokasi
-            SLB Khusus Bina Mandiri, Surabaya. Karyanya telah tampil di
-            panggung Jakarta, Yogyakarta, dan Surabaya.
-          </p>
+          <p className="hero-enter max-w-[460px]">{blocks.home_hero_subtitle}</p>
           <div className="hero-enter mt-8 flex flex-wrap items-center gap-5 xl:gap-7">
-            <Link
-              className="btn btn-outline px-5 xl:px-6"
-              href="/koleksi"
-            >
+            <Link className="btn btn-outline px-5 xl:px-6" href="/koleksi">
               Jelajahi koleksi <LinkIcon />
             </Link>
             <Link className="text-link" href="/cerita">
@@ -44,7 +45,7 @@ export default function Home() {
         </div>
         <div className="hero-images photo aspect-[4/5] lg:aspect-auto lg:h-[min(780px,calc(100svh-120px))] lg:min-h-[560px]">
           <Image
-            src={runwayImage("8a672849-8119-4b5d-9aa4-181c2a4badf5")}
+            src={blocks.home_hero_image}
             alt="Model memperagakan busana dan luaran ecoprint bernuansa hijau di depan lengkung taman"
             fill
             preload
@@ -53,6 +54,7 @@ export default function Home() {
           />
         </div>
       </section>
+
       <section
         className="wrap grid items-center gap-7 py-14 lg:grid-cols-[1.25fr_1fr] lg:gap-12 lg:py-24 xl:gap-20"
         id="cerita"
@@ -61,7 +63,7 @@ export default function Home() {
         <Reveal className="relative pr-7 pb-7 xl:pr-14 xl:pb-12">
           <div className="photo aspect-[1/1.15] md:h-[420px] md:aspect-auto xl:h-[500px]">
             <Image
-              src={productImage("7e60ced3-8a64-4f26-9237-4cfc0aff6a41")}
+              src={blocks.home_story_img_main}
               alt="Koleksi busana Sak Karepe di dekat jendela"
               fill
               sizes="(max-width: 768px) 80vw, 40vw"
@@ -70,7 +72,7 @@ export default function Home() {
           </div>
           <div className="photo absolute right-0 bottom-0 h-[190px] w-[34%] border-[6px] border-page xl:h-[240px] xl:border-8">
             <Image
-              src={productImage("3ff6a2dc-af7f-47d0-8014-986368cfbe6c")}
+              src={blocks.home_story_img_small}
               alt="Kain bermotif daun dengan kombinasi tepi bergaris"
               fill
               sizes="(max-width: 768px) 30vw, 16vw"
@@ -81,22 +83,12 @@ export default function Home() {
         <Reveal>
           <h2
             id="story-title"
-            className="max-w-[440px]"
+            className="max-w-[440px] whitespace-pre-line"
           >
-            Dimulai dari
-            <br />
-            batik tulis.
+            {blocks.home_story_title}
           </h2>
-          <p className="mt-6 max-w-[520px] text-muted">
-            Sak Karepe tumbuh dari pendidikan vokasi di SLB Khusus Bina Mandiri.
-            Sejak 2004, peserta didik diperkenalkan pada batik tulis dengan
-            pewarnaan alami.
-          </p>
-          <p className="my-6 max-w-[520px] text-muted">
-            Jumputan, shibori, lalu ecoprint membuka cara berkarya yang
-            disesuaikan dengan kemampuan setiap anak. Setiap potensi mendapat
-            ruang untuk tumbuh.
-          </p>
+          <p className="mt-6 max-w-[520px] text-muted">{blocks.home_story_p1}</p>
+          <p className="my-6 max-w-[520px] text-muted">{blocks.home_story_p2}</p>
           <Link className="text-link" href="/cerita">
             Baca cerita lengkapnya <LinkIcon />
           </Link>
@@ -111,6 +103,7 @@ export default function Home() {
             Setiap daun,
             <br className="hidden lg:block" /> jejak yang berbeda.
           </h2>
+
           <div>
             <p className="max-w-[420px] text-muted">
               Daun dan bunga dari lingkungan menjadi sumber motif dan warna
@@ -118,11 +111,13 @@ export default function Home() {
               persis sama.
             </p>
           </div>
+
           <figure className="mt-8 lg:col-span-2 lg:mt-16">
             <blockquote className="max-w-[980px] text-[21px] leading-[1.35] tracking-[-.02em] md:text-[32px] xl:text-[36px]">
               &ldquo;Setiap helai daun meninggalkan jejak yang berbeda. Setiap
               tangan menghasilkan cerita yang berbeda.&rdquo;
             </blockquote>
+
             <figcaption className="mt-5">
               <a
                 className="text-link"
@@ -159,10 +154,8 @@ export default function Home() {
         aria-labelledby="runway-title"
       >
         <div className="wrap grid items-center gap-9 py-9 md:grid-cols-[1fr_1.12fr] md:gap-9 md:py-12 xl:gap-14">
-                    <div>
-            <h2
-              id="runway-title"
-            >
+          <div>
+            <h2 id="runway-title">
               Daun di atas
               <br />
               panggung.
@@ -183,27 +176,21 @@ export default function Home() {
             </div>
           </div>
 
-                    <div className="grid min-w-0 grid-cols-2 items-start gap-3 xl:gap-4">
-                        <div className="photo relative aspect-[2/3] min-w-0">
-              <Image
-                src={runwayImage("76e7b072-10ac-49da-9a8c-47ceb7187ad1")}
-                alt="Model memperagakan busana ecoprint Sak Karepe di runway"
-                fill
-                sizes="(max-width: 768px) 50vw, 33vw"
-                className="object-cover"
-              />
+          {featured.length > 0 && (
+            <div className="grid min-w-0 grid-cols-2 items-start gap-3 xl:gap-4">
+              {featured.map((photo, index) => (
+                <div key={photo.id} className={`photo relative aspect-[2/3] min-w-0 ${index === 1 ? "mt-8 xl:mt-12" : ""}`}>
+                  <Image
+                    src={photo.src}
+                    alt={photo.alt}
+                    fill
+                    sizes="(max-width: 768px) 50vw, 33vw"
+                    className="object-cover"
+                  />
+                </div>
+              ))}
             </div>
-
-                        <div className="photo relative mt-8 aspect-[2/3] min-w-0 xl:mt-12">
-              <Image
-                src={runwayImage("ac8c207d-3ad3-4ffc-9660-d6beaa4e6380")}
-                alt="Koleksi busana fashion show Sak Karepe"
-                fill
-                sizes="(max-width: 768px) 50vw, 33vw"
-                className="object-cover"
-              />
-            </div>
-          </div>
+          )}
         </div>
       </section>
       <Reveal className="wrap mt-16 md:mt-24">
@@ -225,8 +212,8 @@ export default function Home() {
             <h2 id="custom-title">Punya ide sendiri?</h2>
             <p className="mt-4 max-w-[520px] text-muted">
               Dari busana hingga tas, ceritakan motif dan bentuk yang kamu
-              inginkan. Pilih kainnya, padukan coraknya, lalu diskusikan
-              bersama Sak Karepe.
+              inginkan. Pilih kainnya, padukan coraknya, lalu diskusikan bersama
+              Sak Karepe.
             </p>
             <dl className="my-9 grid gap-4 md:gap-5">
               {[
@@ -266,9 +253,7 @@ export default function Home() {
             </p>
             <address className="mt-8 not-italic">
               <p className="font-medium">{contact.location}</p>
-              <p className="mt-2 max-w-[370px] text-muted">
-                {contact.address}
-              </p>
+              <p className="mt-2 max-w-[370px] text-muted">{contact.address}</p>
             </address>
             <a
               href={whatsappUrl()}

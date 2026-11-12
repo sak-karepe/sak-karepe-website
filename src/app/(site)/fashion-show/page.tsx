@@ -5,11 +5,13 @@ import { PageIntro } from "@/components/page-intro";
 import { Reveal } from "@/components/reveal";
 import { RunwayGallery } from "@/components/runway-gallery";
 import { RunwayArchive } from "@/components/runway-archive";
+import { getRunwayPhotos } from "@/lib/runway";
 export const metadata: Metadata = {
   title: "Fashion show · Sak Karepe",
   description: "Dokumentasi busana ecoprint Sak Karepe di panggung fashion.",
 };
-export default function FashionPage() {
+export default async function FashionPage() {
+  const photos = await getRunwayPhotos();
   return (
     <main id="utama">
       <PageIntro
@@ -20,7 +22,13 @@ export default function FashionPage() {
       />
       <section className="bg-surface pt-2 pb-10 md:pb-14">
         <div className="wrap">
-          <RunwayGallery />
+          {photos.length === 0 ? (
+            <p className="py-10 text-center text-muted" aria-live="polite">
+              Tidak ada fashion show yang dapat diperlihatkan saat ini
+            </p>
+          ) : (
+            <RunwayGallery photos={photos} />
+          )}
         </div>
       </section>
       <section className="wrap mt-14 md:mt-20" aria-labelledby="archive-title">
@@ -37,7 +45,7 @@ export default function FashionPage() {
               Motif daun hadir bersama perpaduan batik, tenun ikat, dan lurik.
             </p>
           </div>
-          <RunwayArchive />
+          <RunwayArchive photos={photos} />
         </Reveal>
       </section>
       <Reveal className="wrap mt-16 md:mt-24">

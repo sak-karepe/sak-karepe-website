@@ -1,3 +1,4 @@
+/** Data awal untuk `npm run db:seed-runway` (dan seed etalase). Website membaca dari tabel runway_photos lewat lib/runway. */
 export const runwayPhotos = [
   {
     src: "/images/runway/f1259bd9-49f6-49be-b657-f84de04c4a80.jpeg",
@@ -53,4 +54,5 @@ export const navigation = [
   { href: "/fashion-show", label: "Fashion show" },
   { href: "/cerita", label: "Cerita kami" },
   { href: "/kontak", label: "Kontak" },
-];
+];/** Pengaturan tampilan pengunjung di localStorage; dibaca skrip inline di app/layout.tsx sebelum halaman tampil. */
+export const displayKey = "sak-karepe-tampilan";
