@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { orders, payments, products, users } from "@/db/schema";
 import { formatDateTime, formatRupiah } from "@/lib/format";
 import { orderStatusClass, orderStatusLabels } from "@/lib/order-status";
-import { onHoldMs, stuckOnHoldOrders } from "@/lib/shipments";
+import { onHoldMs, stuckOnHoldOrders, unshippedMs, unshippedOrders } from "@/lib/shipments";
 export const metadata: Metadata = { title: "Dashboard" };
 
 // Status yang butuh tindakan admin. Dipakai kartu DAN daftar "perlu tindakan",
@@ -41,7 +41,7 @@ export default async function AdminPage() {
     .from(payments)
     .where(and(gte(payments.paidAt, month.start), lt(payments.paidAt, month.end)));
 
-  const [total, , toShip, waiting, userTotal, [revenue], recent, onHold, flagged] = await Promise.all([
+  const [total, , toShip, waiting, userTotal, [revenue], recent, onHold, flagged, unshipped] = await Promise.all([
     db.$count(products),
     // Stok 0 ikut disembunyikan dari toko (lib/catalog).
     db.$count(products, and(eq(products.published, true), or(isNull(products.stock), ne(products.stock, 0)))),
@@ -64,6 +64,7 @@ export default async function AdminPage() {
     }),
     stuckOnHoldOrders(),
     db.query.orders.findMany({ columns: { id: true, code: true, reviewNote: true }, where: isNotNull(orders.reviewNote), orderBy: orders.id }),
+    unshippedOrders(),
   ]);
 
   const cards = [
@@ -116,7 +117,7 @@ export default async function AdminPage() {
       <h1 className="mt-3 text-3xl tracking-[-.045em] md:text-4xl">Halo, {user.name ?? user.email}.</h1>
       <p className="mt-3 text-muted">Kelola etalase Sak Karepe dari sini.</p>
 
-      {(onHold.length > 0 || flagged.length > 0) && (
+      {(onHold.length > 0 || flagged.length > 0 || unshipped.length > 0) && (
         <section aria-labelledby="perlu-dicek" className="mt-10 rounded-2xl border border-danger p-6">
           <h2 id="perlu-dicek" className="flex items-center gap-2 text-xl tracking-[-.03em] text-danger">
             <WarningCircleIcon size={22} weight="bold" aria-hidden="true" /> Perlu dicek
@@ -130,6 +131,24 @@ export default async function AdminPage() {
                     <Link href={`/admin/pesanan/${order.id}`} className="flex justify-between gap-4 py-3 hover:text-accent">
                       <span className="font-mono">{order.code}</span>
                       <span className="text-right text-sm text-muted">{order.reviewNote}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {unshipped.length > 0 && (
+            <>
+              <p className="mt-4 text-[15px] text-muted">
+                Sudah dibayar lebih dari {unshippedMs / (60 * 60 * 1000)} jam tapi belum ada resi. Pesan kurir dari detail pesanan; bila
+                gagal karena saldo, top up di dashboard Biteship.
+              </p>
+              <ul className="mt-3 divide-y divide-line border-y border-line">
+                {unshipped.map((order) => (
+                  <li key={order.id}>
+                    <Link href={`/admin/pesanan/${order.id}`} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3 hover:text-accent">
+                      <span className="font-mono">{order.code}</span>
+                      <span className="text-sm text-muted">dibayar {order.paidAt ? formatDateTime(order.paidAt) : "-"}</span>
                     </Link>
                   </li>
                 ))}

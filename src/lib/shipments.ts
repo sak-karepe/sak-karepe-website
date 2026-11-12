@@ -1,6 +1,6 @@
-import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, min } from "drizzle-orm";
 import { db } from "@/db";
-import { orderEvents, orders, shipmentHistory, type Order, type ShipmentHistory } from "@/db/schema";
+import { orderEvents, orders, payments, shipmentHistory, type Order, type ShipmentHistory } from "@/db/schema";
 import { getShipment, type CollectionMethod, type Shipment } from "@/lib/shipping";
 
 /** Pemesanan kurir gagal sebelum paket diambil; resi dilepas agar admin bisa memesan kurir lagi. */
@@ -134,6 +134,20 @@ export const stuckOnHoldOrders = (now = new Date()) =>
     where: and(eq(orders.status, "dikirim"), eq(orders.shipmentStatus, "on_hold"), lte(orders.updatedAt, new Date(now.getTime() - onHoldMs))),
     orderBy: orders.updatedAt,
   });
+
+/** Pesanan "dibayar" yang belum punya resi selama ini ditandai di dashboard admin (mis. booking kurir gagal karena saldo). */
+export const unshippedMs = 24 * 60 * 60 * 1000;
+
+/** Pesanan dibayar tanpa resi, dihitung dari pembayaran lunas pertama; `paidAt` untuk teks "sejak". */
+export const unshippedOrders = (now = new Date()) =>
+  db
+    .select({ id: orders.id, code: orders.code, paidAt: min(payments.paidAt) })
+    .from(orders)
+    .innerJoin(payments, eq(payments.orderId, orders.id))
+    // Ada pembayaran lunas sebelum batas = pembayaran pertama sebelum batas.
+    .where(and(eq(orders.status, "dibayar"), isNull(orders.waybillId), lte(payments.paidAt, new Date(now.getTime() - unshippedMs))))
+    .groupBy(orders.id)
+    .orderBy(min(payments.paidAt));
 
 /**
  * Mengambil status terbaru dari Biteship dan menerapkannya hanya bila status atau resi berubah, agar `updatedAt` tetap
