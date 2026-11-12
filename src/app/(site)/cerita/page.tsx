@@ -33,7 +33,7 @@ export default async function StoryPage() {
           <div className="hero-images photo aspect-[4/5] max-h-[560px]">
             <Image
               src={blocks.story_hero_img}
-              alt="Busana Sak Karepe tersusun di dekat jendela"
+              alt={blocks.story_hero_img_alt}
               fill
               preload
               sizes="(max-width: 768px) 90vw, 45vw"

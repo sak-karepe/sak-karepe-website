@@ -46,7 +46,7 @@ export default async function Home() {
         <div className="hero-images photo aspect-[4/5] lg:aspect-auto lg:h-[min(780px,calc(100svh-120px))] lg:min-h-[560px]">
           <Image
             src={blocks.home_hero_image}
-            alt="Model memperagakan busana dan luaran ecoprint bernuansa hijau di depan lengkung taman"
+            alt={blocks.home_hero_image_alt}
             fill
             preload
             sizes="(max-width: 1024px) 90vw, 50vw"
@@ -64,7 +64,7 @@ export default async function Home() {
           <div className="photo aspect-[1/1.15] md:h-[420px] md:aspect-auto xl:h-[500px]">
             <Image
               src={blocks.home_story_img_main}
-              alt="Koleksi busana Sak Karepe di dekat jendela"
+              alt={blocks.home_story_img_main_alt}
               fill
               sizes="(max-width: 768px) 80vw, 40vw"
               className="object-cover object-[center_48%]"
@@ -73,7 +73,7 @@ export default async function Home() {
           <div className="photo absolute right-0 bottom-0 h-[190px] w-[34%] border-[6px] border-page xl:h-[240px] xl:border-8">
             <Image
               src={blocks.home_story_img_small}
-              alt="Kain bermotif daun dengan kombinasi tepi bergaris"
+              alt={blocks.home_story_img_small_alt}
               fill
               sizes="(max-width: 768px) 30vw, 16vw"
               className="object-cover"
