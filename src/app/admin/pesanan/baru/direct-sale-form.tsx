@@ -30,6 +30,7 @@ type ItemRow = {
   productName: string;
   price: number;
   quantity: number;
+  maxStock: number | null; // Untuk referensi batas stok
 };
 
 export function DirectSaleForm({
@@ -44,7 +45,7 @@ export function DirectSaleForm({
   >("general");
   const [isShipping, setIsShipping] = useState(false);
   const [items, setItems] = useState<ItemRow[]>([
-    { id: "1", productId: null, productName: "", price: 0, quantity: 1 },
+    { id: "1", productId: null, productName: "", price: 0, quantity: 1, maxStock: null },
   ]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -58,6 +59,7 @@ export function DirectSaleForm({
         productName: "",
         price: 0,
         quantity: 1,
+        maxStock: null,
       },
     ]);
   };
@@ -68,7 +70,6 @@ export function DirectSaleForm({
   };
 
   const handleProductSelection = (index: number, value: string) => {
-    // Cek apakah value yang diketik/dipilih cocok dengan nama produk di list
     const selected = productsList.find(
       (p) => p.name === value || p.id.toString() === value,
     );
@@ -76,20 +77,23 @@ export function DirectSaleForm({
     setItems((prev) => {
       const next = [...prev];
       if (selected) {
-        // Jika produk ditemukan di katalog
         next[index] = {
           ...next[index],
           productId: selected.id,
           productName: selected.name,
           price: selected.price || 0,
+          maxStock: selected.stock,
+          // Sesuaikan kuantitas jika melebihi stok baru
+          quantity: selected.stock !== null && next[index].quantity > selected.stock 
+            ? selected.stock 
+            : next[index].quantity,
         };
       } else {
-        // Jika diketik manual sebagai item custom
         next[index] = {
           ...next[index],
           productId: null,
           productName: value,
-          // Harga tidak di-reset ke 0 agar user bisa langsung ketik harga custom
+          maxStock: null, // Item custom tidak dibatasi stok katalog
         };
       }
       return next;
@@ -109,14 +113,43 @@ export function DirectSaleForm({
   };
 
   const totalAmount = items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
+    (sum, item) => sum + (item.price >= 0 ? item.price : 0) * item.quantity,
     0,
   );
 
-  async function handleSubmit(formData: FormData) {
-    setPending(true);
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setError(null);
+
+    // --- VALIDASI SISI KLIEN SEBELUM SUBMIT ---
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const rowNum = i + 1;
+
+      if (!item.productName.trim()) {
+        setError(`Item ke-${rowNum}: Nama produk tidak boleh kosong.`);
+        return;
+      }
+      if (item.price <= 0) {
+        setError(`Item ke-${rowNum} (${item.productName}): Harga harus lebih besar dari 0.`);
+        return;
+      }
+      if (item.quantity <= 0) {
+        setError(`Item ke-${rowNum} (${item.productName}): Jumlah pembelian minimal 1.`);
+        return;
+      }
+      if (item.maxStock !== null && item.quantity > item.maxStock) {
+        setError(
+          `Item ke-${rowNum} (${item.productName}): Jumlah melebihi stok tersedia (${item.maxStock}).`
+        );
+        return;
+      }
+    }
+
+    setPending(true);
+    const formData = new FormData(e.currentTarget);
     const result = await createDirectSale({}, formData);
+    
     if (result?.error) {
       setError(result.error);
       setPending(false);
@@ -127,7 +160,7 @@ export function DirectSaleForm({
 
   return (
     <form
-      action={handleSubmit}
+      onSubmit={handleSubmit}
       className="w-full max-w-7xl mx-auto space-y-6 p-2 sm:p-4"
     >
       <input type="hidden" name="items" value={JSON.stringify(items)} />
@@ -135,12 +168,19 @@ export function DirectSaleForm({
       <input type="hidden" name="isShipping" value={String(isShipping)} />
 
       {error && (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 p-4 text-sm text-danger font-medium flex items-center justify-between shadow-sm">
+        <div className="rounded-lg border border-danger/35 bg-danger/10 p-4 text-sm text-danger font-medium flex items-center justify-between shadow-sm animate-in fade-in-50">
           <span>{error}</span>
+          <button 
+            type="button" 
+            onClick={() => setError(null)}
+            className="text-xs uppercase tracking-wider font-bold opacity-70 hover:opacity-100"
+          >
+            Tutup
+          </button>
         </div>
       )}
 
-      {/* Main Layout Grid: Main Content (Left) + Order Summary (Right) */}
+      {/* Main Layout Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column - Product Items */}
         <div className="lg:col-span-8 space-y-6">
@@ -164,7 +204,6 @@ export function DirectSaleForm({
                   className="p-4 rounded-lg border border-line/70 bg-page/40 hover:bg-page transition-colors space-y-3"
                 >
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                    {/* Catalog Selector */}
                     <div className="md:col-span-12">
                       <label className="block text-xs font-medium text-muted mb-1.5">
                         Pilih Produk Katalog atau Ketik Custom Item
@@ -194,14 +233,14 @@ export function DirectSaleForm({
                   </div>
 
                   <div className="grid grid-cols-12 gap-3 items-center pt-1 border-t border-line/40">
-                    {/* Price */}
+                    {/* Price with min 1 validation */}
                     <div className="col-span-5 md:col-span-4">
                       <label className="block text-xs font-medium text-muted mb-1">
-                        Harga (Rp)
+                        Harga (Rp) <span className="text-danger">*</span>
                       </label>
                       <input
                         type="number"
-                        min="0"
+                        min="1"
                         value={item.price}
                         onChange={(e) =>
                           updateItem(idx, "price", Number(e.target.value))
@@ -209,16 +248,20 @@ export function DirectSaleForm({
                         className="w-full rounded-md border border-line bg-page px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
                         required
                       />
+                      {item.price < 0 && (
+                        <p className="text-[10px] text-danger mt-0.5">Harga harus &gt; 0</p>
+                      )}
                     </div>
 
-                    {/* Quantity */}
+                    {/* Quantity with max stock indicator */}
                     <div className="col-span-3 md:col-span-3">
                       <label className="block text-xs font-medium text-muted mb-1">
-                        Jumlah
+                        Jumlah {item.maxStock !== null && <span className="text-accent">(Max: {item.maxStock})</span>}
                       </label>
                       <input
                         type="number"
                         min="1"
+                        max={item.maxStock !== null ? item.maxStock : undefined}
                         value={item.quantity}
                         onChange={(e) =>
                           updateItem(idx, "quantity", Number(e.target.value))
@@ -226,6 +269,9 @@ export function DirectSaleForm({
                         className="w-full rounded-md border border-line bg-page px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
                         required
                       />
+                      {item.maxStock !== null && item.quantity > item.maxStock && (
+                        <p className="text-[10px] text-danger mt-0.5">Melebihi stok!</p>
+                      )}
                     </div>
 
                     {/* Subtotal & Action */}
@@ -236,7 +282,7 @@ export function DirectSaleForm({
                         </span>
                         <span className="text-sm font-semibold tabular-nums">
                           Rp{" "}
-                          {(item.price * item.quantity).toLocaleString("id-ID")}
+                          {(Math.max(0, item.price) * item.quantity).toLocaleString("id-ID")}
                         </span>
                       </div>
 
@@ -268,7 +314,7 @@ export function DirectSaleForm({
 
         {/* Right Column - Customer, Payment & Summary */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Customer & Details */}
+          {/* Customer Details */}
           <section className="rounded-xl border border-line bg-surface/50 p-5 shadow-sm backdrop-blur-sm space-y-4">
             <div className="flex items-center gap-2 pb-3 border-b border-line">
               <UserIcon className="w-5 h-5 text-accent" />
@@ -329,24 +375,27 @@ export function DirectSaleForm({
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-medium mb-1">
-                      Nama Pembeli
+                      Nama Pembeli <span className="text-danger">*</span>
                     </label>
                     <input
                       type="text"
                       name="customerName"
                       className="w-full rounded-md border border-line bg-page px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
-                      required
+                      required={customerType === "manual"}
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium mb-1">
-                      No. WhatsApp / HP
+                      No. WhatsApp / HP <span className="text-danger">*</span>
                     </label>
                     <input
-                      type="text"
+                      type="tel"
                       name="customerPhone"
+                      placeholder="Contoh: 08123456789"
+                      pattern="[0-9+\-\s]{10,15}"
+                      title="Masukkan nomor HP yang valid (10-15 digit angka)"
                       className="w-full rounded-md border border-line bg-page px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
-                      required
+                      required={customerType === "manual"}
                     />
                   </div>
                 </div>
@@ -407,7 +456,7 @@ export function DirectSaleForm({
                 <div className="space-y-3 pt-3 border-t border-line/60 bg-page/30 p-3 rounded-lg">
                   <div>
                     <label className="block text-xs font-medium mb-1">
-                      Nama Penerima
+                      Nama Penerima <span className="text-danger">*</span>
                     </label>
                     <input
                       type="text"
@@ -418,18 +467,19 @@ export function DirectSaleForm({
                   </div>
                   <div>
                     <label className="block text-xs font-medium mb-1">
-                      No. HP Penerima
+                      No. HP Penerima <span className="text-danger">*</span>
                     </label>
                     <input
-                      type="text"
+                      type="tel"
                       name="phone"
+                      placeholder="Contoh: 08123456789"
                       className="w-full rounded-md border border-line bg-page px-3 py-1.5 text-sm"
                       required={isShipping}
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium mb-1">
-                      Alamat Lengkap
+                      Alamat Lengkap <span className="text-danger">*</span>
                     </label>
                     <textarea
                       name="shippingAddress"
@@ -446,7 +496,6 @@ export function DirectSaleForm({
                       type="text"
                       name="postalCode"
                       className="w-full rounded-md border border-line bg-page px-3 py-1.5 text-sm"
-                      required={isShipping}
                     />
                   </div>
                 </div>
