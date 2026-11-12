@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ChartLineUpIcon,
+  CoinsIcon,
   FoldersIcon,
   ImagesIcon,
   NotePencilIcon,
@@ -42,6 +43,12 @@ const menu = [
     label: "Laporan",
     href: "/admin/laporan",
     icon: ChartLineUpIcon,
+    group: "Manajemen Toko",
+  },
+  {
+    label: "Pengeluaran",
+    href: "/admin/keuangan/pengeluaran",
+    icon: CoinsIcon,
     group: "Manajemen Toko",
   },
   {

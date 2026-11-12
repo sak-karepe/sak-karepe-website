@@ -3,6 +3,7 @@ import Link from "next/link";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/dist/ssr";
 import { requireAdminPage } from "@/auth";
 import { RevenueChart } from "@/components/revenue-chart";
+import { expenseCategoryLabels } from "@/lib/expenses";
 import { formatRupiah } from "@/lib/format";
 import { getReport, lowStockThreshold, type Row } from "@/lib/report";
 import { percentChange, periodKeys, periodLabels, resolvePeriod, type PeriodKey } from "@/lib/report-period";
@@ -122,6 +123,51 @@ export default async function AdminReportPage({ searchParams }: { searchParams: 
         ))}
       </ul>
 
+      <Section title="Laba/rugi" note={source ? "Pengeluaran tidak dipisah per sumber, jadi laba hanya untuk semua sumber" : undefined}>
+        {source ? (
+          <p className="py-4 text-muted">
+            <Link href={href({ sumber: undefined })} className="text-accent underline">Lihat semua sumber</Link> untuk menghitung laba.
+          </p>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2">
+            <dl className="space-y-2 text-[15px]">
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted">Omzet bersih</dt>
+                <dd className="tabular-nums">{formatRupiah(totals.net)}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted">Pengeluaran</dt>
+                <dd className="tabular-nums">- {formatRupiah(report.profit.expenseTotal)}</dd>
+              </div>
+              <div className="flex justify-between gap-4 border-t border-line pt-2 text-lg font-medium">
+                <dt>{report.profit.profit < 0 ? "Rugi" : "Laba"}</dt>
+                <dd className={`tabular-nums ${report.profit.profit < 0 ? "text-danger" : ""}`}>{formatRupiah(Math.abs(report.profit.profit))}</dd>
+              </div>
+            </dl>
+            <div>
+              {report.profit.expenses.length === 0 ? (
+                <p className="text-muted">Belum ada pengeluaran tercatat pada periode ini.</p>
+              ) : (
+                <ul className="space-y-1.5 text-[15px]">
+                  {report.profit.expenses.map((row) => (
+                    <li key={row.category} className="flex justify-between gap-4">
+                      <span className="text-muted">{expenseCategoryLabels[row.category as keyof typeof expenseCategoryLabels] ?? row.category}</span>
+                      <span className="tabular-nums">{formatRupiah(row.value)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Link
+                href={`/admin/keuangan/pengeluaran?${new URLSearchParams({ periode: "rentang", dari: period.fromDay, sampai: period.toDay })}`}
+                className="mt-3 inline-block text-sm text-accent underline"
+              >
+                Catat atau lihat pengeluaran
+              </Link>
+            </div>
+          </div>
+        )}
+      </Section>
+
       <Section title="Tren omzet bersih" note={period.granularity === "day" ? "Per hari" : "Per bulan"}>
         {totals.transactions + totals.refundCount === 0 && previous.transactions === 0 ? (
           <Empty />
@@ -182,6 +228,10 @@ export default async function AdminReportPage({ searchParams }: { searchParams: 
           <li>Pesanan yang paketnya gagal kirim atau diretur tetap dihitung sampai statusnya menjadi refund.</li>
           <li>Hari dan bulan memakai zona waktu WIB. Pembanding = periode sebelumnya dengan panjang yang sama.</li>
           <li>Omzet di halaman ini sama dengan jumlah kolom Subtotal pada file Export Excel periode ini.</li>
+          <li>
+            Laba = omzet bersih - pengeluaran pada tanggal yang sama. Pengeluaran = catatan di halaman Pengeluaran ditambah ongkir kirim ulang yang
+            ditanggung toko (otomatis, sebesar ongkir awal pesanan). Modal per produk belum dihitung otomatis; catat sebagai pengeluaran modal/bahan.
+          </li>
         </ul>
       </section>
     </main>

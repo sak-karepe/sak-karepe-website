@@ -148,6 +148,13 @@
       "when": 1794215978381,
       "tag": "0020_store_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1794488573941,
+      "tag": "0021_expenses",
+      "breakpoints": true
     }
   ]
 }
