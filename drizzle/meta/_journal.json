@@ -141,6 +141,13 @@
       "when": 1794114671280,
       "tag": "0019_ambiguous_selene",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1794215978381,
+      "tag": "0020_store_settings",
+      "breakpoints": true
     }
   ]
 }

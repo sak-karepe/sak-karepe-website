@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { Check } from "@phosphor-icons/react/dist/ssr";
 import { maxQuantity, type CartItem, type CheckoutProduct } from "@/components/checkout";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useSite } from "@/components/site-shell";
 
 /** Menambah satu produk ke keranjang, tanpa melewati batas stok. Stok item yang sudah ada ikut disegarkan dari produk. */
@@ -18,6 +20,7 @@ function addItem(items: CartItem[], product: CheckoutProduct) {
 /** "Tambah ke keranjang" lalu lanjut belanja; login baru diminta saat memesan dari keranjang. */
 export function AddToCartButton({ product, className }: { product: CheckoutProduct; className: string }) {
   const { cart, updateCart } = useSite();
+  const isAdmin = useSession().data?.user?.isAdmin;
   const [added, setAdded] = useState(false);
   const limit = maxQuantity(product);
   const full = (cart.find((item) => item.id === product.id)?.quantity ?? 0) >= limit;
@@ -28,6 +31,17 @@ export function AddToCartButton({ product, className }: { product: CheckoutProdu
     const timer = window.setTimeout(() => setAdded(false), 2000);
     return () => window.clearTimeout(timer);
   }, [added]);
+
+  if (isAdmin)
+    return (
+      <p className="py-2 text-sm text-muted italic">
+        Kamu masuk sebagai admin. Kelola produk di{" "}
+        <Link href="/admin" className="text-accent underline">
+          dashboard
+        </Link>
+        .
+      </p>
+    );
 
   return (
     <button
@@ -60,6 +74,7 @@ export function AddToCartButton({ product, className }: { product: CheckoutProdu
 /** "Beli sekarang": masukkan ke keranjang (bila belum ada) lalu buka keranjang. */
 export function BuyButton({ product }: { product: CheckoutProduct }) {
   const { open, updateCart } = useSite();
+  if (useSession().data?.user?.isAdmin) return null;
   return (
     <button
       className="btn"

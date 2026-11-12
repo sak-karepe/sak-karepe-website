@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { ArrowSquareOutIcon, WhatsappLogoIcon } from "@phosphor-icons/react/dist/ssr";
-import { currentUserId } from "@/auth";
+import { currentUserId, auth, isAdmin } from "@/auth";
 import { db } from "@/db";
 import { orders, type Order } from "@/db/schema";
 import { CancelOrder } from "@/components/cancel-order";
@@ -22,6 +22,7 @@ import {
   shipmentStatusLabels,
 } from "@/lib/order-status";
 import { isActivePayment } from "@/lib/payments";
+import { autoCompleteMs } from "@/lib/shipments";
 export const metadata: Metadata = { title: "Detail pesanan · Sak Karepe", robots: { index: false } };
 
 const statusHints: Record<Order["status"], string> = {
@@ -32,13 +33,17 @@ const statusHints: Record<Order["status"], string> = {
   dikirim: "Pesanan sudah diserahkan ke kurir. Ikuti perjalanannya di kotak Pengiriman.",
   gagal_kirim: "Pengiriman gagal dan paket dikembalikan kurir. Hubungi Sak Karepe lewat WhatsApp untuk kirim ulang atau refund.",
   sampai: "Kurir melaporkan pesanan sudah sampai. Konfirmasi bila sudah diterima; pesanan otomatis selesai 2 hari setelah sampai.",
-  retur: "Komplain sedang ditinjau Sak Karepe.",
+  retur: "Komplain sedang ditangani admin.",
   selesai: "Pesanan selesai. Terima kasih sudah berbelanja di Sak Karepe.",
   refund: "Pesanan dibatalkan. Dana sedang dikembalikan.",
   dibatalkan: "Pesanan ini dibatalkan.",
 };
 
 export default async function MyOrderPage({ params }: { params: Promise<{ code: string }> }) {
+  const session = await auth();
+  if (session?.user && (await isAdmin(session.user))) {
+    redirect("/admin/pesanan");
+  }
   const code = decodeURIComponent((await params).code).toUpperCase();
   const userId = await currentUserId();
   if (!userId)
@@ -78,6 +83,8 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
       ? shipmentStatusLabels.delivered
       : (shipmentStatusLabels[order.shipmentStatus ?? "confirmed"] ?? "Diproses kurir");
   const total = order.subtotal === null ? null : order.subtotal + (order.shippingCost ?? 0);
+  const complaintDeadline = new Date((order.deliveredAt ?? order.updatedAt).getTime() + autoCompleteMs);
+  const complaintUrl = whatsappUrl(`Komplain pesanan #${order.code}: `);
   return (
     <main id="utama" className="wrap pt-8 pb-20 md:pt-10">
       <Breadcrumb items={[{ label: "Pesanan saya", href: "/pesanan" }, { label: order.code }]} />
@@ -95,6 +102,20 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
       <p className="mt-6 max-w-xl text-[17px]">
         {statusHints[order.status]}
         {order.status === "dibatalkan" && order.events[0]?.note && ` ${order.events[0].note}.`}
+        {order.status === "retur" && (
+          <>
+            {" "}
+            <a
+              href={complaintUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent underline"
+            >
+              Hubungi lewat WhatsApp
+            </a>
+            .
+          </>
+        )}
       </p>
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-16">
         <div className="grid content-start gap-10">
@@ -260,19 +281,52 @@ export default async function MyOrderPage({ params }: { params: Promise<{ code: 
               {order.status === "sampai" && (
                 <div className="mt-4">
                   <ConfirmReceived action={confirmReceived.bind(null, order.id)} />
+                  <p className="mt-2.5 text-xs text-muted">
+                    Komplain paling lambat {formatDateTime(complaintDeadline)}, setelah itu pesanan selesai otomatis.
+                  </p>
                 </div>
               )}
             </section>
           )}
+          {!order.shipmentId && order.status === "sampai" && (
+            <section aria-labelledby="konfirmasi-pesanan" className="rounded-md border border-line p-5">
+              <h2 id="konfirmasi-pesanan" className="text-sm font-medium">Konfirmasi penerimaan</h2>
+              <div className="mt-3">
+                <ConfirmReceived action={confirmReceived.bind(null, order.id)} />
+                <p className="mt-2.5 text-xs text-muted">
+                  Komplain paling lambat {formatDateTime(complaintDeadline)}, setelah itu pesanan selesai otomatis.
+                </p>
+              </div>
+            </section>
+          )}
           <a
-            href={whatsappUrl(`Halo Sak Karepe, saya ingin bertanya tentang pesanan ${order.code} (ID pesanan ${order.id}).`)}
+            href={
+              order.status === "sampai" || order.status === "retur"
+                ? complaintUrl
+                : whatsappUrl(`Halo Sak Karepe, saya ingin bertanya tentang pesanan ${order.code} (ID pesanan ${order.id}).`)
+            }
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line px-4 text-[15px] transition-colors hover:border-accent hover:text-accent"
           >
-            <WhatsappLogoIcon size={18} aria-hidden="true" /> Tanya lewat WhatsApp
+            <WhatsappLogoIcon size={18} aria-hidden="true" />
+            {order.status === "sampai" ? "Laporkan masalah di WhatsApp" : "Tanya lewat WhatsApp"}
           </a>
           {waiting && <CancelOrder action={cancelOrder.bind(null, order.id)} hasPaymentLink={Boolean(activePayment)} />}
+          {order.status === "dibayar" && !order.shipmentId && (
+            <p className="text-sm text-muted">
+              Ingin membatalkan pesanan yang sudah dibayar? Hubungi Sak Karepe lewat{" "}
+              <a
+                href={whatsappUrl(`Halo Sak Karepe, saya ingin membatalkan pesanan ${order.code} (ID pesanan ${order.id}) dan meminta refund.`)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent underline"
+              >
+                WhatsApp
+              </a>
+              . Admin akan membatalkan pesanan dan mengembalikan dana.
+            </p>
+          )}
         </aside>
       </div>
     </main>
