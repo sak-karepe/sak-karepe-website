@@ -55,33 +55,33 @@ export default async function AdminContentPage({
   const blocks = await getBlocks();
 
   return (
-    <main id="utama" className="px-5 py-8 md:px-10 md:py-12">
+    <main id="utama" className="w-full max-w-full overflow-x-hidden px-5 py-8 md:px-10 md:py-12">
       <h1 className="text-3xl tracking-[-.045em] md:text-4xl">Kelola konten</h1>
       <p className="mt-2 text-muted">Perbarui teks dan gambar utama halaman Beranda dan Cerita tanpa deploy ulang.</p>
 
       {success === "1" && !error && (
         <p role="status" className="mt-6 flex items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
           <CheckCircleIcon size={20} className="shrink-0 text-accent" aria-hidden="true" />
-          Perubahan tersimpan dan halaman publik sudah diperbarui.
+          <span>Perubahan tersimpan dan halaman publik sudah diperbarui.</span>
         </p>
       )}
       {error && (
         <p role="alert" className="mt-6 flex items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
           <WarningCircleIcon size={20} className="shrink-0 text-danger" aria-hidden="true" />
-          Tidak ada yang disimpan. {error}
+          <span>Tidak ada yang disimpan. {error}</span>
         </p>
       )}
 
       <form action={saveBlocks} className="mt-8 space-y-8 pb-20">
         <div className="grid items-start gap-8 lg:grid-cols-2">
           {blockSections.map((section) => (
-            <section key={section.title} className="space-y-5 rounded-xl border border-line bg-surface p-6 md:p-8">
+            <section key={section.title} className="space-y-5 rounded-xl border border-line bg-surface p-6 md:p-8 min-w-0">
               <div className="border-b border-line pb-4">
                 <h2 className="text-xl font-medium tracking-tight">{section.title}</h2>
                 <p className="mt-1 text-sm text-muted">{section.description}</p>
               </div>
               {section.fields.map((field) => (
-                <label key={field.key} className="block">
+                <label key={field.key} className="block min-w-0">
                   <span className="mb-2 block text-sm font-medium">{field.label}</span>
                   {field.kind === "text" && (
                     <input type="text" name={field.key} defaultValue={blocks[field.key]} className={inputClass} />
@@ -90,17 +90,17 @@ export default async function AdminContentPage({
                     <textarea name={field.key} defaultValue={blocks[field.key]} rows={3} className={inputClass} />
                   )}
                   {field.kind === "image" && (
-                    <>
+                    <div className="space-y-2 min-w-0">
                       <input
                         type="file"
                         name={field.key}
                         accept="image/jpeg,image/png,image/webp"
                         className="w-full text-sm text-muted file:mr-4 file:rounded-md file:border-0 file:bg-ink file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-page hover:file:opacity-90"
                       />
-                      <span className="mt-2 block truncate text-xs text-muted">
+                      <span className="block truncate text-xs text-muted max-w-full">
                         Aktif: <span className="text-ink">{blocks[field.key]}</span> (kosongkan untuk tetap memakai foto ini)
                       </span>
-                    </>
+                    </div>
                   )}
                 </label>
               ))}
@@ -108,7 +108,7 @@ export default async function AdminContentPage({
           ))}
         </div>
         <div className="flex justify-end border-t border-line pt-6">
-          <button type="submit" className="btn min-h-11 px-6 text-[15px]">
+          <button type="submit" className="btn w-full sm:w-auto min-h-11 px-6 text-[15px]">
             Simpan perubahan
           </button>
         </div>
