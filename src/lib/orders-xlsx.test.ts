@@ -24,7 +24,7 @@ const order: ExportOrder = {
 };
 
 function read() {
-  const workbook = XLSX.read(ordersToXlsx([order]), { type: "buffer" });
+  const workbook = XLSX.read(ordersToXlsx([order]), { type: "buffer", cellNF: true, cellStyles: true });
   assert.deepEqual(workbook.SheetNames, ["Pesanan"]);
   return workbook.Sheets.Pesanan;
 }
