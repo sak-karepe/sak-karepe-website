@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, like, lt, ne, or } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, like, lt, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import { orderSources, orders, payments, users } from "@/db/schema";
 import { isOrderStatus } from "@/lib/order-status";
@@ -62,6 +62,11 @@ export function parseOrderFilter(params: OrderFilterParams) {
         )
       : undefined;
 
-  const base = and(search, userId ? eq(orders.userId, userId) : undefined, source ? eq(orders.source, source) : undefined, params.tanpaBatal === "1" ? ne(orders.status, "dibatalkan") : undefined, date);
+  // Pesanan online yang sudah dibayar lalu dibatalkan = refund selesai; tetap ikut seperti di laporan.
+  const notCancelled = or(
+    ne(orders.status, "dibatalkan"),
+    and(eq(orders.source, "online"), inArray(orders.id, db.select({ id: payments.orderId }).from(payments).where(isNotNull(payments.paidAt)))),
+  );
+  const base = and(search, userId ? eq(orders.userId, userId) : undefined, source ? eq(orders.source, source) : undefined, params.tanpaBatal === "1" ? notCancelled : undefined, date);
   return { status, query, source, userId, base, where: and(status ? eq(orders.status, status) : undefined, base) };
 }
