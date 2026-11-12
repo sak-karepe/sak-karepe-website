@@ -15,7 +15,7 @@ import {
 import { navigation } from "@/lib/content";
 import type { RunwayPhoto } from "@/lib/runway";
 import { ShoppingCartSimpleIcon } from "@phosphor-icons/react";
-import { SessionProvider } from "next-auth/react";
+import { SessionProvider, useSession } from "next-auth/react";
 import { signInWithGoogle } from "@/lib/auth-actions";
 import { AccountMenu } from "./account-menu";
 import { whatsappUrl } from "@/lib/contact";
@@ -50,6 +50,16 @@ export function useSite() {
 const initialMessage =
   "Halo Sak Karepe, saya ingin berkonsultasi tentang produk ecoprint.";
 export function SiteShell({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionProvider basePath={`${basePath}/api/auth`}>
+      <SiteContent>{children}</SiteContent>
+    </SessionProvider>
+  );
+}
+
+/** Dipisah dari SiteShell agar useSession berada di bawah SessionProvider. */
+function SiteContent({ children }: { children: React.ReactNode }) {
+  const isAdmin = useSession().data?.user?.isAdmin;
   const currentPath = usePathname();
   const pathname = basePath && currentPath.startsWith(`${basePath}/`)
     ? currentPath.slice(basePath.length) : currentPath;
@@ -183,7 +193,6 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             ? "Keranjang"
             : "Fashion show Sak Karepe";
   return (
-    <SessionProvider basePath={`${basePath}/api/auth`}>
     <SiteContext.Provider value={{ open, cart, updateCart }}>
       <a
         href="#utama"
@@ -228,6 +237,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             ))}
           </div>
           <div className="flex items-center gap-3">
+            {!isAdmin && (
             <button
               className="relative grid size-10 place-items-center rounded-full text-ink transition-colors hover:bg-surface hover:text-accent"
               aria-label={`Keranjang, ${cart.length} produk`}
@@ -240,6 +250,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                 </span>
               )}
             </button>
+            )}
             <AccountMenu onLogin={() => open({ kind: "login" })} />
             <button
               className="rounded-md bg-surface px-3 py-2 text-sm lg:hidden"
@@ -483,6 +494,5 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         </div>
       </dialog>
     </SiteContext.Provider>
-    </SessionProvider>
   );
 }

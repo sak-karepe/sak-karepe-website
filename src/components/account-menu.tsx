@@ -44,7 +44,7 @@ export function AccountMenu({ onLogin }: { onLogin: () => void }) {
     <div ref={root} className="relative">
       <button
         ref={trigger}
-        className="grid size-9 place-items-center overflow-hidden rounded-full border border-line transition-colors hover:border-accent"
+        className="grid size-9 place-items-center overflow-hidden rounded-full border border-line bg-surface transition-colors hover:border-accent"
         aria-label={`Akun ${user.name ?? user.email}`}
         aria-expanded={open}
         aria-controls="account-menu"
@@ -65,13 +65,18 @@ export function AccountMenu({ onLogin }: { onLogin: () => void }) {
             <p className="truncate text-[15px] font-medium">{user.name ?? user.email}</p>
             {user.name && <p className="truncate text-[13px] text-muted">{user.email}</p>}
           </div>
-          <Link
-            href="/pesanan"
-            className="mt-1 flex items-center gap-3 rounded-md px-3 py-2.5 text-[15px] hover:bg-surface"
-            onClick={() => setOpen(false)}
-          >
-            <ReceiptIcon size={18} aria-hidden="true" /> Pesanan saya
-          </Link>
+
+          {/* Sembunyikan 'Pesanan saya' jika user adalah admin */}
+          {!user.isAdmin && (
+            <Link
+              href="/pesanan"
+              className="mt-1 flex items-center gap-3 rounded-md px-3 py-2.5 text-[15px] hover:bg-surface"
+              onClick={() => setOpen(false)}
+            >
+              <ReceiptIcon size={18} aria-hidden="true" /> Pesanan saya
+            </Link>
+          )}
+
           {user.isAdmin && (
             <Link
               href="/admin"
