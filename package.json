@@ -12,7 +12,7 @@
     "db:seed": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local src/db/seed.ts",
     "db:seed-regions": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local src/db/seed-regions.ts",
     "db:seed-runway": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local src/db/seed-runway.ts",
-    "db:seed-dummy": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local src/db/seed-dummy-users.ts",
+    "db:seed-dummy": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local src/db/seed-demo.ts",
     "db:reset": "node --env-file-if-exists=.env --env-file-if-exists=.env.local -e \"const u=process.env.DATABASE_URL||'file:./data/sakkarepe.db';if(!u.startsWith('file:')||u.startsWith('file://'))throw new Error('db:reset hanya untuk DB file lokal (file:./...)');for(const s of ['','-wal','-shm'])require('fs').rmSync(u.slice(5)+s,{force:true})\" && npm run db:migrate && npm run db:seed && npm run db:seed-regions && npm run db:seed-runway",
     "db:studio": "drizzle-kit studio",
     "check": "tsx scripts/check-shipments.mts",
