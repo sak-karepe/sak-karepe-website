@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCategory, getProduct, getProducts } from "@/lib/catalog";
 import { formatRupiah } from "@/lib/format";
+import { siteUrl } from "@/lib/assets";
 import { ProductPhotos } from "@/components/product-photos";
 import { ProductCard } from "@/components/product-card";
 import { Breadcrumb } from "@/components/page-intro";
@@ -28,9 +29,8 @@ export async function generateMetadata({
     };
   }
 
-  const baseUrl = process.env.AUTH_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
   const image = product.images[0];
-  const ogImage = new URL(image?.src || "/brand/logo.svg", `${baseUrl.replace(/\/+$/, "")}/`).toString();
+  const ogImage = `${siteUrl}${image?.src || "/brand/logo.svg"}`;
 
   return {
     title: `${product.name} · Sak Karepe`,
@@ -38,7 +38,7 @@ export async function generateMetadata({
     openGraph: {
       title: product.name,
       description: product.description || image?.alt || product.name,
-      url: new URL(`/produk/${product.slug}`, `${baseUrl.replace(/\/+$/, "")}/`).toString(),
+      url: `${siteUrl}/produk/${product.slug}`,
       siteName: "Sak Karepe",
       images: [{
         url: ogImage,
