@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCategory, getProduct, getProducts } from "@/lib/catalog";
 import { formatRupiah } from "@/lib/format";
+import { siteUrl } from "@/lib/assets";
 import { ProductPhotos } from "@/components/product-photos";
 import { ProductCard } from "@/components/product-card";
 import { Breadcrumb } from "@/components/page-intro";
@@ -21,9 +22,37 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const product = await getProduct((await params).slug);
+  if (!product) {
+    return {
+      title: "Produk · Sak Karepe",
+      description: "Produk Sak Karepe.",
+    };
+  }
+
+  const image = product.images[0];
+  const ogImage = `${siteUrl}${image?.src || "/brand/logo.svg"}`;
+
   return {
-    title: product ? `${product.name} · Sak Karepe` : "Produk · Sak Karepe",
-    description: product?.description || product?.images[0].alt,
+    title: `${product.name} · Sak Karepe`,
+    description: product.description || image?.alt || product.name,
+    openGraph: {
+      title: product.name,
+      description: product.description || image?.alt || product.name,
+      url: `${siteUrl}/produk/${product.slug}`,
+      siteName: "Sak Karepe",
+      images: [{
+        url: ogImage,
+        alt: image?.alt || product.name,
+        width: 1200,
+        height: 1200,
+      }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: product.name,
+      description: product.description || image?.alt || product.name,
+      images: [ogImage],
+    },
   };
 }
 export default async function ProductPage({

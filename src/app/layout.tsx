@@ -1,4 +1,4 @@
-import { assetPath } from "@/lib/assets";
+import { assetPath, siteUrl } from "@/lib/assets";
 import { displayKey } from "@/lib/content";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
@@ -28,6 +28,7 @@ const dyslexic = localFont({
   preload: false,
 });
 export const metadata: Metadata = {
+  metadataBase: new URL(`${siteUrl}/`),
   title: "Sak Karepe · Pewarnaan Alami",
   description:
     "Ecoprint, batik, dan tenun Sak Karepe. Jelajahi koleksi, fashion show, dan perjalanan berkarya dari SLB Khusus Bina Mandiri.",
