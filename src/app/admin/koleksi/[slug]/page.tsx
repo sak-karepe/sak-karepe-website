@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { ArrowSquareOutIcon } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRightIcon, ArrowSquareOutIcon } from "@phosphor-icons/react/dist/ssr";
 import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
 import { categories, products } from "@/db/schema";
@@ -34,7 +34,13 @@ export default async function EditCategoryPage({
         <div>
           <h1 className="text-3xl tracking-[-.045em] md:text-4xl">Ubah koleksi</h1>
           <p className="mt-2 text-sm text-muted">
-            {productCount} produk di dalam koleksi ini
+            <Link
+              href={`/admin/produk?koleksi=${encodeURIComponent(category.slug)}`}
+              className="inline-flex items-center gap-1.5 font-medium text-accent hover:underline"
+            >
+              Lihat {productCount} produk di koleksi ini
+              <ArrowRightIcon size={14} aria-hidden="true" />
+            </Link>
           </p>
         </div>
         <Link
