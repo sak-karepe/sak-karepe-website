@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { count, desc } from "drizzle-orm";
-import { DownloadSimpleIcon, MagnifyingGlassIcon, CaretLeftIcon, CaretRightIcon, XIcon } from "@phosphor-icons/react/dist/ssr";
+import { DownloadSimpleIcon, MagnifyingGlassIcon, CaretLeftIcon, CaretRightIcon, XIcon, PlusIcon } from "@phosphor-icons/react/dist/ssr";
 import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
 import { orders, orderStatuses } from "@/db/schema";
 import { formatDateTime, formatRupiah } from "@/lib/format";
-import { orderStatusClass, orderStatusLabels } from "@/lib/order-status";
+import { orderSourceLabels, orderStatusClass, orderStatusLabels } from "@/lib/order-status";
 import { parseOrderFilter } from "@/lib/order-filter";
 
 export const metadata: Metadata = { title: "Pesanan" };
@@ -16,10 +16,24 @@ const ORDERS_PER_PAGE = 15;
 export default async function AdminOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; page?: string; user?: string; dari?: string; sampai?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    q?: string;
+    page?: string;
+    user?: string;
+    dari?: string;
+    sampai?: string;
+  }>;
 }) {
   await requireAdminPage();
-  const { status: param, q = "", page: pageParam, user: userParam, dari, sampai } = await searchParams;
+  const {
+    status: param,
+    q = "",
+    page: pageParam,
+    user: userParam,
+    dari,
+    sampai,
+  } = await searchParams;
 
   // Filter yang sama dipakai export Excel (lib/order-filter), jadi file export selalu mengikuti daftar ini.
   const filter = parseOrderFilter({ status: param, q, user: userParam, dari, sampai });
@@ -56,7 +70,9 @@ export default async function AdminOrdersPage({
   const totalPages = Math.ceil(totalOrders / ORDERS_PER_PAGE);
 
   const countOf = (value?: string) =>
-    counts.filter((row) => !value || row.status === value).reduce((sum, row) => sum + row.total, 0);
+    counts
+      .filter((row) => !value || row.status === value)
+      .reduce((sum, row) => sum + row.total, 0);
 
   const buildParams = (newParams: Record<string, string | undefined>) => {
     const params = new URLSearchParams();
@@ -74,31 +90,66 @@ export default async function AdminOrdersPage({
   };
   const exportHref = buildParams({ page: undefined }).replace("/admin/pesanan", "/admin/pesanan/export");
 
-  const tabs = [{ value: undefined, label: "Semua" }, ...orderStatuses.map((value) => ({ value, label: orderStatusLabels[value] }))];
+  const tabs = [
+    { value: undefined, label: "Semua" },
+    ...orderStatuses.map((value) => ({
+      value,
+      label: orderStatusLabels[value],
+    })),
+  ];
   const hasActiveFilters = Boolean(query || status || userId || dari || sampai);
 
   return (
     <main id="utama" className="px-5 py-8 md:px-10 md:py-12">
-      <h1 className="text-3xl tracking-[-.045em] md:text-4xl">Pesanan</h1>
-      <Link href="/admin/pesanan/import" className="mt-4 inline-flex min-h-11 items-center rounded-md border border-line px-4 text-sm hover:border-accent">
-        Import transaksi lama
-      </Link>
-      <a href={exportHref} download className="mt-4 ml-3 inline-flex min-h-11 items-center gap-2 rounded-md border border-line px-4 text-sm hover:border-accent">
-        <DownloadSimpleIcon size={18} aria-hidden="true" /> Export Excel
-      </a>
+      <div className="flex flex-wrap items-end justify-between gap-5">
+        <h1 className="text-3xl tracking-[-.045em] md:text-4xl">Pesanan</h1>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/pesanan/import"
+            className="inline-flex min-h-11 items-center rounded-md border border-line px-4 text-sm hover:border-accent"
+          >
+            Import transaksi lama
+          </Link>
+          <a
+            href={exportHref}
+            download
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-line px-4 text-sm hover:border-accent"
+          >
+            <DownloadSimpleIcon size={18} aria-hidden="true" /> Export Excel
+          </a>
+          <Link
+            href="/admin/pesanan/baru"
+            className="btn min-h-11 gap-2 px-4 text-[15px]"
+          >
+            <PlusIcon size={18} aria-hidden="true" /> Catat penjualan
+          </Link>
+        </div>
+      </div>
       <p className="mt-2 text-muted">
-        {totalOrders} pesanan{status && ` ${orderStatusLabels[status].toLowerCase()}`}
-        {query && ` untuk pencarian "${query}"`}. Pembeli melanjutkan lewat WhatsApp dengan mengutip kode pesanan.
+        {totalOrders} pesanan
+        {status && ` ${orderStatusLabels[status].toLowerCase()}`}
+        {query && ` untuk pencarian "${query}"`}. Pembeli melanjutkan lewat
+        WhatsApp dengan mengutip kode pesanan.
       </p>
 
-      <form action="/admin/pesanan" method="GET" className="mt-6 space-y-4 max-w-3xl">
+      <form
+        action="/admin/pesanan"
+        method="GET"
+        className="mt-6 space-y-4 max-w-3xl"
+      >
         {status && <input type="hidden" name="status" value={status} />}
         {userId && <input type="hidden" name="user" value={userId} />}
 
         <div className="flex flex-col sm:flex-row items-center gap-2">
           <label className="flex min-h-11 flex-1 w-full items-center gap-2 rounded-md border border-line bg-page px-3 focus-within:border-accent">
-            <MagnifyingGlassIcon size={18} aria-hidden="true" className="shrink-0 text-muted" />
-            <span className="sr-only">Cari ID, kode, nama, atau telepon pembeli</span>
+            <MagnifyingGlassIcon
+              size={18}
+              aria-hidden="true"
+              className="shrink-0 text-muted"
+            />
+            <span className="sr-only">
+              Cari ID, kode, nama, atau telepon pembeli
+            </span>
             <input
               type="search"
               name="q"
@@ -128,18 +179,27 @@ export default async function AdminOrdersPage({
             defaultValue={sampai}
             className="rounded-md border border-line bg-page px-3 py-1.5 text-sm focus:border-accent focus:outline-none"
           />
-          <button type="submit" className="rounded-md border border-line px-3 py-1.5 text-sm font-medium hover:border-accent">
+          <button
+            type="submit"
+            className="rounded-md border border-line px-3 py-1.5 text-sm font-medium hover:border-accent"
+          >
             Terapkan Filter
           </button>
           {hasActiveFilters && (
-            <Link href="/admin/pesanan" className="inline-flex items-center gap-1 text-muted hover:text-ink font-medium">
+            <Link
+              href="/admin/pesanan"
+              className="inline-flex items-center gap-1 text-muted hover:text-ink font-medium"
+            >
               <XIcon size={16} /> Reset Semua Filter
             </Link>
           )}
         </div>
       </form>
 
-      <nav aria-label="Filter status" className="mt-8 flex gap-6 overflow-x-auto border-b border-line">
+      <nav
+        aria-label="Filter status"
+        className="mt-8 flex gap-6 overflow-x-auto border-b border-line"
+      >
         {tabs.map((tab) => {
           const active = status === tab.value;
           return (
@@ -150,7 +210,9 @@ export default async function AdminOrdersPage({
               className={`flex shrink-0 items-center gap-2 border-b-2 px-1 py-3 text-[15px] ${active ? "border-accent font-medium" : "border-transparent text-muted hover:text-ink"}`}
             >
               {tab.label}
-              <span className="text-xs tabular-nums text-muted">{countOf(tab.value)}</span>
+              <span className="text-xs tabular-nums text-muted">
+                {countOf(tab.value)}
+              </span>
             </Link>
           );
         })}
@@ -158,7 +220,9 @@ export default async function AdminOrdersPage({
 
       {rows.length === 0 ? (
         <p className="py-16 text-center text-muted">
-          {hasActiveFilters ? "Tidak ada pesanan yang sesuai dengan filter atau pencarian." : "Belum ada pesanan di sini."}
+          {hasActiveFilters
+            ? "Tidak ada pesanan yang sesuai dengan filter atau pencarian."
+            : "Belum ada pesanan di sini."}
         </p>
       ) : (
         <>
@@ -172,27 +236,51 @@ export default async function AdminOrdersPage({
                 <li key={order.id}>
                   <Link
                     href={`/admin/pesanan/${order.id}`}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-4 transition-colors hover:bg-surface/60 md:grid-cols-[170px_minmax(0,1fr)_130px_160px_190px] md:px-2"
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-4 transition-colors hover:bg-surface/60 md:grid-cols-[170px_minmax(0,1fr)_130px_auto_190px] md:px-2"
                   >
                     <div className="min-w-0">
-                      <p className="font-mono text-[15px] font-medium">{order.code}</p>
-                      <p className="text-sm text-muted md:hidden">{formatDateTime(order.createdAt)}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-mono text-[15px] font-medium">
+                          {order.code}
+                        </p>
+                      </div>
+                      <p className="text-sm text-muted md:hidden">
+                        {formatDateTime(order.createdAt)}
+                      </p>
                     </div>
-                    <span
-                      className={`justify-self-end rounded-full px-2.5 py-1 text-xs whitespace-nowrap md:order-last ${orderStatusClass(order.status)}`}
-                    >
-                      {orderStatusLabels[order.status]}
-                    </span>
+
+                    {/* Badge Sumber & Status Berdampingan */}
+                    <div className="flex items-center gap-2 justify-self-end md:order-last">
+                      {order.source && order.source !== "online" && (
+                        <span className="rounded bg-surface px-2 py-0.5 text-xs whitespace-nowrap border border-line text-muted font-medium">
+                          {orderSourceLabels[order.source] ?? order.source}
+                        </span>
+                      )}
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs whitespace-nowrap ${orderStatusClass(order.status)}`}
+                      >
+                        {orderStatusLabels[order.status]}
+                      </span>
+                    </div>
+
                     <div className="col-span-2 min-w-0 md:col-span-1">
                       <p className="truncate">
-                        {order.user ? (order.user.name ?? order.user.email) : (order.customerName ?? "Pembeli langsung")}
+                        {order.user
+                          ? (order.user.name ?? order.user.email)
+                          : (order.customerName ?? "Pembeli langsung")}
                       </p>
                       <p className="truncate text-sm text-muted">{summary}</p>
                     </div>
                     <p className="hidden text-[15px] md:block">
-                      {order.subtotal === null ? <span className="text-muted">Konsultasi</span> : formatRupiah(order.subtotal)}
+                      {order.subtotal === null ? (
+                        <span className="text-muted">Konsultasi</span>
+                      ) : (
+                        formatRupiah(order.subtotal)
+                      )}
                     </p>
-                    <p className="hidden text-sm text-muted md:block">{formatDateTime(order.createdAt)}</p>
+                    <p className="hidden text-sm text-muted md:block">
+                      {formatDateTime(order.createdAt)}
+                    </p>
                   </Link>
                 </li>
               );
@@ -202,7 +290,8 @@ export default async function AdminOrdersPage({
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-8 pt-4 border-t border-line px-2">
               <p className="text-sm text-muted">
-                Halaman {currentPage} dari {totalPages} (Total {totalOrders} pesanan)
+                Halaman {currentPage} dari {totalPages} (Total {totalOrders}{" "}
+                pesanan)
               </p>
               <div className="flex items-center gap-2">
                 {currentPage > 1 ? (
