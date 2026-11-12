@@ -219,8 +219,21 @@ export const payments = sqliteTable("payments", {
   requestId: text("request_id"),
   /** Diisi setelah DOKU menerima pembatalan link. */
   cancelledAt: integer("cancelled_at", { mode: "timestamp" }),
+  /** Alamat & kurir baru dari pembeli yang baru diterapkan ke pesanan setelah tagihan selisih ongkir ini lunas. */
+  pendingChange: text("pending_change", { mode: "json" }).$type<PendingOrderChange>(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
+
+export type PendingOrderChange = {
+  recipientName: string;
+  phone: string;
+  shippingAddress: string;
+  postalCode: string;
+  courierCode: string;
+  courierServiceCode: string;
+  courierName: string;
+  shippingCost: number;
+};
 
 /** Resi lama yang gagal kirim, disimpan saat admin mengirim ulang; resi yang berlaku tetap di `orders`. */
 export const shipmentHistory = sqliteTable("shipment_history", {
@@ -280,6 +293,11 @@ export const runwayPhotos = sqliteTable("runway_photos", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
 export const productsRelations = relations(products, ({ many, one }) => ({
   images: many(productImages),
   category: one(categories, { fields: [products.categorySlug], references: [categories.slug] }),
@@ -317,6 +335,12 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   product: one(products, { fields: [orderItems.productId], references: [products.id] }),
 }));
 
+export const pageBlocks = sqliteTable("page_blocks", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull().default(""),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
 export type Category = typeof categories.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type ProductImage = typeof productImages.$inferSelect;
@@ -328,4 +352,5 @@ export type OrderItem = typeof orderItems.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type ShipmentHistory = typeof shipmentHistory.$inferSelect;
 export type OrderEvent = typeof orderEvents.$inferSelect;
+export type PageBlock = typeof pageBlocks.$inferSelect;
 export type RunwayPhotoRow = typeof runwayPhotos.$inferSelect;

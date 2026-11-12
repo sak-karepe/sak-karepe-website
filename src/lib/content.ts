@@ -54,4 +54,5 @@ export const navigation = [
   { href: "/fashion-show", label: "Fashion show" },
   { href: "/cerita", label: "Cerita kami" },
   { href: "/kontak", label: "Kontak" },
-];
+];/** Pengaturan tampilan pengunjung di localStorage; dibaca skrip inline di app/layout.tsx sebelum halaman tampil. */
+export const displayKey = "sak-karepe-tampilan";

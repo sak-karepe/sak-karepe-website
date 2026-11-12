@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { CheckCircleIcon, CopyIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { CloseIcon } from "@/components/icons";
 import { basePath } from "@/lib/assets";
@@ -20,15 +20,38 @@ const digits = (value: string) => value.replace(/\D/g, "").replace(/^0+(?=\d)/, 
 const checkoutUrl = (code: string) => `${window.location.origin}${basePath}/pesanan/${code}/checkout`;
 
 /** Tombol salin dengan tanda "Tersalin". `text` dibuat saat diklik karena butuh `window`. */
-export function CopyButton({ text, label, className = "" }: { text: () => string; label: string; className?: string }) {
-  const [copied, setCopied] = useState(false);
+export function CopyButton({
+  text,
+  label,
+  className = "",
+  onError,
+}: {
+  text: () => string;
+  label: string;
+  className?: string;
+  onError?: () => void;
+}) {
+  const [result, setResult] = useState<"idle" | "copied" | "error">("idle");
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(resetTimer.current), []);
+  const copy = async () => {
+    clearTimeout(resetTimer.current);
+    try {
+      await navigator.clipboard.writeText(text());
+      setResult("copied");
+    } catch {
+      setResult("error");
+      onError?.();
+    }
+    resetTimer.current = setTimeout(() => setResult("idle"), 2000);
+  };
   return (
     <button
       type="button"
       className={`flex items-center justify-center gap-1.5 ${className}`}
-      onClick={() => navigator.clipboard.writeText(text()).then(() => setCopied(true))}
+      onClick={copy}
     >
-      <CopyIcon size={16} aria-hidden="true" /> {copied ? "Tersalin" : label}
+      <CopyIcon size={16} aria-hidden="true" /> {result === "copied" ? "Tersalin" : result === "error" ? "Gagal menyalin" : label}
     </button>
   );
 }
@@ -79,7 +102,9 @@ export function CheckoutLinkDialog(props: Props) {
 function CheckoutLinkForm({ action, items, code }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const [prices, setPrices] = useState(() => items.map((item) => (item.price ? String(item.price) : "")));
+  const urlRef = useRef<HTMLParagraphElement>(null);
   const subtotal = items.reduce((sum, item, index) => sum + Number(prices[index] || 0) * item.quantity, 0);
+  const hasInvalidPrice = prices.some((price) => !price || Number(price) <= 0);
 
   if (state.saved) {
     const url = checkoutUrl(code);
@@ -93,8 +118,15 @@ function CheckoutLinkForm({ action, items, code }: Props) {
           WhatsApp; link pembayaran DOKU dibuat setelah pembeli mengisi alamat.
         </p>
         <div className="mt-6 flex items-center gap-2 rounded-md bg-surface py-1.5 pr-1.5 pl-3.5">
-          <p className="min-w-0 flex-1 truncate text-sm">{url}</p>
-          <CopyButton text={() => url} label="Salin" className="shrink-0 rounded-md px-3 py-2 text-sm hover:bg-page" />
+          <p ref={urlRef} className="min-w-0 flex-1 truncate text-sm select-all">{url}</p>
+          <CopyButton
+            text={() => url}
+            label="Salin"
+            className="shrink-0 rounded-md px-3 py-2 text-sm hover:bg-page"
+            onError={() => {
+              if (urlRef.current) window.getSelection()?.selectAllChildren(urlRef.current);
+            }}
+          />
         </div>
         <CopyButton text={() => message} label="Salin pesan untuk pembeli" className="btn mt-4 w-full" />
       </div>
@@ -102,14 +134,27 @@ function CheckoutLinkForm({ action, items, code }: Props) {
   }
 
   return (
-    <form action={formAction} className="px-5 pt-6 md:px-7">
+    <form
+      action={formAction}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        startTransition(() => formAction(formData));
+      }}
+      className="px-5 pt-6 md:px-7"
+    >
       <p className="text-[15px] text-muted">
         Harga terisi dari katalog. Ubah sesuai hasil kesepakatan dengan pembeli. Ongkos kirim dihitung otomatis saat pembeli
         mengisi alamat di halaman checkout.
       </p>
       <ul className="mt-5 grid gap-2">
         {items.map((item, index) => (
-          <li key={item.id} className="grid gap-2 rounded-md bg-surface px-4 py-4 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center sm:gap-4">
+          <li
+            key={item.id}
+            className={`grid gap-2 rounded-md bg-surface px-4 py-4 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center sm:gap-4 ${
+              !prices[index] || Number(prices[index]) <= 0 ? "border border-danger/35" : ""
+            }`}
+          >
             <label htmlFor={`price-${item.id}`} className="min-w-0">
               <span className="line-clamp-2">{item.name}</span>
               <span className="block text-sm text-muted">
@@ -126,6 +171,9 @@ function CheckoutLinkForm({ action, items, code }: Props) {
               required
               onChange={(value) => setPrices((current) => current.map((price, i) => (i === index ? value : price)))}
             />
+            {(!prices[index] || Number(prices[index]) <= 0) && (
+              <p className="text-sm text-danger sm:col-start-2">Harga harus lebih dari Rp0.</p>
+            )}
           </li>
         ))}
       </ul>
@@ -143,7 +191,7 @@ function CheckoutLinkForm({ action, items, code }: Props) {
           <p className="text-sm text-muted">Subtotal</p>
           <p className="text-lg font-medium tabular-nums">Rp{rupiah.format(subtotal)}</p>
         </div>
-        <button className="btn min-h-12" disabled={pending || subtotal === 0}>
+        <button className="btn min-h-12 disabled:pointer-events-none disabled:opacity-50" disabled={pending || hasInvalidPrice}>
           {pending ? "Menyimpan…" : "Buat link checkout"}
         </button>
       </div>

@@ -1,69 +1,114 @@
 "use server";
-import { and, eq, like, max, ne, notInArray, or } from "drizzle-orm";
+import { and, asc, eq, max, ne, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
 import { categories, productImages, products } from "@/db/schema";
 import { parseAmount } from "@/lib/format";
-import { slugify } from "@/lib/slug";
+import { contains, searchLimit } from "@/lib/search";
+import { uniqueSlug } from "@/lib/slug";
 import { checkUpload, removeUpload, saveUpload } from "@/lib/uploads";
 
-export type ProductFormState = { error?: string };
+export type ProductFormValues = {
+  name: string;
+  slug: string;
+  categorySlug: string;
+  description: string;
+  price: number | string | null;
+  stock: number | string | null;
+  weight: number | string | null;
+  published: boolean;
+};
 
+export type ProductFormState = {
+  error?: string;
+  values?: ProductFormValues;
+};
 
-/** Slug dari form (atau dari nama bila kosong), diberi akhiran -2, -3, ... bila sudah dipakai produk lain. */
-async function uniqueSlug(input: string, excludeId?: number) {
-  const base = slugify(input);
-  const taken = new Set(
-    (
-      await db
-        .select({ slug: products.slug })
-        .from(products)
-        .where(and(or(eq(products.slug, base), like(products.slug, `${base}-%`)), excludeId ? ne(products.id, excludeId) : undefined))
-    ).map((row) => row.slug),
-  );
-  let slug = base;
-  for (let n = 2; taken.has(slug); n++) slug = `${base}-${n}`;
-  return slug;
+/** Pencarian koleksi untuk dropdown form produk; dicari di server supaya client tidak memuat semua koleksi. */
+export async function searchCategories(query: string) {
+  await requireAdmin();
+  return db
+    .select({ value: categories.slug, label: categories.title })
+    .from(categories)
+    .where(contains(categories.title, String(query ?? "").slice(0, 100)))
+    .orderBy(asc(categories.sortOrder), asc(categories.title))
+    .limit(searchLimit);
 }
 
 async function readForm(formData: FormData, excludeId?: number) {
   const name = String(formData.get("name") ?? "").trim();
   const categorySlug = String(formData.get("categorySlug") ?? "");
-  const files = formData.getAll("newImages").filter((file): file is File => file instanceof File && file.size > 0);
-  if (!name) return { error: "Nama produk wajib diisi." } as const;
-  const category = await db.query.categories.findFirst({ where: eq(categories.slug, categorySlug) });
-  if (!category) return { error: "Pilih koleksi produk." } as const;
+  const files = formData
+    .getAll("newImages")
+    .filter((file): file is File => file instanceof File && file.size > 0);
+
+  // Kumpulkan nilai mentah form untuk dikembalikan jika terjadi error
+  const rawValues: ProductFormValues = {
+    name,
+    slug: String(formData.get("slug") ?? "").trim(),
+    categorySlug,
+    description: String(formData.get("description") ?? "").trim(),
+    price: String(formData.get("price") ?? ""),
+    stock: String(formData.get("stock") ?? ""),
+    weight: String(formData.get("weight") ?? ""),
+    published: formData.get("published") === "on",
+  };
+
+  if (!name) return { error: "Nama produk wajib diisi.", values: rawValues } as const;
+  const category = await db.query.categories.findFirst({
+    where: eq(categories.slug, categorySlug),
+  });
+  if (!category) return { error: "Pilih koleksi produk.", values: rawValues } as const;
+
   const uploadError = files.map(checkUpload).find(Boolean);
-  if (uploadError) return { error: uploadError } as const;
+  if (uploadError) return { error: uploadError, values: rawValues } as const;
+
   let images: string[];
-  // shortcut: foto yang sudah tersimpan tidak dihapus bila upload lain atau tulis DB gagal; bersihkan bila storage membengkak.
   try {
     images = await Promise.all(files.map(saveUpload));
   } catch (error) {
     console.error("[upload] Foto produk gagal disimpan", error);
-    return { error: "Foto belum bisa disimpan. Coba lagi sebentar." } as const;
+    return {
+      error: "Foto belum bisa disimpan. Coba lagi sebentar.",
+      values: rawValues,
+    } as const;
   }
+
   return {
     images,
     values: {
       name,
-      slug: await uniqueSlug(String(formData.get("slug") ?? "").trim() || name, excludeId),
+      slug: await uniqueSlug(
+        products.slug,
+        rawValues.slug || name,
+        excludeId ? ne(products.id, excludeId) : undefined,
+      ),
       categorySlug,
-      description: String(formData.get("description") ?? "").trim(),
-      price: parseAmount(formData.get("price")),
-      stock: parseAmount(formData.get("stock")),
-      weight: parseAmount(formData.get("weight")),
-      published: formData.get("published") === "on",
+      description: rawValues.description,
+      price: parseAmount(rawValues.price as string),
+      stock: parseAmount(rawValues.stock as string),
+      weight: parseAmount(rawValues.weight as string),
+      published: rawValues.published,
     },
   } as const;
 }
 
 /** Foto baru ditaruh setelah foto lama; alt default memakai nama produk. */
-async function addImages(productId: number, images: string[], alt: string, startOrder: number) {
+async function addImages(
+  productId: number,
+  images: string[],
+  alt: string,
+  startOrder: number,
+) {
   for (const [index, src] of images.entries()) {
-    await db.insert(productImages).values({ productId, src, alt, sortOrder: startOrder + index });
+    await db.insert(productImages).values({
+      productId,
+      src,
+      alt,
+      sortOrder: startOrder + index,
+    });
   }
 }
 
@@ -71,10 +116,13 @@ function refreshCatalog() {
   revalidatePath("/", "layout");
 }
 
-export async function createProduct(_state: ProductFormState, formData: FormData): Promise<ProductFormState> {
+export async function createProduct(
+  _state: ProductFormState,
+  formData: FormData,
+): Promise<ProductFormState> {
   await requireAdmin();
   const form = await readForm(formData);
-  if ("error" in form) return { error: form.error };
+  if ("error" in form) return { error: form.error, values: form.values };
   const [{ last }] = await db
     .select({ last: max(products.sortOrder) })
     .from(products)
@@ -95,22 +143,34 @@ export async function updateProduct(
 ): Promise<ProductFormState> {
   await requireAdmin();
   const form = await readForm(formData, id);
-  if ("error" in form) return { error: form.error };
+  if ("error" in form) return { error: form.error, values: form.values };
   // Urutan input imageId mengikuti urutan foto di form.
   const keptIds = formData.getAll("imageId").map(Number);
   const removed = await db
     .select()
     .from(productImages)
-    .where(and(eq(productImages.productId, id), notInArray(productImages.id, keptIds.length ? keptIds : [-1])));
+    .where(
+      and(
+        eq(productImages.productId, id),
+        notInArray(productImages.id, keptIds.length ? keptIds : [-1]),
+      ),
+    );
   await db.transaction(async (tx) => {
-    await tx.update(products).set({ ...form.values, updatedAt: new Date() }).where(eq(products.id, id));
-    for (const image of removed) await tx.delete(productImages).where(eq(productImages.id, image.id));
+    await tx
+      .update(products)
+      .set({ ...form.values, updatedAt: new Date() })
+      .where(eq(products.id, id));
+    for (const image of removed)
+      await tx.delete(productImages).where(eq(productImages.id, image.id));
     for (const [index, imageId] of keptIds.entries()) {
-      const alt = String(formData.get(`alt-${imageId}`) ?? "").trim() || form.values.name;
+      const alt =
+        String(formData.get(`alt-${imageId}`) ?? "").trim() || form.values.name;
       await tx
         .update(productImages)
         .set({ alt, sortOrder: index })
-        .where(and(eq(productImages.id, imageId), eq(productImages.productId, id)));
+        .where(
+          and(eq(productImages.id, imageId), eq(productImages.productId, id)),
+        );
     }
   });
   await Promise.all(removed.map((image) => removeUpload(image.src)));
@@ -121,7 +181,10 @@ export async function updateProduct(
 
 export async function deleteProduct(id: number) {
   await requireAdmin();
-  const images = await db.select().from(productImages).where(eq(productImages.productId, id));
+  const images = await db
+    .select()
+    .from(productImages)
+    .where(eq(productImages.productId, id));
   await db.transaction(async (tx) => {
     await tx.delete(productImages).where(eq(productImages.productId, id));
     await tx.delete(products).where(eq(products.id, id));

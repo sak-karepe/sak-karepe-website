@@ -1,5 +1,5 @@
 "use client";
-import { useActionState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { WarningCircleIcon } from "@phosphor-icons/react";
 
 type State = { error?: string; dashboard?: boolean };
@@ -35,11 +35,15 @@ function RadioGroup({
   legend,
   options,
   noDefault,
+  value,
+  onChange,
 }: {
   name: string;
   legend: string;
   options: { value: string; label: string; hint: string }[];
   noDefault?: boolean;
+  value?: string;
+  onChange?: (value: string) => void;
 }) {
   return (
     <fieldset className="grid gap-2">
@@ -50,8 +54,10 @@ function RadioGroup({
             type="radio"
             name={name}
             value={option.value}
-            defaultChecked={!noDefault && index === 0}
+            checked={value !== undefined ? value === option.value : undefined}
+            defaultChecked={value === undefined ? !noDefault && index === 0 : undefined}
             required={noDefault}
+            onChange={(event) => onChange?.(event.target.value)}
             className="mt-1 accent-accent"
           />
           <span>
@@ -94,6 +100,14 @@ export function ResendShipmentForm({
   address: { recipientName: string; phone: string; shippingAddress: string; postalCode: string };
 }) {
   const [state, formAction, pending] = useActionState(action, {});
+  const [values, setValues] = useState({
+    recipientName: address.recipientName,
+    phone: address.phone,
+    shippingAddress: address.shippingAddress,
+    postalCode: address.postalCode,
+  });
+  const [paidBy, setPaidBy] = useState("");
+  const [method, setMethod] = useState(methods[0].value);
   const fields = [
     { name: "recipientName", label: "Nama penerima", autoComplete: "name" },
     { name: "phone", label: "Nomor HP", autoComplete: "tel" },
@@ -101,28 +115,58 @@ export function ResendShipmentForm({
     { name: "postalCode", label: "Kode pos", autoComplete: "postal-code" },
   ] as const;
   return (
-    <form action={formAction} className="mt-3 grid gap-3">
+    <form
+      action={formAction}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        startTransition(() => formAction(formData));
+      }}
+      className="mt-3 grid gap-3"
+    >
       {fields.map((field) => (
         <label key={field.name} className="text-sm">
           {field.label}
           {field.name === "shippingAddress" ? (
-            <textarea name={field.name} defaultValue={address[field.name]} required rows={3} className={inputClass} />
+            <textarea
+              name={field.name}
+              value={values[field.name]}
+              onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))}
+              required
+              rows={3}
+              className={inputClass}
+            />
           ) : (
             <input
               name={field.name}
-              defaultValue={address[field.name]}
+              value={values[field.name]}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  [field.name]: field.name === "postalCode" ? event.target.value.replace(/\D/g, "") : event.target.value,
+                }))
+              }
               required
               autoComplete={field.autoComplete}
               inputMode={field.name === "phone" ? "tel" : field.name === "postalCode" ? "numeric" : undefined}
+              pattern={field.name === "phone" ? "[+]?(?:62|0)\\d{8,13}" : field.name === "postalCode" ? "\\d{5}" : undefined}
+              maxLength={field.name === "postalCode" ? 5 : undefined}
               className={inputClass}
             />
           )}
         </label>
       ))}
-      <RadioGroup name="paidBy" legend="Penanggung ongkir pengiriman ulang" options={payers} noDefault />
-      <RadioGroup name="method" legend="Cara penyerahan paket" options={methods} />
+      <RadioGroup
+        name="paidBy"
+        legend="Penanggung ongkir pengiriman ulang"
+        options={payers}
+        noDefault
+        value={paidBy}
+        onChange={setPaidBy}
+      />
+      <RadioGroup name="method" legend="Cara penyerahan paket" options={methods} value={method} onChange={setMethod} />
       <ErrorAlert {...state} />
-      <button className="btn min-h-11 w-full px-4 text-[15px]" disabled={pending}>
+      <button className="btn min-h-11 w-full px-4 text-[15px] disabled:pointer-events-none disabled:opacity-50" disabled={pending || !paidBy}>
         {pending ? "Memesan kurir…" : "Kirim ulang"}
       </button>
     </form>
@@ -169,15 +213,27 @@ export function StatusForm({
   action: (state: State, formData: FormData) => Promise<State>;
   options: { value: string; label: string }[];
 }) {
-  const [state, formAction, pending] = useActionState(action, {});
+  const [status, setStatus] = useState("");
+  const [state, formAction, pending] = useActionState(async (previous: State, formData: FormData) => {
+    const result = await action(previous, formData);
+    if (!result.error) setStatus("");
+    return result;
+  }, {});
+  const selectedStatus = options.some((option) => option.value === status) ? status : "";
   return (
     <form action={formAction} className="rounded-md border border-line p-5">
       <label htmlFor="status" className="text-sm font-medium">Ubah status pesanan</label>
       <select
         id="status"
         name="status"
+        required
+        value={selectedStatus}
+        onChange={(event) => setStatus(event.target.value)}
         className="mt-2 w-full rounded-md border border-line bg-page px-3 py-2.5 text-[15px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
+        <option value="" disabled>
+          Pilih status
+        </option>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -186,8 +242,8 @@ export function StatusForm({
       </select>
       <ErrorAlert error={state.error} />
       <button
-        className="mt-3 min-h-11 w-full rounded-md border border-line px-4 text-[15px] font-medium transition-colors hover:border-accent hover:text-accent"
-        disabled={pending}
+        className="mt-3 min-h-11 w-full rounded-md border border-line px-4 text-[15px] font-medium transition-colors enabled:hover:border-accent enabled:hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={pending || !selectedStatus}
       >
         {pending ? "Menyimpan…" : "Simpan status"}
       </button>

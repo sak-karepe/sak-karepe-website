@@ -49,6 +49,8 @@ export function DirectSaleForm({
   ]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // datetime-local tanpa zona waktu; diisi jam WIB sesuai server action.
+  const [defaultDate] = useState(() => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 16));
 
   const addItemRow = () => {
     setItems((prev) => [
@@ -348,7 +350,7 @@ export function DirectSaleForm({
                 <input
                   type="datetime-local"
                   name="transactionDate"
-                  defaultValue={new Date().toISOString().slice(0, 16)}
+                  defaultValue={defaultDate}
                   className="w-full rounded-md border border-line bg-page px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
                 />
               </div>

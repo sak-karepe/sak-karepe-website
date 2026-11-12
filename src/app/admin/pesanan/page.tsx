@@ -1,23 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { and, count, desc, eq, gte, like, lte, or } from "drizzle-orm";
-import {
-  MagnifyingGlassIcon,
-  CaretLeftIcon,
-  CaretRightIcon,
-  XIcon,
-  PlusIcon,
-} from "@phosphor-icons/react/dist/ssr";
+import { count, desc } from "drizzle-orm";
+import { DownloadSimpleIcon, MagnifyingGlassIcon, CaretLeftIcon, CaretRightIcon, XIcon, PlusIcon } from "@phosphor-icons/react/dist/ssr";
 import { requireAdminPage } from "@/auth";
 import { db } from "@/db";
-import { orders, orderStatuses, users } from "@/db/schema";
+import { orders, orderStatuses } from "@/db/schema";
 import { formatDateTime, formatRupiah } from "@/lib/format";
-import {
-  isOrderStatus,
-  orderSourceLabels,
-  orderStatusClass,
-  orderStatusLabels,
-} from "@/lib/order-status";
+import { orderSourceLabels, orderStatusClass, orderStatusLabels } from "@/lib/order-status";
+import { parseOrderFilter } from "@/lib/order-filter";
 
 export const metadata: Metadata = { title: "Pesanan" };
 
@@ -45,98 +35,27 @@ export default async function AdminOrdersPage({
     sampai,
   } = await searchParams;
 
-  const status = isOrderStatus(param) ? param : undefined;
+  // Filter yang sama dipakai export Excel (lib/order-filter), jadi file export selalu mengikuti daftar ini.
+  const filter = parseOrderFilter({ status: param, q, user: userParam, dari, sampai });
+  const { status } = filter;
   const query = q.trim();
-  const upperQuery = query.toUpperCase();
-  const userId = userParam ? Number(userParam) : undefined;
+  const userId = filter.userId;
   const currentPage = Number(pageParam) > 0 ? Number(pageParam) : 1;
   const offset = (currentPage - 1) * ORDERS_PER_PAGE;
-
-  // 1. Kondisi Filter User ID
-  const userCondition =
-    userId && !isNaN(userId) ? eq(orders.userId, userId) : undefined;
-
-  // 2. Kondisi Filter Tanggal menggunakan objek Date
-  const dariDate = dari ? new Date(`${dari}T00:00:00`) : undefined;
-  const sampaiDate = sampai ? new Date(`${sampai}T23:59:59`) : undefined;
-
-  const dateCondition = and(
-    dariDate ? gte(orders.createdAt, dariDate) : undefined,
-    sampaiDate ? lte(orders.createdAt, sampaiDate) : undefined,
-  );
-
-  const statusCondition = status
-    ? eq(orders.status, status as (typeof orderStatuses)[number])
-    : undefined;
-
-  const getSearchCondition = () => {
-    if (!query) return undefined;
-    const isNum = /^\d+$/.test(query);
-    if (isNum) {
-      return or(
-        eq(orders.id, Number(query)),
-        like(orders.customerPhone, `%${query}%`),
-      );
-    }
-    return or(
-      like(orders.code, `%${upperQuery}%`),
-      like(orders.customerName, `%${query}%`),
-      like(orders.customerPhone, `%${query}%`),
-      like(users.name, `%${query}%`),
-      like(users.email, `%${query}%`),
-    );
-  };
-
-  const searchCondition = getSearchCondition();
-
-  const currentWhere = and(
-    statusCondition,
-    userCondition,
-    dateCondition,
-    searchCondition,
-  );
-  const baseWhereForTabs = and(userCondition, dateCondition, searchCondition);
 
   // Ambil counts untuk tab, total row terfilter, dan data rows secara paralel
   const [counts, totalResult, rows] = await Promise.all([
     db
       .select({ status: orders.status, total: count() })
       .from(orders)
-      .leftJoin(users, eq(orders.userId, users.id))
-      .where(baseWhereForTabs)
+      .where(filter.base)
       .groupBy(orders.status),
     db
       .select({ total: count() })
       .from(orders)
-      .leftJoin(users, eq(orders.userId, users.id))
-      .where(currentWhere),
+      .where(filter.where),
     db.query.orders.findMany({
-      where: (orders, { and, eq, or, like }) => {
-        const conds = [];
-        if (statusCondition) conds.push(statusCondition);
-        if (userCondition) conds.push(userCondition);
-        if (dateCondition) conds.push(dateCondition);
-        if (query) {
-          const isNum = /^\d+$/.test(query);
-          if (isNum) {
-            conds.push(
-              or(
-                eq(orders.id, Number(query)),
-                like(orders.customerPhone, `%${query}%`),
-              ),
-            );
-          } else {
-            conds.push(
-              or(
-                like(orders.code, `%${upperQuery}%`),
-                like(orders.customerName, `%${query}%`),
-                like(orders.customerPhone, `%${query}%`),
-              ),
-            );
-          }
-        }
-        return and(...conds);
-      },
+      where: filter.where,
       orderBy: [desc(orders.createdAt), desc(orders.id)],
       limit: ORDERS_PER_PAGE,
       offset: offset,
@@ -169,6 +88,7 @@ export default async function AdminOrdersPage({
     }
     return params.size ? `/admin/pesanan?${params}` : "/admin/pesanan";
   };
+  const exportHref = buildParams({ page: undefined }).replace("/admin/pesanan", "/admin/pesanan/export");
 
   const tabs = [
     { value: undefined, label: "Semua" },
@@ -190,6 +110,13 @@ export default async function AdminOrdersPage({
           >
             Import transaksi lama
           </Link>
+          <a
+            href={exportHref}
+            download
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-line px-4 text-sm hover:border-accent"
+          >
+            <DownloadSimpleIcon size={18} aria-hidden="true" /> Export Excel
+          </a>
           <Link
             href="/admin/pesanan/baru"
             className="btn min-h-11 gap-2 px-4 text-[15px]"

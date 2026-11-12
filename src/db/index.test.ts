@@ -31,3 +31,27 @@ test("transaksi bersamaan tidak gagal SQLITE_BUSY", async () => {
     ["ok", "gagal", "ok", "ok"],
   );
 });
+
+test("ganti slug koleksi ikut memindahkan produknya, slug bentrok diberi akhiran", async () => {
+  const { migrate } = await import("drizzle-orm/libsql/migrator");
+  const { eq } = await import("drizzle-orm");
+  const { db } = await import("@/db");
+  const { categories, products } = await import("@/db/schema");
+  const { uniqueSlug } = await import("@/lib/slug");
+  await migrate(db, { migrationsFolder: "drizzle" });
+
+  const base = { subtitle: "s", description: "d", intro: "i", character: "c", coverImage: "/x.jpg" };
+  await db.insert(categories).values([
+    { ...base, slug: "uji-lama", title: "Lama" },
+    { ...base, slug: "uji-baru", title: "Baru" },
+  ]);
+  const [product] = await db
+    .insert(products)
+    .values({ categorySlug: "uji-lama", name: "P", slug: "uji-produk" })
+    .returning();
+
+  assert.strictEqual(await uniqueSlug(categories.slug, "Uji Baru"), "uji-baru-2");
+  await db.update(categories).set({ slug: "uji-ganti" }).where(eq(categories.slug, "uji-lama"));
+  const moved = await db.query.products.findFirst({ where: eq(products.id, product.id) });
+  assert.strictEqual(moved?.categorySlug, "uji-ganti");
+});

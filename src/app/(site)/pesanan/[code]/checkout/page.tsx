@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
-import { currentUserId } from "@/auth";
+import { currentUserId, auth, isAdmin } from "@/auth";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 import { LoginPrompt } from "@/components/login-prompt";
@@ -9,10 +9,15 @@ import { OrderCheckout } from "@/components/order-checkout";
 import { Breadcrumb } from "@/components/page-intro";
 import { formatRupiah } from "@/lib/format";
 import { isActivePayment } from "@/lib/payments";
+
 export const metadata: Metadata = { title: "Checkout · Sak Karepe", robots: { index: false } };
 
 /** Link yang dikirim admin lewat WhatsApp setelah harga disepakati. Pembeli mengisi alamat lalu diarahkan ke DOKU. */
 export default async function CheckoutPage({ params }: { params: Promise<{ code: string }> }) {
+  const session = await auth();
+  if (session?.user && (await isAdmin(session.user))) {
+    redirect("/admin/pesanan");
+  }
   const code = decodeURIComponent((await params).code).toUpperCase();
   const userId = await currentUserId();
   if (!userId)
