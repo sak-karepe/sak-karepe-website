@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState, useTransition } from "react";
 import { ArrowDownIcon, ArrowUpIcon, ImageIcon, TrashIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import Image from "@/components/site-image";
 import { SearchableSelect, type SearchOption } from "@/components/searchable-select";
+import { sanitizeSlugInput } from "@/lib/format";
 import { searchCategories, type ProductFormState } from "@/lib/product-actions";
 
 type ExistingImage = { id: number; src: string; alt: string };
@@ -37,13 +38,14 @@ export function ProductForm({
   onDelete?: () => Promise<void>;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
+  const [name, setName] = useState(product?.name ?? "");
+  const [slug, setSlug] = useState(product?.slug ?? "");
+  const [slugEdited, setSlugEdited] = useState(Boolean(product));
   const [category, setCategory] = useState(initialCategory ?? null);
   const [images, setImages] = useState(product?.images ?? []);
   
   // State input nilai untuk mencegah reset form saat error
-  const [name, setName] = useState(product?.name ?? state.values?.name ?? "");
-  const [slug, setSlug] = useState(product?.slug ?? state.values?.slug ?? "");
-  const [description, setDescription] = useState(product?.description ?? state.values?.description ?? "");
+  const [description, setDescription] = useState(product?.description ?? "");
   const [price, setPrice] = useState(product?.price !== null && product?.price !== undefined ? String(product.price) : "");
   const [stock, setStock] = useState(product?.stock !== null && product?.stock !== undefined ? String(product.stock) : "");
   const [weight, setWeight] = useState(product?.weight !== null && product?.weight !== undefined ? String(product.weight) : "");
@@ -100,39 +102,66 @@ export function ProductForm({
 
   return (
     <>
-      <form action={formAction} className="grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <form
+        action={(formData) => {
+          // File baru dikirim dari state; input file bawaan dikosongkan setiap kali memilih.
+          for (const file of newFiles) formData.append("newImages", file);
+          formAction(formData);
+        }}
+        className="grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
           <div>
             <label htmlFor="name" className={label}>Nama produk</label>
-            <input 
-              id="name" 
-              name="name" 
-              required 
-              value={name} 
-              onChange={(e) => setName(e.target.value)} 
-              className={field} 
+            <input
+              id="name"
+              name="name"
+              required
+              value={name}
+              onChange={(event) => {
+                const nextName = event.currentTarget.value;
+                setName(nextName);
+                if (!product && !slugEdited) {
+                  setSlug(sanitizeSlugInput(nextName).replace(/-+$/g, ""));
+                }
+              }}
+              className={field}
             />
           </div>
           <div>
             <label htmlFor="slug" className={label}>
               Permalink <span className="font-normal text-muted">(opsional)</span>
             </label>
-            <div className="flex min-h-12 items-center rounded-md border border-line bg-page focus-within:border-accent">
-              <span className="pl-3.5 text-muted">/produk/</span>
-              <input
-                id="slug"
-                name="slug"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                placeholder="dibuat otomatis dari nama"
-                pattern="[a-z0-9-]+"
-                title="Hanya huruf kecil, angka, dan tanda hubung (-)."
-                aria-describedby="slug-help"
-                className="min-h-12 min-w-0 flex-1 bg-transparent pr-3.5 text-base focus:outline-none"
-              />
-            </div>
+            <input
+              id="slug"
+              name="slug"
+              value={slug}
+              placeholder="dibuat otomatis dari nama"
+              aria-describedby="slug-help"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              onChange={(event) => {
+                const nextSlug = sanitizeSlugInput(event.currentTarget.value);
+                setSlug(nextSlug);
+                if (!product) {
+                  setSlugEdited(nextSlug.length > 0);
+                }
+              }}
+              onBlur={() => {
+                const trimmed = slug.replace(/-+$/g, "");
+                if (!product && !trimmed) {
+                  setSlugEdited(false);
+                  setSlug(sanitizeSlugInput(name).replace(/-+$/g, ""));
+                } else {
+                  setSlug(trimmed);
+                }
+              }}
+              className={field}
+            />
             <p id="slug-help" className="mt-2 text-sm text-muted">
-              Huruf kecil, angka, dan tanda hubung. Kosongkan agar dibuat dari nama produk.
+              {product
+                ? "Mengubah permalink membuat tautan lama yang sudah dibagikan tidak berlaku."
+                : "Terisi otomatis dari nama produk. Ubah bila ingin memakai permalink sendiri, atau kosongkan agar kembali mengikuti nama."}
             </p>
           </div>
           <div>
@@ -207,24 +236,6 @@ export function ProductForm({
               onChange={handleFilesChange}
             />
             
-            {/* Hidden input untuk mengirim file yang lolos validasi ke server */}
-            {newFiles.map((file, idx) => {
-              // Buat DataTransfer untuk membungkus File ke input element
-              const dt = new DataTransfer();
-              dt.items.add(file);
-              return (
-                <input
-                  key={idx}
-                  type="file"
-                  name="newImages"
-                  ref={(input) => {
-                    if (input) input.files = dt.files;
-                  }}
-                  className="hidden"
-                />
-              );
-            })}
-
             {previews.length > 0 && (
               <div className="mt-4 space-y-3">
                 <p className="text-sm text-muted">{previews.length} foto baru dipilih:</p>

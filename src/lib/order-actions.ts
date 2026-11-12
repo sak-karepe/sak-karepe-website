@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/auth";
 import { db } from "@/db";
 import { orderEvents, orderItems, orders, type Order, type OrderItem } from "@/db/schema";
-import { parseAmount } from "@/lib/format";
+import { formatRupiah, parseAmount } from "@/lib/format";
 import { adminTransitions, checkoutStatuses, isOrderStatus, orderStatusLabels } from "@/lib/order-status";
 import { cancelActivePayments, isActivePayment } from "@/lib/payments";
 import { saveResend } from "@/lib/shipments";
 import { createShipment, lowBalance, quotaReached, unreachable } from "@/lib/shipping";
+import { returnStock } from "@/lib/stock";
 
 export type StatusFormState = { error?: string };
 
@@ -26,7 +27,9 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
       error: `Status "${orderStatusLabels[order.status]}" tidak bisa diubah ke "${isOrderStatus(status) ? orderStatusLabels[status] : status}" dari sini.`,
     };
   if (status === "dibatalkan") {
-    if (order.payments.some((payment) => payment.paidAt)) return { error: "Pesanan ini sudah dibayar; pembatalan harus lewat refund." };
+    // Pesanan yang sudah dibayar hanya bisa dibatalkan lewat refund. Dari status "refund" (dana sudah dikembalikan) boleh.
+    if (order.status !== "refund" && order.payments.some((payment) => payment.paidAt))
+      return { error: "Pesanan ini sudah dibayar; pembatalan harus lewat refund." };
     // Link DOKU yang masih berlaku dibatalkan dulu agar pembeli tidak membayar pesanan yang sudah batal.
     const cancelError = await cancelActivePayments(order.payments, `Dibatalkan admin (${order.code})`);
     if (cancelError) return { error: `Pesanan tidak dibatalkan. ${cancelError}` };
@@ -34,7 +37,7 @@ export async function updateOrderStatus(id: number, _state: StatusFormState, for
   const saved = await db.transaction(async (tx) => {
     const [saved] = await tx
       .update(orders)
-      .set({ status, updatedAt: new Date(), ...(status === "sampai" && { deliveredAt: new Date() }) })
+      .set({ status, updatedAt: new Date(), ...(status === "sampai" && order.status !== "retur" && { deliveredAt: new Date() }) })
       .where(and(eq(orders.id, id), eq(orders.status, order.status)))
       .returning({ id: orders.id });
     if (saved)
@@ -160,22 +163,58 @@ export async function resendShipment(orderId: number, _state: ShipmentFormState,
   return {};
 }
 
-/** Pesanan gagal kirim yang tidak dikirim ulang dibatalkan dan masuk alur refund. */
-export async function refundFailedShipment(orderId: number): Promise<ShipmentFormState> {
+/** Pesanan yang bisa di-refund admin: dibayar (kurir belum dipesan), gagal kirim, atau retur yang komplainnya disetujui. */
+const refundable = (order: Pick<Order, "status" | "shipmentId">) =>
+  order.status === "gagal_kirim" || order.status === "retur" || (order.status === "dibayar" && !order.shipmentId);
+
+/**
+ * Admin membatalkan pesanan yang sudah dibayar lewat refund (lihat `refundable`); pesanan "dikirim" tidak bisa di-refund dari
+ * sini. Dana dikembalikan manual oleh admin, lalu status diubah ke "dibatalkan" lewat dropdown (refund -> dibatalkan).
+ *
+ * Status dibaca dan diubah di satu transaksi "immediate", dan stok dikembalikan di transaksi yang sama hanya bila status
+ * benar-benar berpindah ke "refund". Klik ganda atau dua tab yang bersamaan karenanya tidak mengembalikan stok dua kali.
+ * Stok retur tidak dikembalikan otomatis karena barangnya belum tentu layak dijual lagi; admin menyesuaikannya di produk.
+ * Link DOKU yang masih berlaku (mis. tagihan selisih ongkir) dibatalkan lebih dulu agar pembeli tidak membayar pesanan
+ * yang sudah di-refund.
+ */
+export async function refundOrder(orderId: number): Promise<ShipmentFormState> {
   const admin = await requireAdmin();
-  const saved = await db.transaction(async (tx) => {
-    const [saved] = await tx
-      .update(orders)
-      .set({ status: "refund", updatedAt: new Date() })
-      .where(and(eq(orders.id, orderId), eq(orders.status, "gagal_kirim")))
-      .returning({ id: orders.id });
-    if (saved)
-      await tx.insert(orderEvents).values({ orderId, fromStatus: "gagal_kirim", toStatus: "refund", source: "admin", userId: Number(admin.id) });
-    return saved;
-  });
+  const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { payments: true } });
+  if (!order) return { error: "Pesanan tidak ditemukan." };
+  if (!refundable(order))
+    return { error: "Refund hanya untuk pesanan yang sudah dibayar dan belum dikirim, yang paketnya gagal kirim, atau retur." };
+  const cancelError = await cancelActivePayments(order.payments, `Pesanan di-refund admin (${order.code})`);
+  if (cancelError) return { error: `Pesanan belum di-refund. ${cancelError}` };
+  const paid = order.payments.filter((payment) => payment.paidAt).reduce((sum, payment) => sum + payment.amount, 0);
+
+  const saved = await db.transaction(
+    async (tx) => {
+      const current = await tx.query.orders.findFirst({ columns: { status: true, shipmentId: true }, where: eq(orders.id, orderId) });
+      if (!current || !refundable(current)) return false;
+      const [updated] = await tx
+        .update(orders)
+        .set({ status: "refund", updatedAt: new Date() })
+        .where(and(eq(orders.id, orderId), eq(orders.status, current.status)))
+        .returning({ id: orders.id });
+      if (!updated) return false;
+      await tx.insert(orderEvents).values({
+        orderId,
+        fromStatus: current.status,
+        toStatus: "refund",
+        source: "admin",
+        userId: Number(admin.id),
+        note: `Dana ${formatRupiah(paid)} perlu dikembalikan ke pembeli. ${current.status === "retur" ? "Stok retur tidak dikembalikan otomatis." : "Stok dikembalikan."}`,
+      });
+      if (current.status !== "retur") await returnStock(tx, orderId);
+      return true;
+    },
+    { behavior: "immediate" },
+  );
+  // Stok kembali tersedia di etalase.
+  revalidatePath("/", "layout");
   revalidatePath("/admin", "layout");
   revalidatePath("/pesanan", "layout");
-  return saved ? {} : { error: "Status pesanan baru saja berubah. Muat ulang halaman lalu coba lagi." };
+  return saved ? {} : { error: "Status pesanan baru saja berubah, atau paketnya sudah dikirim. Muat ulang halaman lalu coba lagi." };
 }
 
 export type NoteFormState = { error?: string };

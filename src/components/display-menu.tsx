@@ -91,6 +91,7 @@ export function DisplayMenu() {
     <>
       <button
         className="display-float"
+        style={{ bottom: "calc(24px + env(safe-area-inset-bottom))" }}
         aria-label="Menu aksesibilitas"
         aria-haspopup="dialog"
         onClick={() => dialog.current?.showModal()}
