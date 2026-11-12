@@ -199,7 +199,7 @@ function CheckoutLinkForm({ action, items, code }: Props) {
   );
 }
 
-function AmountInput({ id, value, required, onChange }: { id: string; value: string; required?: boolean; onChange: (value: string) => void }) {
+export function AmountInput({ id, value, required, onChange }: { id: string; value: string; required?: boolean; onChange: (value: string) => void }) {
   return (
     <div className="flex min-h-12 items-center rounded-md border border-line bg-page focus-within:border-accent">
       <span className="pl-3.5 text-muted">Rp</span>

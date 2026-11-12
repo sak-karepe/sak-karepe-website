@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   byCollectionQuery,
+  expensesQuery,
   byMethodQuery,
   bySourceQuery,
   lowStockQuery,
@@ -37,6 +38,8 @@ function seed(): Database {
       customer_phone TEXT, subtotal INTEGER, shipping_cost INTEGER, created_at INTEGER NOT NULL);
     CREATE TABLE order_items (id INTEGER PRIMARY KEY, order_id INTEGER, product_id INTEGER, product_name TEXT, price INTEGER, quantity INTEGER);
     CREATE TABLE payments (id INTEGER PRIMARY KEY, order_id INTEGER, method TEXT, amount INTEGER, paid_at INTEGER);
+    CREATE TABLE expenses (id INTEGER PRIMARY KEY, spent_at INTEGER NOT NULL, category TEXT NOT NULL, amount INTEGER NOT NULL, note TEXT, order_id INTEGER);
+    CREATE TABLE shipment_history (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL, resend_paid_by TEXT NOT NULL, created_at INTEGER NOT NULL);
     INSERT INTO categories VALUES ('busana','Busana'),('tas','Tas');
     INSERT INTO products VALUES (1,'busana','Busana hijau',2,1),(2,'tas','Tas daun',0,1),(3,'tas','Tas lama',1,0),(4,'tas','Tas banyak',50,1),(5,'tas','Tas tanpa batas',NULL,1);
     INSERT INTO users VALUES (1,'budi@x.id','Budi'),(2,'sari@x.id',NULL);
@@ -165,4 +168,17 @@ test("rincian per koleksi, produk terlaris, dan pembeli teratas (tanpa refund)",
 test("stok menipis dan habis hanya untuk produk tampil dengan stok terbatas", { skip: !sqlite }, () => {
   const rows = run(seed(), lowStockQuery(5));
   assert.deepEqual(rows.map((r) => [r.name, r.stock]), [["Tas daun", 0], ["Busana hijau", 2]]);
+});
+test("pengeluaran periode: catatan admin + ongkir kirim ulang yang ditanggung toko", { skip: !sqlite }, () => {
+  const db = seed();
+  const expense = (at: string, category: string, amount: number) =>
+    db.prepare("INSERT INTO expenses (spent_at, category, amount) VALUES (?,?,?)").run(t(at), category, amount);
+  expense("2026-11-01T00:00:00Z", "modal", 100000);
+  expense("2026-11-20T00:00:00Z", "operasional", 50000);
+  expense("2026-11-30T17:00:00Z", "operasional", 999); // 1 Des WIB, di luar periode
+  // #1 dikirim ulang atas biaya toko (ongkir awal 10.000); #4 ditanggung pembeli, tidak dihitung.
+  db.prepare("INSERT INTO shipment_history (order_id, resend_paid_by, created_at) VALUES (?,?,?)").run(1, "sak_karepe", t("2026-11-08T03:00:00Z"));
+  db.prepare("INSERT INTO shipment_history (order_id, resend_paid_by, created_at) VALUES (?,?,?)").run(4, "pembeli", t("2026-11-09T03:00:00Z"));
+  const rows = Object.fromEntries(run(db, expensesQuery(nov)).map((row) => [row.category, row.value]));
+  assert.deepEqual(rows, { modal: 100000, operasional: 50000, ongkir: 10000 });
 });

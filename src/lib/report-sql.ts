@@ -141,3 +141,22 @@ WHERE published = 1 AND stock IS NOT NULL AND stock <= ?
 ORDER BY stock, name`,
   params: [threshold],
 });
+/**
+ * Semua pengeluaran dalam periode (tanpa filter sumber): catatan admin di `expenses` ditambah ongkir kirim ulang yang
+ * ditanggung toko (otomatis dari shipment_history, kategori "ongkir"), supaya tidak perlu dicatat dua kali.
+ * shortcut: ongkir kirim ulang = ongkir awal pesanan (biaya order Biteship tidak disimpan); simpan harga dari balasan
+ * Biteship bila selisihnya terasa.
+ */
+export const expenseSourceSql = `SELECT e.id, e.spent_at AS at, e.category, e.amount, e.note, e.order_id, 0 AS auto FROM expenses e
+UNION ALL
+SELECT h.id, h.created_at, 'ongkir', COALESCE(o.shipping_cost, 0), 'Ongkir kirim ulang (otomatis)', h.order_id, 1
+FROM shipment_history h JOIN orders o ON o.id = h.order_id
+WHERE h.resend_paid_by = 'sak_karepe'`;
+
+/** category, value. */
+export const expensesQuery = (range: Range): Query => ({
+  text: `SELECT category, COALESCE(SUM(amount), 0) AS value FROM (${expenseSourceSql})
+WHERE at >= ? AND at < ?
+GROUP BY category ORDER BY value DESC`,
+  params: [range.from, range.to],
+});

@@ -3,6 +3,7 @@ import { bucketKeys, type Period } from "@/lib/report-period";
 import {
   byCollectionQuery,
   byMethodQuery,
+  expensesQuery,
   bySourceQuery,
   lowStockQuery,
   summaryQuery,
@@ -16,7 +17,7 @@ import {
 /** Produk dengan stok sebanyak ini atau kurang masuk laporan "stok menipis" (0 = habis). */
 export const lowStockThreshold = 5;
 
-const exec = async (query: Query) => (await db.$client.execute({ sql: query.text, args: query.params })).rows as unknown as Record<string, unknown>[];
+export const exec = async (query: Query) => (await db.$client.execute({ sql: query.text, args: query.params })).rows as unknown as Record<string, unknown>[];
 const num = (value: unknown) => Number(value ?? 0);
 const seconds = (date: Date) => Math.floor(date.getTime() / 1000);
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -64,7 +65,7 @@ const rows = (data: Record<string, unknown>[]): Row[] =>
 export async function getReport(period: Period, source?: Source) {
   const range = { from: seconds(period.from), to: seconds(period.to) };
   const prev = { from: seconds(period.prevFrom), to: seconds(period.prevTo) };
-  const [summary, prevSummary, trend, prevTrend, bySource, byMethod, byCollection, products, buyers, stock] = await Promise.all([
+  const [summary, prevSummary, trend, prevTrend, bySource, byMethod, byCollection, products, buyers, stock, expenseRows] = await Promise.all([
     exec(summaryQuery(source, range)),
     exec(summaryQuery(source, prev)),
     exec(trendQuery(source, range, period.granularity)),
@@ -75,6 +76,7 @@ export async function getReport(period: Period, source?: Source) {
     exec(topProductsQuery(source, range)),
     exec(topBuyersQuery(source, range)),
     exec(lowStockQuery(lowStockThreshold)),
+    exec(expensesQuery(range)),
   ]);
 
   // Setiap hari/bulan dalam periode ditampilkan, yang tidak ada transaksi bernilai 0; periode pembanding disejajarkan per urutan.
@@ -94,6 +96,10 @@ export async function getReport(period: Period, source?: Source) {
     previous: prevKeys.map((key) => prevMap.get(key) ?? 0),
   };
 
+  const expenseList = expenseRows.map((row) => ({ category: String(row.category), value: num(row.value) }));
+  const expenseTotal = expenseList.reduce((sum, row) => sum + row.value, 0);
+  const net = totals(summary[0]).net;
+
   const stockRows = stock.map((row) => ({ id: num(row.id), name: String(row.name), stock: num(row.stock) }));
   return {
     totals: totals(summary[0]),
@@ -104,6 +110,8 @@ export async function getReport(period: Period, source?: Source) {
     byCollection: rows(byCollection),
     products: rows(products),
     buyers: rows(buyers),
+    /** Laba = omzet bersih - semua pengeluaran periode; pengeluaran tidak dipisah per sumber. */
+    profit: { expenses: expenseList, expenseTotal, profit: net - expenseTotal },
     stock: { out: stockRows.filter((row) => row.stock === 0), low: stockRows.filter((row) => row.stock > 0) },
   };
 }

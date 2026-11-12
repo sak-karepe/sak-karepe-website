@@ -298,6 +298,25 @@ export const settings = sqliteTable("settings", {
   value: text("value").notNull(),
 });
 
+export const expenseCategories = ["modal", "ongkir", "pembayaran", "operasional", "lainnya"] as const;
+
+/**
+ * Pengeluaran usaha yang dicatat admin, untuk laporan laba/rugi. Ongkir kirim ulang yang ditanggung toko tidak dicatat di
+ * sini: dihitung otomatis dari shipment_history (lihat expensesQuery di lib/report-sql).
+ */
+export const expenses = sqliteTable("expenses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** Awal hari (WIB) tanggal pengeluaran. */
+  spentAt: integer("spent_at", { mode: "timestamp" }).notNull(),
+  category: text("category", { enum: expenseCategories }).notNull(),
+  amount: integer("amount").notNull(),
+  note: text("note"),
+  orderId: integer("order_id").references(() => orders.id, { onDelete: "set null" }),
+  recordedBy: integer("recorded_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
 export const productsRelations = relations(products, ({ many, one }) => ({
   images: many(productImages),
   category: one(categories, { fields: [products.categorySlug], references: [categories.slug] }),
@@ -323,6 +342,9 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
 export const orderEventsRelations = relations(orderEvents, ({ one }) => ({
   order: one(orders, { fields: [orderEvents.orderId], references: [orders.id] }),
   user: one(users, { fields: [orderEvents.userId], references: [users.id] }),
+}));
+export const expensesRelations = relations(expenses, ({ one }) => ({
+  order: one(orders, { fields: [expenses.orderId], references: [orders.id] }),
 }));
 export const shipmentHistoryRelations = relations(shipmentHistory, ({ one }) => ({
   order: one(orders, { fields: [shipmentHistory.orderId], references: [orders.id] }),
@@ -353,4 +375,5 @@ export type Payment = typeof payments.$inferSelect;
 export type ShipmentHistory = typeof shipmentHistory.$inferSelect;
 export type OrderEvent = typeof orderEvents.$inferSelect;
 export type PageBlock = typeof pageBlocks.$inferSelect;
+export type Expense = typeof expenses.$inferSelect;
 export type RunwayPhotoRow = typeof runwayPhotos.$inferSelect;
