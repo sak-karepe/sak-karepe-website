@@ -8,7 +8,9 @@ const allowed = (from: Order["status"], to: Order["status"]) => orderTransitions
 test("pesanan dibayar hanya batal lewat refund", () => {
   assert.ok(!allowed("dibayar", "dibatalkan"));
   assert.ok(allowed("dibayar", "refund") && allowed("refund", "dibatalkan"));
-  for (const from of orderStatuses) assert.ok(!adminTransitions[from]?.includes("refund"));
+  // Refund hanya lewat tombol (refundOrder) agar stok kembali tepat sekali.
+  for (const from of orderStatuses) assert.ok(!adminTransitions[from]?.includes("refund"), from);
+  assert.ok(adminTransitions.sampai?.includes("retur") && adminTransitions.retur?.includes("sampai"));
 });
 
 test("dikirim hanya dari booking kurir, tidak dari dropdown admin", () => {
@@ -49,4 +51,10 @@ test("status awal per sumber", () => {
 
 test("setiap status punya baris transisi", () => {
   for (const from of orderStatuses) for (const to of orderTransitions[from]) assert.ok(orderStatuses.includes(to));
+});
+
+test("refund hanya dari dibayar, gagal_kirim, dan retur; selesai lewat dropdown admin", () => {
+  assert.deepEqual(orderStatuses.filter((from) => allowed(from, "refund")), ["dibayar", "gagal_kirim", "retur"]);
+  assert.ok(!allowed("dikirim", "refund"), "pesanan yang sudah dikirim tidak bisa di-refund");
+  assert.deepEqual(adminTransitions.refund, ["dibatalkan"]);
 });

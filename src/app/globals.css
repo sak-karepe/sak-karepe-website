@@ -417,28 +417,10 @@ dialog.gallery-lightbox[open] {
   color: white;
   font-size: 24px;
 }
-.whatsapp-float {
-  position: fixed;
-  right: 28px;
-  bottom: calc(24px + env(safe-area-inset-bottom));
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: #1c6e38;
-  color: white;
-  box-shadow: 0 3px 12px rgb(20 50 28 / 0.12); /* taste-skill-ignore: tombol mengambang di atas halaman */
-  transition: transform 0.2s;
-}
-.whatsapp-float:hover {
-  transform: translateY(-3px);
-}
 .display-float {
   position: fixed;
   right: 28px;
-  bottom: calc(88px + env(safe-area-inset-bottom));
+  bottom: calc(24px + env(safe-area-inset-bottom));
   z-index: 40;
   display: grid;
   place-items: center;
@@ -463,23 +445,6 @@ dialog.display-drawer {
 dialog.display-drawer::backdrop {
   background: rgb(20 36 26 / 0.25);
 }
-.whatsapp-tooltip {
-  position: absolute;
-  right: 64px;
-  white-space: nowrap;
-  padding: 8px 14px;
-  border-radius: 6px;
-  background: var(--ink);
-  color: var(--page);
-  font-size: 14px;
-  display: none;
-  pointer-events: none;
-}
-.whatsapp-float:hover .whatsapp-tooltip,
-.whatsapp-float:focus-visible .whatsapp-tooltip {
-  display: block;
-  animation: enter 0.2s ease both;
-}
 @media (max-width: 767px) {
   dialog.gallery-lightbox {
     width: 100%;
@@ -497,19 +462,10 @@ dialog.display-drawer::backdrop {
     width: 44px;
     height: 44px;
   }
-  .whatsapp-float {
-    right: 18px;
-    width: 48px;
-    height: 48px;
-  }
   .display-float {
     right: 18px;
-    bottom: calc(80px + env(safe-area-inset-bottom));
     width: 48px;
     height: 48px;
-  }
-  .whatsapp-tooltip {
-    display: none;
   }
 }
 @layer components {

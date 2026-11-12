@@ -6,6 +6,7 @@
  * - Transaksi = pesanan selain "dibatalkan" yang punya tanggal transaksi dalam periode. Tanggal transaksi = tanggal bayar
  *   pertama untuk sumber online (belum dibayar = belum ada tanggal, jadi tidak ikut), dan tanggal dibuat untuk
  *   langsung/historis. Aturan yang sama dipakai export Excel (lib/order-filter), jadi total kolom Subtotal export = omzet laporan.
+ *   Pesanan online yang sudah dibayar lalu "dibatalkan" pasti lewat refund (refund -> dibatalkan), jadi tetap dihitung sebagai refund.
  * - Omzet = jumlah subtotal (tanpa ongkir). Pesanan berstatus "refund" tetap ada di omzet lalu dikurangkan: omzet bersih
  *   = omzet - nilai refund. Jumlah transaksi, rata-rata, dan semua rincian tidak menghitung pesanan refund.
  */
@@ -27,11 +28,11 @@ function base(source?: Source): Query {
     FROM payments WHERE paid_at IS NOT NULL
   ) WHERE rn = 1
 ), tx AS (
-  SELECT o.id, o.source, o.status, o.user_id, o.customer_name, o.customer_phone,
+  SELECT o.id, o.source, CASE WHEN o.status = 'dibatalkan' THEN 'refund' ELSE o.status END AS status, o.user_id, o.customer_name, o.customer_phone,
     COALESCE(o.subtotal, 0) AS subtotal, COALESCE(o.shipping_cost, 0) AS shipping, paid.method AS method,
     CASE WHEN o.source = 'online' THEN paid.paid_at ELSE o.created_at END AS at
   FROM orders o LEFT JOIN paid ON paid.order_id = o.id
-  WHERE o.status <> 'dibatalkan'${source ? " AND o.source = ?" : ""}
+  WHERE (o.status <> 'dibatalkan' OR (o.source = 'online' AND paid.order_id IS NOT NULL))${source ? " AND o.source = ?" : ""}
 )`,
     params: source ? [source] : [],
   };
